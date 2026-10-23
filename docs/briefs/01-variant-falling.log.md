@@ -129,3 +129,79 @@ next pass); switching wait mode off there left the engine `paused` at `span.end`
 would start a run that ends at once → one spurious attempt. Now any visual time at/after the end
 counts as "start from the top" (`idle`). New engine test fails on the old code
 (`1 failed | 14 passed`) and passes on the new (`15 passed`).
+
+## Fix round (brief 07, 2026-10-23)
+
+### F0 · Rebase
+`git fetch origin && git rebase origin/main` → "Current branch feat/1-variant-falling is up to date"
+(the branch already sat on cfc4381). `npm install` clean.
+
+### F1 · audioLag removed from the drawing, kept as a *lead* for asking early
+`player.time` is audible time since #10 (player.ts:96-107, `audibleNow()` 199-203), so
+`visualTime()` in `playing` now returns `player.time` as is (engine.ts ~200-205). The quantity is still
+needed to *ask* early, never to draw late: (a) wait mode sounds a step `audioLead + 0.01` s before it
+lands, because `playChord` schedules at `Tone.now() + 0.01` (player.ts:176); (b) a run is started
+`audioLead + 0.05` s before the lead-in reaches the fragment start, because `play()` holds
+`player.time` on `from` until the first note is heard (player.ts:233 `START_DELAY`). Hook renamed
+`audioLag` → `audioLead` so nobody re-subtracts it.
+ASSUMPTION: the brief's "remove the audioLag() compensation" means the subtraction from player.time,
+not the start/chord lead (the review's own fix_hint keeps it for the wait-mode lead).
+
+### F2 · Run-start bridge (finding: freeze + early key-light at the lead-in end)
+While `player.time` sits on the run start, the lane keeps moving on the engine clock and stops
+`1 ms` short of the start (`BRIDGE_GAP`), so the first chord is never lit before it sounds; cleared in
+`tick()` once the player's clock moves, so a later seamless loop wrap (time back to `from`) cannot
+re-trigger it. The loop-wrap half of the finding is gone with #12's seamless loop (player.ts:266-271).
+Evidence: engine test "starts the player early by the audio lead and bridges the lane…".
+
+### F3 · Empty / out-of-range fragment
+`setSpan` clips the end to the lesson end and keeps `end >= start` → an empty span has no notes;
+`start()`/`startRun()` refuse to run without notes; `setPhase('playing')` now happens *before*
+`player.play()` so a synchronous `end` (player.ts:224-231) is handled; on `end`, restart from the top
+only for a run resumed mid-fragment (`runFrom > span.start`), so an empty run can never recurse.
+The player-side recursion the review reported is already guarded on main (player.ts:224).
+Evidence: two engine tests (FakePlayer `endAtOnce`).
+
+### F4 · releaseAll
+`PlayerLike.releaseAll()` added (LessonPlayer has it since #12); `halt()` calls it when the player is
+stopped (wait mode), detach calls `halt()`. Evidence: engine test "silences ringing steps…".
+
+### F5 · snapSpan removed; windowNotes uses core TIME_EPS
+Core snaps on prepare (#8). The worktree DB was seeded before #8 (`curl /api/lessons/fur-elise-opening`
+→ fragment start `1.667`, onset `1.6667`), and even that is covered: 0.3 ms < TIME_EPS 2 ms.
+Evidence: new test over the 3 demo lessons through `prepareLesson` — `windowNotes` ≡ `notesInRange`
+for every fragment. Browser: "Bars 2–3" starts with "A2 + A4" on the stale DB.
+ASSUMPTION: left the worktree DB as is (it exercises the tolerance path); not re-seeded.
+
+### F6 · Keyboard marks
+`next` ring carries the note's `hand`; a key lit now and coming again gets `next: true`; in wait mode
+keys still sounding from an earlier step get `hold`; while waiting, fill/ring come from the engine's
+step + `upcomingStep` (fixes the rolled-chord split). `marksSignature` includes hand/next.
+Browser: Bars 2–3 waiting → `A2:L, A4:R, E3:next+ring(var(--hand-l))`.
+
+### F7 · Bottom bar, Next fragment
+Primary action moved from the top-left to a bar under the keyboard (64 px tall, 270 px wide, at
+y 749–805 of 820). Wait-mode instruction ("Play **A2 + A4**", 1.55 rem) + Hear it live there, so
+nothing covers the lane top. "Next fragment ›" is always a secondary button when there is a next
+fragment (loop is on by default, so `done` is rare); at `done` it becomes the primary with
+"↻ Again" next to it and "✓ Fragment done". Space runs the same action.
+ASSUMPTION: after the last fragment, "next" is "Whole lesson"; after the whole lesson there is none.
+"Per step, not per note" was already true (`groupSteps` 45 ms); test "a chord is one step…".
+
+### F8 · Key size
+`fitRange()` (geometry.ts): one white key margin, ≥ 15 whites, white ends. Measured at 1180×820 with
+Playwright: white keys 48.2–77.1 px across all fragments of all 3 demos (was 41.3 on Für Elise).
+Black keys are 60 % of a white key → 28.9–46.2 px; ≥ 44 px only for ranges ≤ 15 whites — a limit of
+the shared keyboard geometry, not fixed.
+ASSUMPTION: a per-fragment keyboard (the range changes between fragments) is acceptable.
+
+### F9 · Text, nits
+Bar labels 12–20 px (`w·0.42`); key names 0.85 rem (overrides the shell's `.pk-name` from this
+variant's CSS — couples to a shell class name); middle C underlined/bold via `[data-pitch='60']`.
+Space hint only with `(hover: hover) and (pointer: fine)`; visible labels "⏮ From the start",
+"👁 Ahead 3 s"; chips wrap (portrait 820×1180: all chips inside the row, scrollWidth = clientWidth).
+
+### Dead end
+Claude in Chrome window could not be resized (inner = outer = 940×773 whatever was requested), so
+the size checks ran in headless Chromium via `playwright-core` installed in the session scratchpad
+(not in the repo), using the cached Chrome for Testing 1248.

@@ -66,7 +66,7 @@ plus `docs(falling): #1 decision log and report…` and `fix(falling): #1 turnin
 Commands (worktree root, final state):
 - `npm run typecheck` → `tsc --noEmit` for core, server and web; `grep -ci error` on the output → `0`.
 - `npm test` → `Test Files 5 passed (5) · Tests 54 passed (54)` (16 existing + 38 new).
-- `npm run build` → `✓ built in 204ms`; `dist/assets/falling-*.js 21.83 kB`, `falling-*.css 2.40 kB`.
+- `npm run build` → `✓ built in 204ms`; `dist/assets/falling-*.js 21.83 kB`, `falling-*.css 2.40 kB` (measured at 8efbb0c; at the last code commit 335fbc2 the JS was 21.85 kB — corrected in the fix round, see `01-variant-falling.fix-report.md`).
 
 Browser (built-in browser, own tab `tab-3`, `PORT=9311 API_PORT=9311 WEB_PORT=9310 npm run dev`,
 API printed `seeded 3 demo lessons`). Checked from the DOM / API (exact values) and screenshots:
@@ -113,7 +113,7 @@ None.
 
 ## Findings for the orchestrator
 
-1. **Demo data / player boundary bug (affects every variant).** `demo.ts` `beats()` rounds fragment
+1. **[Resolved on main by #8 / 8261619 — core `snapFragments` + one `TIME_EPS`; this variant's `snapSpan` was removed in the fix round.]** **Demo data / player boundary bug (affects every variant).** `demo.ts` `beats()` rounds fragment
    bounds to 1 ms, `seq.ts` rounds onsets to 0.1 ms, so Für Elise's fragments start 0.3 ms *after*
    their first chord (`1.667` vs `1.6667`). The player (`n.start >= from − 1e-4`) and core
    `notesInRange` then drop that chord from "Bars 2–3", "Bars 4–5", "Bars 6–8" (seen for "Bars 2–3"
