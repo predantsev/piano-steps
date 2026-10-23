@@ -103,3 +103,48 @@ brief was silent.
   the fragment's first onset moved a few ms before `start` and was dropped while the API had
   deleted the old one. Fragment bounds sit exactly on onsets. Fixed with `fragment_replacement`
   (±50 ms, clamp, skip what the neighbours own) + a test; re-run restored all 17 notes within 2 ms.
+
+### Docker
+
+- Image: `python:3.11-slim-bookworm` + apt `ffmpeg libsndfile1` + `uv sync --frozen --no-dev`.
+  Dead end: `COPY --from=ghcr.io/astral-sh/uv:0.11.13` failed with
+  `failed to fetch oauth token: denied` on this Mac → uv installed with `pip install uv==0.11.13`.
+- First image was 4.51 GB; `/root/.cache` (uv's download cache) held 1.2 GB of it
+  (`du -sh` inside the image). BuildKit cache mounts for both `uv sync` runs → 2.87 GB
+  (`docker images`). torch CPU is 656 MB of the venv's 1.5 GB.
+- ASSUMPTION: verification of `docker compose run --rm transcriber youtube …` used an isolated
+  project (`-p piano-steps-transcriber-check`, ports 9342/9442) so it could not touch the default
+  `piano-steps` project's containers or its `pgdata` volume (other agents / the owner). Result: db +
+  app started healthy, the container downloaded the audio (yt-dlp worked from Docker without a JS
+  runtime) and the checkpoint into the `/models` volume, uploaded `fur-elise-paul-barton-docker-check`
+  (133 notes, 6 fragments, offsetSec 11.108; `GET :9342/api/lessons` listed it), 5 min 12 s wall
+  time incl. the checkpoint download. Then `down -v` on that check project only.
+
+### Video spike (time-boxed, stopped at the box)
+
+- Video: Rousseau `wfF0zHeU3Zs` — a real keyboard filmed from above with gold bars falling onto it
+  (frame at 6 s viewed). Layout found automatically: edge y=218, 36 black keys → 88 keys, white key
+  16.4 px; bars fall ~92–100 px/s (tracked B4 bar: 3.67 px/frame at 25 fps).
+- v1 (lit runs in a strip right above the edge): 1058 notes/60 s, F1@50 0.115, sequence recall
+  0.98 / precision 0.33 — the glow and sparks at the edge light the neighbouring keys
+  (A4 → G#4, E3 → D#3 in the per-frame dump) and the notes flicker.
+- v2 (bar edges on a line 40 px above the edge, run-width key classification, sub-frame
+  crossing from the fall speed, one latency calibrated against librosa's audio onsets):
+  sequence recall 0.94 / precision 0.40, onset F1@50 0.01, matched notes still 0.11 s off.
+- Finding: on this kind of video the audio is rendered from MIDI and very clean — ByteDance reads
+  it at F1@50 0.990 — so frames cannot beat audio here. Frames would add value only for (a) hand
+  colours (videos that colour LH/RH differently; Rousseau uses one colour) and (b) videos whose
+  audio is a band/vocal mix. Not wired into the CLI; prototype kept in `scripts/video_spike.py`.
+
+### Final accuracy run (current code, `transcribe eval`, `.work/eval/final-*.json`)
+
+- Barton: bytedance 0.990 / basic-pitch 0.909 (F1@50); seqF1 0.990 / 0.891.
+- Rousseau: 0.990 / 0.901; seqF1 0.990 / 0.901.
+- Lisitsa: 0.788 / 0.712; seqF1 0.942 / 0.831 (43/47 steps snapped; strong rubato — the onset
+  numbers are partly alignment-limited, the sequence F1 is the better read).
+- Brooklyn Classical: 0.809 / 0.839; recall 1.00 / 0.98 — extra voice in the recording.
+- Hands (beam search) on matched notes: 1.000 on Barton/Rousseau/Lisitsa for both engines; 0.962
+  (bytedance) / 0.925 (basic-pitch) on Brooklyn; the fixed C4 split scored 1.000 everywhere —
+  Für Elise's opening never crosses C4, so it does not separate the two methods.
+- Timing note: the per-engine seconds in the final run (20–40 s) were measured while a Docker build
+  ran; the clean first run was 11.0 s (bytedance) / 2.2 s (basic-pitch) per 60 s clip.
