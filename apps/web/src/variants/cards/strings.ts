@@ -22,6 +22,12 @@ const S = {
   loop: { uk: 'Повтор', en: 'Loop' },
   loopHint: { uk: 'Повторювати фрагмент по колу', en: 'Repeat the fragment over and over' },
   speed: { uk: 'Темп', en: 'Speed' },
+  playAlong: { uk: 'Грати разом', en: 'Play along' },
+  countIn: { uk: 'Відлік… приготуйтеся', en: 'Count-in… get ready' },
+  playAlongHint: {
+    uk: 'Без звуку, з метрономом і відліком: клавіші світяться в темпі, а ви граєте на піаніно',
+    en: 'Silent, with a metronome and a count-in: keys light up in tempo while you play your piano',
+  },
   fragment: { uk: 'Фрагмент', en: 'Fragment' },
   fragments: { uk: 'Фрагменти', en: 'Fragments' },
   prevFragment: { uk: 'Фрагмент', en: 'Fragment' },

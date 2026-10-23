@@ -10,8 +10,10 @@ import {
   lessonHasLeft,
   masteredCount,
   maxChord,
+  metronome,
   stepAt,
   stepKind,
+  tickIndex,
   trackOffset,
 } from './model.ts';
 
@@ -135,6 +137,22 @@ describe('layoutStrip', () => {
   it('centres a short track', () => {
     const l = layoutStrip([{ time: 0, slotSec: 1 }], 1000, { minW: 72, maxW: 300 });
     expect(trackOffset(l, 1000, 0)).toBe(350);
+  });
+});
+
+describe('play-along metronome', () => {
+  it('ticks on the time-signature unit', () => {
+    expect(metronome({ bpm: 120, timeSignature: [4, 4] })).toEqual({ tickSec: 0.5, perBar: 4 });
+    expect(metronome({ bpm: 72, timeSignature: [3, 8] })).toEqual({ tickSec: (60 / 72) * 0.5, perBar: 3 });
+    expect(metronome({ bpm: 60 })).toEqual({ tickSec: 1, perBar: 4 });
+    expect(metronome(undefined)).toBeNull();
+  });
+  it('counts from the fragment start, negative during the count-in', () => {
+    expect(tickIndex(10, 10, 0.5)).toBe(0);
+    expect(tickIndex(10.49, 10, 0.5)).toBe(0);
+    expect(tickIndex(10.5, 10, 0.5)).toBe(1);
+    expect(tickIndex(8, 10, 0.5)).toBe(-4); // first tick of a one-bar count-in in 4/4
+    expect(tickIndex(9.99, 10, 0.5)).toBe(-1);
   });
 });
 

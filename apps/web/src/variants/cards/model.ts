@@ -6,6 +6,7 @@ import {
   type Hand,
   type LessonNote,
   type ProgressStatus,
+  type Tempo,
 } from '@piano-steps/core';
 
 /**
@@ -211,3 +212,15 @@ export function masteredCount(progress: readonly FragmentProgress[], fragmentCou
 }
 
 export const SPEEDS = [0.25, 0.5, 0.75, 1] as const;
+
+/** Metronome grid for "play along": one tick per time-signature unit (♩ in 4/4, ♪ in 3/8). */
+export function metronome(tempo: Tempo | undefined): { tickSec: number; perBar: number } | null {
+  if (!tempo) return null;
+  const [num, den] = tempo.timeSignature ?? [4, 4];
+  return { tickSec: (60 / tempo.bpm) * (4 / den), perBar: num };
+}
+
+/** Tick index at lesson time t, counted from the fragment start (negative during the count-in). */
+export function tickIndex(t: number, fragmentStart: number, tickSec: number): number {
+  return Math.floor((t - fragmentStart) / tickSec + 1e-3);
+}

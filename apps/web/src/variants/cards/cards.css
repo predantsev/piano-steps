@@ -322,7 +322,7 @@
 }
 .cv-step-nav {
   flex: none;
-  min-width: 8.5rem;
+  min-width: 7.6rem;
   font-size: 1.15rem;
 }
 .cv-listen {
@@ -338,9 +338,13 @@
   border-color: var(--accent);
   background: color-mix(in srgb, var(--accent) 16%, var(--panel));
 }
+.cv-listen .btn.big {
+  padding: 0 0.85rem;
+}
 .cv-speed button {
-  min-width: 3.4rem;
+  min-width: 3rem;
   min-height: 56px;
+  padding: 0 0.5rem;
 }
 
 .cv-keys {

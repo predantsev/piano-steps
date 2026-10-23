@@ -1,5 +1,5 @@
 // Variant B — "Fragment cards": step by step, "press this, then these two together".
-import { keyboardRange, soundingAt, type LessonNote } from '@piano-steps/core';
+import { keyboardRange, soundingAt, type Fragment, type LessonNote } from '@piano-steps/core';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { PianoKeyboard, type KeyHighlight } from '../../ui/PianoKeyboard.tsx';
 import type { VariantProps } from '../../variant.ts';
@@ -12,9 +12,11 @@ import {
   heldOver,
   isStepPlayed,
   lessonHasLeft,
+  metronome,
   SPEEDS,
   stepAt,
   stepKind,
+  tickIndex,
   type CardStep,
 } from './model.ts';
 import { tr } from './strings.ts';
@@ -50,6 +52,7 @@ export default function CardsVariant({
   const [finished, setFinished] = useState(false); // "Got it" on the last fragment
   const [speed, setSpeed] = useState(settings.speed);
   const [loop, setLoop] = useState(false);
+  const [along, setAlong] = useState(false); // play along: silent run + metronome + count-in
   const [playerState, setPlayerState] = useState(player.state);
   const [mode, setMode] = useState<'fragment' | null>(null); // what this variant asked the player to play
   const [play, setPlay] = useState<{ step: number; sounding: LessonNote[] }>({ step: -1, sounding: [] });
@@ -62,14 +65,25 @@ export default function CardsVariant({
   const fragNotes = useMemo(() => steps.flatMap((s) => s.notes), [steps]);
   const hasLeft = useMemo(() => lessonHasLeft(lesson.notes), [lesson.notes]);
   const range = useMemo(() => keyboardRange(lesson.notes.map((n) => n.pitch)), [lesson.notes]);
+  const metro = useMemo(() => metronome(lesson.tempo), [lesson.tempo]);
   const n = steps.length;
   const done = step >= n;
   const playingFragment = playerState === 'playing' && mode === 'fragment';
   const shown = playingFragment ? Math.max(0, play.step) : step; // the card the eye should be on
+  const countingIn = playingFragment && along && play.step < 0;
 
   // Latest values for listeners registered once (player, note input, keyboard).
-  const ctx = useRef({ f, steps, step, speed, loop, mode, playing: playingFragment, done });
-  ctx.current = { f, steps, step, speed, loop, mode, playing: playingFragment, done };
+  const ctx = useRef({ f, steps, step, speed, loop, along, mode, playing: playingFragment, done });
+  ctx.current = { f, steps, step, speed, loop, along, mode, playing: playingFragment, done };
+
+  /** ▶ the fragment; in play-along mode silently, after a one-bar count-in. */
+  const startFragment = (fr: Fragment, rate: number, silent: boolean) => {
+    const w = fragmentWindow(fr);
+    const countIn = silent ? (metro ? metro.tickSec * metro.perBar : 1.5) : 0;
+    player.play({ from: w.from - countIn, to: w.to, rate, muted: silent });
+  };
+  const startRef = useRef(startFragment);
+  startRef.current = startFragment;
 
   // ── shell sync ──────────────────────────────────────────────────────────
   useEffect(() => onFragmentChange(frag), [frag, onFragmentChange]);
@@ -89,7 +103,7 @@ export default function CardsVariant({
         if (e.type === 'end') {
           const c = ctx.current;
           // our own loop (not the player's): a loop toggled mid-play takes effect at the end
-          if (c.mode === 'fragment' && c.loop && c.f) player.play({ ...fragmentWindow(c.f), rate: c.speed });
+          if (c.mode === 'fragment' && c.loop && c.f) startRef.current(c.f, c.speed, c.along);
           else setMode(null);
         }
       }),
@@ -102,8 +116,18 @@ export default function CardsVariant({
     if (!playingFragment) return;
     let raf = 0;
     let last = '';
+    let lastTick: number | null = null;
     const tick = () => {
       const t = player.time;
+      const c = ctx.current;
+      if (c.along && metro && c.f && t < fragmentWindow(c.f).to - 0.01) {
+        const k = tickIndex(t, c.f.start, metro.tickSec);
+        if (k !== lastTick) {
+          lastTick = k;
+          const accent = ((k % metro.perBar) + metro.perBar) % metro.perBar === 0;
+          player.playChord([accent ? 96 : 91], 0.05, accent ? 0.55 : 0.3); // high, short: a tick
+        }
+      }
       const st = stepAt(steps, t);
       const snd = soundingAt(fragNotes, t);
       const sig = `${st}|${snd.map((x) => x.pitch).join(',')}`;
@@ -115,7 +139,7 @@ export default function CardsVariant({
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [playingFragment, player, steps, fragNotes]);
+  }, [playingFragment, player, steps, fragNotes, metro]);
 
   const stopPlayback = () => {
     if (player.state !== 'stopped') player.stop();
@@ -133,7 +157,7 @@ export default function CardsVariant({
     if (!f) return;
     setPlay({ step: -1, sounding: [] });
     setMode('fragment');
-    player.play({ ...fragmentWindow(f), rate: speed });
+    startFragment(f, speed, along);
   };
 
   const changeSpeed = (v: number) => {
@@ -288,7 +312,9 @@ export default function CardsVariant({
       />
 
       <div className="cv-caption" aria-live="polite">
-        {!done && (
+        {countingIn ? (
+          <span className="cv-say">{tr(lang, 'countIn')}</span>
+        ) : done ? null : (
           <>
             <span className="cv-stepno">
               {tr(lang, 'step')} {shown + 1} {tr(lang, 'of')} {n}
@@ -333,6 +359,15 @@ export default function CardsVariant({
             title={tr(lang, 'loopHint')}
           >
             ⟳ {tr(lang, 'loop')}
+          </button>
+          <button
+            type="button"
+            className="btn big"
+            aria-pressed={along}
+            onClick={() => setAlong((v) => !v)}
+            title={tr(lang, 'playAlongHint')}
+          >
+            ♩ {tr(lang, 'playAlong')}
           </button>
           <div className="seg cv-speed" role="group" aria-label={tr(lang, 'speed')}>
             {SPEEDS.map((v) => (
