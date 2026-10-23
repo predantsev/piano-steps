@@ -6,7 +6,7 @@ import { parseVoice } from './seq.ts';
  * User lessons never live in git: they go to the database through the API.
  */
 
-const beats = (b: number, bpm: number) => Math.round(b * (60 / bpm) * 1000) / 1000;
+const beats = (b: number, bpm: number) => Math.round(b * (60 / bpm) * 10000) / 10000;
 
 function odeToJoy(): LessonInput {
   const bpm = 100;

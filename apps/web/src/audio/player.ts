@@ -1,5 +1,5 @@
 import type { Hand, LessonNote } from '@piano-steps/core';
-import { pitchName } from '@piano-steps/core';
+import { TIME_EPS, pitchName } from '@piano-steps/core';
 import * as Tone from 'tone';
 
 /**
@@ -176,7 +176,7 @@ export class LessonPlayer {
     this.runEnd = Math.min(this.opts.to, lastEnd);
     this.startedAt = Tone.now() + 0.05;
     this.startLesson = fromLesson;
-    this.nextIdx = this.notes.findIndex((n) => n.start >= fromLesson - 1e-4);
+    this.nextIdx = this.notes.findIndex((n) => n.start >= fromLesson - TIME_EPS);
     if (this.nextIdx < 0) this.nextIdx = this.notes.length;
     this.setState('playing');
     this.tick();
@@ -189,7 +189,7 @@ export class LessonPlayer {
     const inst = muted ? null : this.instrument();
     while (this.nextIdx < this.notes.length) {
       const n = this.notes[this.nextIdx];
-      if (n.start > horizon || n.start >= to - 1e-4) break;
+      if (n.start > horizon || n.start >= to - TIME_EPS) break;
       this.nextIdx++;
       if (!inst || (hands && n.hand && !hands.includes(n.hand))) continue;
       const at = this.startedAt + (n.start - this.startLesson) / rate;

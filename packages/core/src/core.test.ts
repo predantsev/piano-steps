@@ -6,6 +6,7 @@ import {
   groupSteps,
   keyboardRange,
   midiToLesson,
+  notesInRange,
   parsePitch,
   parseVoice,
   pitchName,
@@ -71,6 +72,30 @@ describe('lesson validation + demo lessons', () => {
       expect(p.fragments.length).toBeGreaterThan(0);
       expect(p.durationSec).toBeGreaterThan(5);
     }
+  });
+
+  it('every fragment starts exactly on its first onset and no note is lost or doubled', () => {
+    for (const d of demoLessons()) {
+      const v = validateLessonInput(d);
+      if (!v.ok) throw new Error(v.errors.join('; '));
+      const p = prepareLesson(v.value);
+      let total = 0;
+      for (const f of p.fragments) {
+        const inside = notesInRange(p.notes, f.start, f.end);
+        total += inside.length;
+        expect(inside.length, `${p.slug} ${f.title}`).toBeGreaterThan(0);
+        expect(Math.min(...inside.map((n) => n.start)), `${p.slug} ${f.title}`).toBeCloseTo(f.start, 6);
+      }
+      expect(total, p.slug).toBe(p.notes.length);
+    }
+  });
+
+  it('twinkle splits into 2-bar fragments of 8 right-hand onsets', () => {
+    const v = validateLessonInput(demoLessons().find((d) => d.slug === 'twinkle-twinkle'));
+    if (!v.ok) throw new Error(v.errors.join('; '));
+    const p = prepareLesson(v.value);
+    const rh = p.fragments.map((f) => notesInRange(p.notes, f.start, f.end).filter((n) => n.hand === 'R').length);
+    expect(rh).toEqual([7, 7, 7, 7, 7, 7]);
   });
 
   it('reports readable errors', () => {
