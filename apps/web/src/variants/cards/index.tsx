@@ -107,7 +107,7 @@ export default function CardsVariant({
         const c = ctx.current;
         // Loop ON at the start → the player loops seamlessly; Loop turned OFF mid-play stops at the wrap.
         if (e.type === 'loop' && c.mode === 'fragment' && !c.loop) {
-          player.stop();
+          queueMicrotask(() => player.stop()); // not from inside the player's own tick
           setMode(null);
         }
         if (e.type === 'end') {
@@ -138,7 +138,7 @@ export default function CardsVariant({
         const k = tickIndex(t, metro.tickSec);
         if (k !== lastTick) {
           lastTick = k;
-          const accent = isAccent(k, metro.perBar);
+          const accent = isAccent(k, metro.perBar, tickIndex(c.f.start, metro.tickSec));
           player.playChord([accent ? 96 : 91], 0.05, accent ? 0.55 : 0.3); // high, short: a tick
         }
       }

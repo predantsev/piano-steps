@@ -166,6 +166,16 @@ Appended as the work goes. Evidence = the file or command the decision rests on.
   Without a tempo the get-ready time is `1.5 * rate` lesson seconds = 1.5 s wall clock.
 - ASSUMPTION: the Für Elise pickup (bar 1 downbeat at 0.417 s) cannot be accented right without a
   pickup/offset field in the lesson format (core) — deferred, not worked around locally.
+- Correction (same day, after review of my own change): accents on a grid from t = 0 alone made
+  Für Elise "Bars 2–3/4–5/6–8" accent one tick early (3/8 + pickup: `tickIndex(1.6667, 0.41667)` →
+  4, `isAccent(4, 3)` → false), which the old fragment-anchored code had right. Now ticks stay on
+  the grid and the bar phase comes from the fragment's start tick (`isAccent(k, perBar, barTick)`);
+  only a fragment that starts on a pickup (Motif) stays one tick early. Unit test added.
+- `player.stop()` on a `loop` event (Loop turned off mid-play) is deferred with `queueMicrotask`,
+  the same no-re-entry rule as the restart.
+- ASSUMPTION: collapsing the LEFT lane per fragment reverses the previous round's "lanes stay put
+  across fragments on purpose"; chosen because the finding reads an empty lane as "something is
+  missing", and the keyboard range now changes per fragment anyway.
 - **Loop.** Loop ON at the start → `player.play({ loop: true })`, the player's seamless loop (#12).
   Loop turned OFF mid-play → stop on the next `loop` event (the wrap). Loop turned ON mid-play →
   restart on `end`, but only when the fragment has steps and via `queueMicrotask` (never re-entering

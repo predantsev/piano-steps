@@ -165,6 +165,20 @@ describe('play-along metronome', () => {
     expect(isAccent(-4, 4)).toBe(true);
     expect(isAccent(-1, 4)).toBe(false);
   });
+  it('the bar phase follows the fragment start, so a lesson with a pickup accents the real downbeats', () => {
+    const fe = demoLessons().find((l) => l.slug === 'fur-elise-opening')!;
+    const m = metronome(fe.tempo)!; // 3/8: tick = one eighth
+    const bars23 = prepared(fe).fragments[1];
+    const bar = tickIndex(bars23.start, m.tickSec);
+    expect(isAccent(bar, m.perBar, bar)).toBe(true); // the fragment's first note = downbeat
+    expect(isAccent(bar + 3, m.perBar, bar)).toBe(true); // next bar line
+    expect(isAccent(bar + 1, m.perBar, bar)).toBe(false);
+    // the count-in's first tick is the accent too
+    const first = tickIndex(countInFrom(bars23.start, m, 1), m.tickSec);
+    expect(first).toBe(bar - 3);
+    expect(isAccent(first, m.perBar, bar)).toBe(true);
+    expect(isAccent(bar, m.perBar)).toBe(false); // what a grid from t = 0 alone would get wrong
+  });
   it('the count-in is exactly one bar: its first tick is the accented downbeat, perBar ticks before the start', () => {
     const m = { tickSec: 0.5, perBar: 4 };
     for (const start of [0, 2, 8, 10]) { // fragments cut on bar lines

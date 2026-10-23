@@ -222,9 +222,15 @@ export function tickIndex(t: number, tickSec: number): number {
   return Math.floor(t / tickSec + 1e-3);
 }
 
-/** Bar accent: the first tick of every bar on the lesson grid. */
-export function isAccent(k: number, perBar: number): boolean {
-  return ((k % perBar) + perBar) % perBar === 0;
+/**
+ * Bar accent. Ticks sit on the lesson grid; the bar phase comes from the fragment's own start tick
+ * (`barTick`), because a fragment is cut on a bar line while the lesson may begin with a pickup
+ * (Für Elise: 3/8 with a one-eighth upbeat). The format has no pickup field, so a fragment that
+ * itself starts on a pickup (Für Elise "Motif") is still accented one tick early.
+ */
+export function isAccent(k: number, perBar: number, barTick = 0): boolean {
+  const d = k - barTick;
+  return ((d % perBar) + perBar) % perBar === 0;
 }
 
 /**
