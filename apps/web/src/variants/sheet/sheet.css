@@ -1,0 +1,300 @@
+/* Variant C — Sheet + keys. Colours only through the shell's CSS variables (both themes). */
+
+.sv {
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto auto auto;
+  min-height: 0;
+}
+
+/* ── fragment chips ───────────────────────────────────────────────────── */
+.sv-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  /* the shell's floating "sounds wrong / hear the original" buttons sit at the top right;
+     --sv-fab is their measured width (set by the component) */
+  padding: 10px var(--sv-fab, 236px) 6px 12px;
+  min-width: 0;
+}
+.sv-chips {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  min-width: 0;
+  padding: 2px;
+}
+/* scroll cue: the edge that hides more chips fades out */
+.sv-chips.fade-r {
+  mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
+}
+.sv-chips.fade-l {
+  mask-image: linear-gradient(to left, #000 calc(100% - 32px), transparent);
+}
+.sv-chips.fade-l.fade-r {
+  mask-image: linear-gradient(to right, transparent, #000 32px, #000 calc(100% - 32px), transparent);
+}
+.sv-chip {
+  min-height: var(--tap);
+  padding: 0 0.9rem;
+  border-radius: 999px;
+  border: 1px solid var(--bd);
+  background: var(--panel);
+  color: var(--strong);
+  white-space: nowrap;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.sv-chip.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-fg);
+  font-weight: 600;
+}
+.sv-chip.mastered:not(.on) {
+  color: var(--ok);
+  border-color: var(--ok);
+}
+.sv-arrow {
+  font-size: 1.4rem;
+  padding: 0;
+  flex: none;
+}
+
+/* ── the staff ────────────────────────────────────────────────────────── */
+.sv-stage {
+  position: relative;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.sv-host {
+  display: flex;
+  justify-content: center;
+}
+.sv-host svg {
+  display: block;
+  color: var(--strong);
+  overflow: visible;
+}
+.sv-msg {
+  padding: 16px;
+  margin: 0;
+}
+.sv-err {
+  color: var(--bad);
+}
+.sv-overlay {
+  position: absolute;
+  left: 12px;
+  bottom: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  pointer-events: none;
+}
+.sv-pill {
+  background: var(--panel-2);
+  border: 1px solid var(--bd);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 0.8rem;
+  color: var(--strong);
+}
+.sv-pill.muted {
+  color: var(--mut);
+}
+.sv-hint {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 0 0 12px;
+  border-top: 1px solid var(--bd);
+  background: var(--panel-2);
+  color: var(--strong);
+  font-size: 0.85rem;
+}
+.sv-hint-x {
+  margin-left: auto;
+  min-width: var(--tap);
+  min-height: var(--tap);
+  border: 0;
+  background: transparent;
+  color: var(--mut);
+  font-size: 1rem;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+/* ink: VexFlow writes presentation attributes (stems, flags, ledger lines: stroke="black";
+   the root svg: fill/stroke="black"); CSS wins over them, so every bit of ink follows the theme */
+.ps-svg[fill='black'],
+.ps-svg [fill='black'] {
+  fill: currentColor;
+}
+.ps-svg[stroke='black'],
+.ps-svg [stroke='black'],
+.ps-svg path[stroke='#444'] {
+  stroke: currentColor;
+}
+/* text labels never inherit the root's outline */
+.ps-svg .ps-labels {
+  stroke: none;
+}
+.ps-svg .vf-stave path {
+  stroke: var(--mut);
+}
+.ps-svg .vf-notehead,
+.ps-svg .ps-name {
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: transform 90ms ease-out;
+}
+
+/* hand colours (toggle) */
+.sv-colour .ps-R .vf-notehead text,
+.sv-colour .ps-R .vf-notehead path {
+  fill: var(--hand-r);
+}
+.sv-colour .ps-L .vf-notehead text,
+.sv-colour .ps-L .vf-notehead path {
+  fill: var(--hand-l);
+}
+
+/* the note(s) under the cursor / sounding now */
+.ps-svg .vf-notehead.ps-on {
+  transform: scale(1.3);
+}
+.ps-svg .ps-R .vf-notehead.ps-on text,
+.ps-svg .ps-R .vf-notehead.ps-on path {
+  fill: var(--hand-r);
+}
+.ps-svg .ps-L .vf-notehead.ps-on text,
+.ps-svg .ps-L .vf-notehead.ps-on path {
+  fill: var(--hand-l);
+}
+.sv-colour .ps-svg .vf-notehead.ps-on text {
+  stroke: var(--strong);
+  stroke-width: 0.6px;
+}
+
+/* where a tapped key / tapped note sits on the staff */
+.ps-svg .vf-notehead.ps-probe {
+  transform: scale(1.45);
+}
+.ps-svg .ps-ev .vf-notehead.ps-probe text,
+.ps-svg .ps-ev .vf-notehead.ps-probe path {
+  fill: var(--hint);
+  stroke: var(--strong);
+  stroke-width: 0.8px;
+}
+
+/* bars of the fragment's neighbours (a fragment that does not start/end on a bar line) */
+.ps-svg .ps-out {
+  opacity: 0.3;
+}
+
+.ps-cursor {
+  fill: var(--accent);
+  opacity: 0;
+  transition: opacity 120ms linear;
+  pointer-events: none;
+}
+.ps-cursor.on {
+  opacity: 0.16;
+}
+
+/* reading aids */
+.ps-name {
+  font: 600 12px var(--sans);
+  fill: var(--mut);
+}
+.sv-colour .ps-name.ps-R {
+  fill: var(--hand-r);
+}
+.sv-colour .ps-name.ps-L {
+  fill: var(--hand-l);
+}
+.ps-name.ps-on {
+  fill: var(--strong);
+  transform: scale(1.2);
+}
+.ps-name.ps-probe {
+  fill: var(--strong);
+  font-weight: 800;
+}
+.ps-barnum {
+  font: 10px var(--mono);
+  fill: var(--mut);
+}
+
+/* ── controls ─────────────────────────────────────────────────────────── */
+.sv-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--bd);
+  background: var(--panel);
+}
+.sv-controls .spacer {
+  flex: 1;
+}
+.sv-main {
+  min-width: 8.5rem;
+}
+.sv-controls .seg button {
+  padding: 0 0.65rem;
+}
+.sv-controls .btn[data-on='true'] {
+  background: var(--panel-2);
+  border-color: var(--accent);
+}
+.sv-controls .btn[data-on='false'] {
+  color: var(--mut);
+}
+.sv-got {
+  flex: none;
+  white-space: nowrap;
+}
+.sv-got.on {
+  color: var(--ok);
+  border-color: var(--ok);
+}
+.sv-kbd {
+  font: 600 0.62rem/1 var(--mono);
+  padding: 3px 6px;
+  border-radius: 6px;
+  background: color-mix(in srgb, currentColor 18%, transparent);
+  margin-left: 4px;
+}
+.sv-count {
+  font-size: 0.8rem;
+  color: var(--mut);
+  white-space: nowrap;
+}
+.sv-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+.sv-dot-r {
+  background: var(--hand-r);
+}
+.sv-dot-l {
+  background: var(--hand-l);
+  margin-left: -3px;
+}
+
+@media (max-width: 900px) {
+  .sv-top {
+    padding-right: 12px;
+    padding-top: 60px; /* below the shell's floating buttons */
+  }
+}

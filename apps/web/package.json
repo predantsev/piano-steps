@@ -14,7 +14,8 @@
     "@piano-steps/core": "*",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
-    "tone": "^15.1.22"
+    "tone": "^15.1.22",
+    "vexflow": "^5.0.0"
   },
   "devDependencies": {
     "@types/react": "^19.3.0",
