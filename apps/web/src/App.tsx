@@ -155,27 +155,28 @@ export default function App() {
   // Dev automation API — window.pianoSteps + WebMCP tools (docs/testing-api.md). The dynamic import
   // inside `import.meta.env.DEV` keeps it out of production builds entirely.
   const devShell = useRef<DevShell | null>(null);
-  devShell.current = {
-    lessons,
-    lesson,
-    lessonRef,
-    variantId,
-    variantIds: VARIANTS.map((v) => v.id),
-    fragmentPos,
-    dialog,
-    error,
-    offline: api.isOffline(),
-    settings,
-    player,
-    input,
-    variantState: () => (variantState.current?.key === variantKey ? variantState.current.state : null),
-    selectLesson: setLessonRef,
-    setVariant: (id) => {
-      player.stop();
-      setVariantId(id);
-    },
-    refreshLessons: refreshList,
-  };
+  if (import.meta.env.DEV)
+    devShell.current = {
+      lessons,
+      lesson,
+      lessonRef,
+      variantId,
+      variantIds: VARIANTS.map((v) => v.id),
+      fragmentPos,
+      dialog,
+      error,
+      offline: api.isOffline(),
+      settings,
+      player,
+      input,
+      variantState: () => (variantState.current?.key === variantKey ? variantState.current.state : null),
+      selectLesson: setLessonRef,
+      setVariant: (id) => {
+        player.stop();
+        setVariantId(id);
+      },
+      refreshLessons: refreshList,
+    };
   useEffect(() => {
     if (import.meta.env.DEV) {
       let off: (() => void) | undefined;
