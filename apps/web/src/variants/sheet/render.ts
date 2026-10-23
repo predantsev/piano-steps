@@ -28,6 +28,8 @@ import { KEY_NAMES, spelledName, type Measure, type Score, type ScoreEvent, type
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const MARGIN_X = 12;
+/** Extra room left of the first stave for the grand-staff brace (drawn left of the stave's x). */
+const BRACE_PAD = 8;
 const LINE = 10; // VexFlow staff-line spacing
 const STAFF_H = 4 * LINE;
 
@@ -230,7 +232,7 @@ export function drawFragment(container: HTMLElement, score: Score, measures: Mea
   let systems: number[][] = [];
   for (let k = 0; k <= 20; k++) {
     const z = Math.round((1.6 - k * 0.05) * 100) / 100; // 1.6 … 0.6
-    const usable = opts.width / z - 2 * MARGIN_X;
+    const usable = opts.width / z - 2 * MARGIN_X - BRACE_PAD;
     const s = pack(widths, usable, head0, headN);
     const fitsWidth = s.every((sys, j) => sys.reduce((a, i) => a + widths[i], 0) <= usable - (j === 0 ? head0 : headN) + 1 || sys.length === 1);
     if (fitsWidth && s.length * sysH * z <= opts.height) {
@@ -242,7 +244,7 @@ export function drawFragment(container: HTMLElement, score: Score, measures: Mea
     systems = s;
   }
   const L = opts.width / zoom;
-  const usable = L - 2 * MARGIN_X;
+  const usable = L - 2 * MARGIN_X - BRACE_PAD;
 
   const renderer = new Renderer(container as HTMLDivElement, Renderer.Backends.SVG);
   renderer.resize(L, systems.length * sysH);
@@ -258,6 +260,7 @@ export function drawFragment(container: HTMLElement, score: Score, measures: Mea
   svg.insertBefore(cursor, svg.firstChild);
   const labels = document.createElementNS(SVG_NS, 'g');
   labels.setAttribute('class', 'ps-labels');
+  labels.setAttribute('stroke', 'none');
 
   const key = KEY_NAMES[score.keyFifths] ?? 'C';
   const events = new Map<string, DrawnEvent>();
@@ -286,7 +289,7 @@ export function drawFragment(container: HTMLElement, score: Score, measures: Mea
     const total = sys.reduce((a, i) => a + widths[i], 0);
     // < 1 only when a single bar is wider than the screen even at the smallest zoom: squeeze, never scroll
     const stretch = (usable - head) / total;
-    let x = MARGIN_X;
+    let x = MARGIN_X + BRACE_PAD;
     // drawn extent of each staff's notes, stems and beams (for placing the note names)
     const tExt = { min: Infinity, max: -Infinity };
     const bExt = { min: Infinity, max: -Infinity };

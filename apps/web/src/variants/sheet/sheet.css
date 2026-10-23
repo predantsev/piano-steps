@@ -12,8 +12,9 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  /* the shell's floating "sounds wrong / hear the original" buttons sit at the top right */
-  padding: 10px 236px 6px 12px;
+  /* the shell's floating "sounds wrong / hear the original" buttons sit at the top right;
+     --sv-fab is their measured width (set by the component) */
+  padding: 10px var(--sv-fab, 236px) 6px 12px;
   min-width: 0;
 }
 .sv-chips {
@@ -23,6 +24,16 @@
   scrollbar-width: none;
   min-width: 0;
   padding: 2px;
+}
+/* scroll cue: the edge that hides more chips fades out */
+.sv-chips.fade-r {
+  mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
+}
+.sv-chips.fade-l {
+  mask-image: linear-gradient(to left, #000 calc(100% - 32px), transparent);
+}
+.sv-chips.fade-l.fade-r {
+  mask-image: linear-gradient(to right, transparent, #000 32px, #000 calc(100% - 32px), transparent);
 }
 .sv-chip {
   min-height: var(--tap);
@@ -97,10 +108,39 @@
 .sv-pill.muted {
   color: var(--mut);
 }
+.sv-hint {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding-right: 0;
+  max-width: min(46rem, calc(100vw - 40px));
+}
+.sv-hint-x {
+  min-width: var(--tap);
+  min-height: var(--tap);
+  border: 0;
+  background: transparent;
+  color: var(--mut);
+  font-size: 1rem;
+  cursor: pointer;
+  touch-action: manipulation;
+}
 
-/* ink: VexFlow writes presentation attributes; CSS wins over them */
+/* ink: VexFlow writes presentation attributes (stems, flags, ledger lines: stroke="black";
+   the root svg: fill/stroke="black"); CSS wins over them, so every bit of ink follows the theme */
+.ps-svg[fill='black'],
+.ps-svg [fill='black'] {
+  fill: currentColor;
+}
+.ps-svg[stroke='black'],
+.ps-svg [stroke='black'],
 .ps-svg path[stroke='#444'] {
   stroke: currentColor;
+}
+/* text labels never inherit the root's outline */
+.ps-svg .ps-labels {
+  stroke: none;
 }
 .ps-svg .vf-stave path {
   stroke: var(--mut);
@@ -223,7 +263,7 @@
   font: 600 0.62rem/1 var(--mono);
   padding: 3px 6px;
   border-radius: 6px;
-  background: rgb(0 0 0 / 0.15);
+  background: color-mix(in srgb, currentColor 18%, transparent);
   margin-left: 4px;
 }
 .sv-count {

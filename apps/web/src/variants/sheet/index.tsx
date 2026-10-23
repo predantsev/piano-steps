@@ -1,6 +1,7 @@
 // Variant C — "Sheet + keys": real notation in sync with the keyboard.
 import {
   groupSteps,
+  isBlackKey,
   keyboardRange,
   notesInRange,
   pitchName,
@@ -8,7 +9,16 @@ import {
   type Hand,
   type LessonNote,
 } from '@piano-steps/core';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type PointerEvent,
+} from 'react';
 import { PianoKeyboard, type KeyHighlight } from '../../ui/PianoKeyboard.tsx';
 import type { VariantProps } from '../../variant.ts';
 import { buildScore, measuresForFragment, noteLocations, secToTick } from './quantize.ts';
@@ -19,6 +29,10 @@ import './sheet.css';
 const SPEEDS = [0.25, 0.5, 0.75, 1] as const;
 const PREFS_KEY = 'piano-steps-sheet';
 const PROBE_MS = 2500;
+/** How far ahead of the heard time the cursor moves to the next step, in real seconds. */
+const LOOKAHEAD_SEC = 0.02;
+/** Narrowest on-screen key (CSS px) before the keyboard shrinks to the fragment's notes. */
+const MIN_KEY_PX = 44;
 
 type Mode = 'listen' | 'step';
 interface Prefs {
@@ -26,6 +40,8 @@ interface Prefs {
   colours: boolean;
   mode: Mode;
   loop: boolean;
+  /** The "tap a note / tap a key" hint was dismissed. */
+  hintSeen: boolean;
 }
 /** What the user just pointed at: a note on the staff or a key. */
 interface Probe {
@@ -37,7 +53,7 @@ interface Probe {
 }
 
 function readPrefs(): Prefs {
-  const d: Prefs = { names: true, colours: true, mode: 'listen', loop: false };
+  const d: Prefs = { names: true, colours: true, mode: 'listen', loop: false, hintSeen: false };
   try {
     return { ...d, ...(JSON.parse(localStorage.getItem(PREFS_KEY) ?? '{}') as Partial<Prefs>) };
   } catch {
@@ -68,11 +84,19 @@ export default function SheetVariant({
   const [keyMarks, setKeyMarks] = useState<Map<number, KeyHighlight>>(() => new Map());
   const [probe, setProbe] = useState<Probe | null>(null);
   const [drawError, setDrawError] = useState<string | null>(null);
+  /** Listen mode: this fragment was heard to its end at least once → offer "Next fragment". */
+  const [heard, setHeard] = useState(false);
+  const [fabW, setFabW] = useState<number | null>(null);
+  const [chipEdges, setChipEdges] = useState({ l: false, r: false });
 
   const stageRef = useRef<HTMLDivElement>(null);
   const hostRef = useRef<HTMLDivElement>(null);
   const drawnRef = useRef<Drawn | null>(null);
   const runRef = useRef<number | null>(null); // fragment index of the current playback run
+  // a Step-mode run counts once, and only when it was walked with Next from the first step
+  const walkRef = useRef({ walked: true, recorded: false });
+  const spaceRef = useRef(false); // our keydown took this Space, so its keyup must not click a button
+  const chipsRef = useRef<HTMLDivElement>(null);
 
   const fragments = lesson.fragments.length ? lesson.fragments : [{ title: '#1', start: 0, end: lesson.durationSec }];
   const f = fragments[Math.min(frag, fragments.length - 1)];
@@ -91,7 +115,15 @@ export default function SheetVariant({
     () => measuresForFragment(score, f.start, f.end, inside, locations),
     [score, f.start, f.end, inside, locations],
   );
-  const range = useMemo(() => keyboardRange(lesson.notes.map((n) => n.pitch)), [lesson]);
+  // the whole lesson's range when its keys are wide enough to tap; else just this fragment's notes
+  const lessonRange = useMemo(() => keyboardRange(lesson.notes.map((n) => n.pitch)), [lesson]);
+  const fragRange = useMemo(() => keyboardRange(fragNotes.map((n) => n.pitch)), [fragNotes]);
+  const whiteKeys = ([lo, hi]: [number, number]) => {
+    let k = 0;
+    for (let p = lo; p <= hi; p++) if (!isBlackKey(p)) k++;
+    return k;
+  };
+  const range = size && size.w / whiteKeys(lessonRange) < MIN_KEY_PX && fragNotes.length ? fragRange : lessonRange;
   const isLast = measures.length > 0 && measures[measures.length - 1].index === score.measures.length - 1;
 
   // ── wiring to the shell ──────────────────────────────────────────────────
@@ -99,6 +131,8 @@ export default function SheetVariant({
   useEffect(() => {
     player.stop();
     setStepIdx(0);
+    setHeard(false);
+    walkRef.current = { walked: true, recorded: false };
   }, [frag, player]);
   useEffect(() => () => player.stop(), [player]);
 
@@ -120,6 +154,7 @@ export default function SheetVariant({
         if (e.type === 'state') setPlaying(e.state === 'playing');
         if ((e.type === 'end' || e.type === 'loop') && runRef.current !== null)
           recordProgress({ fragmentPosition: runRef.current, attempt: true });
+        if (e.type === 'end' && runRef.current !== null) setHeard(true);
         if (e.type === 'end') runRef.current = null;
       }),
     [player, recordProgress],
@@ -171,8 +206,8 @@ export default function SheetVariant({
   }, [fontReady, size, score, measures, inside, prefs.names, settings.noteNames, isLast, frag, f, lesson.title]);
 
   // ── live sync: one rAF loop reads the player and paints classes + keys ────
-  const live = useRef({ mode: prefs.mode, stepIdx, steps, fragNotes, probe, indexOf, inside });
-  live.current = { mode: prefs.mode, stepIdx, steps, fragNotes, probe, indexOf, inside };
+  const live = useRef({ mode: prefs.mode, stepIdx, steps, fragNotes, probe, indexOf, inside, speed });
+  live.current = { mode: prefs.mode, stepIdx, steps, fragNotes, probe, indexOf, inside, speed };
   const keySig = useRef('');
 
   useEffect(() => {
@@ -186,26 +221,54 @@ export default function SheetVariant({
       const marks = new Map<number, KeyHighlight>();
 
       if (isPlaying) {
-        // what sounds now, plus the step under the cursor (so a key does not blink off in the
-        // short release gap between two notes)
+        // what sounds now: notes of the step under the cursor are "press now", notes struck in an
+        // earlier step and still sounding are "hold"; the step's own keys stay lit through their
+        // short release gap — except a key struck again next, which blinks off so the repeat shows
         const t = player.time;
         let cur = -1;
-        for (let i = 0; i < L.steps.length && L.steps[i].time <= t + 0.02; i++) cur = i;
-        const lit = [...soundingAt(L.fragNotes, t), ...(cur >= 0 ? L.steps[cur].notes : [])];
-        for (const n of lit) {
+        const ahead = LOOKAHEAD_SEC * L.speed; // real-time look-ahead, in lesson seconds
+        for (let i = 0; i < L.steps.length && L.steps[i].time <= t + ahead; i++) cur = i;
+        const step = cur >= 0 ? L.steps[cur] : null;
+        const again = new Set(L.steps[cur + 1]?.pitches ?? []);
+        for (const n of soundingAt(L.fragNotes, t)) {
           active.add(L.indexOf.get(n)!);
-          marks.set(n.pitch, { mark: handOf(n) });
+          const held = !!step && !step.notes.includes(n) && n.start < step.time;
+          if (!marks.has(n.pitch) || !held) marks.set(n.pitch, held ? { mark: 'hold', hand: handOf(n) } : { mark: handOf(n) });
         }
-        if (cur >= 0) cursorIdx = L.indexOf.get(L.steps[cur].notes[0])!;
+        if (step) {
+          for (const n of step.notes) {
+            const sounding = n.start + n.duration > t;
+            if (!sounding && again.has(n.pitch)) continue;
+            active.add(L.indexOf.get(n)!);
+            marks.set(n.pitch, { mark: handOf(n) });
+          }
+          cursorIdx = L.indexOf.get(step.notes[0])!;
+        }
+        // a lit key that is struck again next carries the "next" ring on top of its fill
+        for (const p of again) {
+          const m = marks.get(p);
+          if (m) marks.set(p, { ...m, hand: m.hand ?? (m.mark === 'L' ? 'L' : 'R'), next: true });
+        }
       } else if (L.mode === 'step' && L.stepIdx < L.steps.length) {
         const cur = L.steps[L.stepIdx];
-        const nxt = L.steps[L.stepIdx + 1];
-        if (nxt) for (const p of nxt.pitches) marks.set(p, { mark: 'next' });
+        // keys still held from an earlier step: striped, not "press now"
+        for (const n of soundingAt(L.fragNotes, cur.time + 0.001))
+          if (!cur.notes.includes(n) && n.start < cur.time) marks.set(n.pitch, { mark: 'hold', hand: handOf(n) });
         for (const n of cur.notes) {
           active.add(L.indexOf.get(n)!);
           marks.set(n.pitch, { mark: handOf(n) });
         }
+        // what comes next: a ring by hand; on a key that is lit now (a repeated note) the ring sits on the fill
+        const nxt = L.steps[L.stepIdx + 1];
+        if (nxt)
+          for (const n of nxt.notes) {
+            const m = marks.get(n.pitch);
+            marks.set(n.pitch, m ? { ...m, hand: m.hand ?? handOf(n), next: true } : { mark: 'next', hand: handOf(n) });
+          }
         cursorIdx = L.indexOf.get(cur.notes[0])!;
+      } else if (L.mode === 'listen' && L.steps.length) {
+        // at rest in Listen: ring where the fragment starts, so there is always something to copy
+        for (const n of L.steps[0].notes) marks.set(n.pitch, { mark: 'next', hand: handOf(n) });
       }
       const pr = L.probe;
       if (pr) marks.set(pr.pitch, { mark: pr.hand ?? 'hint' });
@@ -219,7 +282,7 @@ export default function SheetVariant({
           paint(d, active, cursorIdx, pr, L.inside);
         }
       }
-      const ksig = [...marks].map(([p, h]) => `${p}${h.mark}`).join(',');
+      const ksig = [...marks].map(([p, h]) => `${p}${h.mark}${h.hand ?? ''}${h.next ? '+' : ''}`).join(',');
       if (ksig !== keySig.current) {
         keySig.current = ksig;
         setKeyMarks(marks);
@@ -272,15 +335,30 @@ export default function SheetVariant({
       const k = Math.max(0, Math.min(steps.length, i));
       setStepIdx(k);
       if (k === steps.length) {
-        if (steps.length) recordProgress({ fragmentPosition: frag, attempt: true });
+        const w = walkRef.current;
+        if (steps.length && w.walked && !w.recorded) {
+          w.recorded = true;
+          recordProgress({ fragmentPosition: frag, attempt: true });
+        }
       } else if (sound) soundStep(k);
     },
     [steps.length, soundStep, recordProgress, frag],
   );
+  const hasNextFrag = frag < fragments.length - 1;
+  const nextFragment = useCallback(() => {
+    if (frag < fragments.length - 1) setFrag(frag + 1);
+  }, [frag, fragments.length]);
+  const again = useCallback(() => {
+    if (player.state === 'playing') player.stop();
+    walkRef.current = { walked: true, recorded: false };
+    goStep(0);
+  }, [goStep, player]);
   const next = useCallback(() => {
     if (player.state === 'playing') player.stop();
-    goStep(stepIdx >= steps.length ? 0 : stepIdx + 1);
-  }, [goStep, stepIdx, steps.length, player]);
+    // at the end of the fragment Next goes on to the next fragment (Again is the second button)
+    if (stepIdx >= steps.length) return hasNextFrag ? nextFragment() : again();
+    goStep(stepIdx + 1);
+  }, [goStep, stepIdx, steps.length, player, hasNextFrag, nextFragment, again]);
   const back = useCallback(() => goStep(Math.max(0, Math.min(stepIdx, steps.length) - 1)), [goStep, stepIdx, steps.length]);
 
   const setMode = (mode: Mode) => {
@@ -288,6 +366,7 @@ export default function SheetVariant({
     runRef.current = null;
     savePrefs({ mode });
     setStepIdx(0);
+    walkRef.current = { walked: true, recorded: false };
   };
   const changeSpeed = (v: number) => {
     setSpeed(v);
@@ -307,18 +386,25 @@ export default function SheetVariant({
   useEffect(() => {
     const typing = (el: EventTarget | null) =>
       el instanceof HTMLElement && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable);
+    // a focused shell control (variant tabs, ⚙, dialogs) keeps its own Space
+    const shellControl = (el: EventTarget | null) =>
+      el instanceof HTMLElement && !!el.closest('button, a, select, [role="tab"]') && !el.closest('.sv');
     const down = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey || typing(e.target) || document.querySelector('.sheet-backdrop')) return;
+      if (shellControl(e.target)) return;
       if (e.key === ' ' || e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
         e.preventDefault();
+        if (e.key === ' ') spaceRef.current = true;
         if (e.repeat) return;
         if (prefs.mode === 'step') (e.key === 'ArrowLeft' ? back : next)();
         else if (e.key === ' ') togglePlay();
       }
     };
-    // a focused button must not also "click" on Space release
+    // a focused button of ours must not also "click" on the release of a Space we handled
     const up = (e: KeyboardEvent) => {
-      if (e.key === ' ' && !typing(e.target)) e.preventDefault();
+      if (e.key !== ' ' || !spaceRef.current) return;
+      spaceRef.current = false;
+      e.preventDefault();
     };
     window.addEventListener('keydown', down);
     window.addEventListener('keyup', up);
@@ -341,9 +427,42 @@ export default function SheetVariant({
     setProbe({ pitch: h.pitch, index: h.index, hand: handOf(note), at: performance.now() });
     if (prefs.mode === 'step') {
       const k = steps.findIndex((st) => st.notes.includes(note));
+      if (k > stepIdx + 1) walkRef.current.walked = false; // jumped ahead: not a walked run
       if (k >= 0) setStepIdx(k);
     }
   };
+
+  // the shell's floating buttons (⚑ sounds wrong, 🎧 original) sit over the chips row: reserve their real width
+  useLayoutEffect(() => {
+    const fab = document.querySelector<HTMLElement>('.fab');
+    if (!fab) return setFabW(0);
+    const measure = () => setFabW(fab.getBoundingClientRect().width);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(fab);
+    return () => ro.disconnect();
+  }, []);
+
+  // keep the active chip in view and show which edges can still scroll
+  const updateChipEdges = useCallback(() => {
+    const el = chipsRef.current;
+    if (!el) return;
+    const l = el.scrollLeft > 1;
+    const r = el.scrollLeft + el.clientWidth < el.scrollWidth - 1;
+    setChipEdges((p) => (p.l === l && p.r === r ? p : { l, r }));
+  }, []);
+  useLayoutEffect(() => {
+    const el = chipsRef.current;
+    const chip = el?.children[frag] as HTMLElement | undefined;
+    if (el && chip) {
+      const box = el.getBoundingClientRect();
+      const c = chip.getBoundingClientRect();
+      const pad = 24;
+      if (c.left < box.left + pad) el.scrollLeft -= box.left + pad - c.left;
+      else if (c.right > box.right - pad) el.scrollLeft += c.right - (box.right - pad);
+    }
+    updateChipEdges();
+  }, [frag, fabW, size, updateChipEdges]);
 
   // ── render ───────────────────────────────────────────────────────────────
   const status = (i: number) => progress.find((p) => p.fragmentPosition === i);
@@ -354,7 +473,7 @@ export default function SheetVariant({
 
   return (
     <div className={`sv ${prefs.colours ? 'sv-colour' : ''}`}>
-      <div className="sv-top">
+      <div className="sv-top" style={fabW !== null ? ({ '--sv-fab': `${Math.ceil(fabW) + 20}px` } as CSSProperties) : undefined}>
         <button
           className="btn sv-arrow"
           aria-label={s(lang, 'prevFragment')}
@@ -363,7 +482,13 @@ export default function SheetVariant({
         >
           ‹
         </button>
-        <div className="sv-chips" role="tablist" aria-label={s(lang, 'fragments')}>
+        <div
+          className={`sv-chips ${chipEdges.l ? 'fade-l' : ''} ${chipEdges.r ? 'fade-r' : ''}`}
+          role="tablist"
+          aria-label={s(lang, 'fragments')}
+          ref={chipsRef}
+          onScroll={updateChipEdges}
+        >
           {fragments.map((fr, i) => {
             const st = status(i);
             return (
@@ -400,6 +525,14 @@ export default function SheetVariant({
         {drawError && <p className="sv-msg sv-err">{drawError}</p>}
         {fontReady && !fragNotes.length && <p className="muted sv-msg">{s(lang, 'noNotes')}</p>}
         <div className="sv-overlay">
+          {!prefs.hintSeen && fontReady && fragNotes.length > 0 && (
+            <span className="sv-pill sv-hint" onPointerDown={(e) => e.stopPropagation()}>
+              {s(lang, 'tapHint')}
+              <button className="sv-hint-x" aria-label={s(lang, 'dismiss')} onClick={() => savePrefs({ hintSeen: true })}>
+                ✕
+              </button>
+            </span>
+          )}
           {probeMissing !== null && (
             <span className="sv-pill">
               {pitchName(probeMissing, settings.noteNames)} — {s(lang, 'notHere')}
@@ -432,16 +565,26 @@ export default function SheetVariant({
             <button className="btn" aria-pressed={prefs.loop} onClick={toggleLoop} data-on={prefs.loop}>
               ⟲ {s(lang, 'loop')}
             </button>
+            {heard && !playing && hasNextFrag && (
+              <button className="btn big" onClick={nextFragment}>
+                {s(lang, 'nextFragment')} ›
+              </button>
+            )}
           </>
         ) : (
           <>
-            <button className="btn big" onClick={back} disabled={stepIdx === 0} aria-label={s(lang, 'back')}>
-              ‹
+            <button className="btn big" onClick={back} disabled={stepIdx === 0}>
+              ‹ {s(lang, 'back')}
             </button>
             <button className="btn big primary sv-main" onClick={next}>
-              {done ? `⟲ ${s(lang, 'again')}` : `${s(lang, 'next')} ›`}
+              {done ? (hasNextFrag ? `${s(lang, 'nextFragment')} ›` : `⟲ ${s(lang, 'again')}`) : `${s(lang, 'next')} ›`}
               <span className="sv-kbd">{s(lang, 'spaceHint')}</span>
             </button>
+            {done && hasNextFrag && (
+              <button className="btn big" onClick={again}>
+                ⟲ {s(lang, 'again')}
+              </button>
+            )}
             <span className="sv-count mono">
               {done ? s(lang, 'done') : `${s(lang, 'stepOf')} ${Math.min(stepIdx + 1, steps.length)} / ${steps.length}`}
             </span>

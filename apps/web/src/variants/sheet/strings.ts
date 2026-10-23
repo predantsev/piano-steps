@@ -36,6 +36,7 @@ const S = {
     uk: 'Торкніться ноти — почуєте її й побачите клавішу. Торкніться клавіші — побачите її на нотному стані.',
     en: 'Tap a note to hear it and see its key. Tap a key to see it on the staff.',
   },
+  dismiss: { uk: 'Сховати підказку', en: 'Hide the hint' },
   noNotes: { uk: 'У цьому фрагменті немає нот.', en: 'This fragment has no notes.' },
 } as const;
 
