@@ -24,12 +24,14 @@ export function FragmentBar({
   const rootRef = useRef<HTMLDivElement>(null);
   const chipsRef = useRef<HTMLDivElement>(null);
   const [reserve, setReserve] = useState<number | null>(null);
+  const [overflow, setOverflow] = useState({ left: false, right: false });
 
-  // The shell's .fab (Original / Sounds wrong) floats over the stage's top-right corner.
+  // The shell's .fab (Original / Sounds wrong) floats over the stage's top-right corner (soft
+  // coupling to shell class names; not found → keep the 13rem CSS reserve).
   useLayoutEffect(() => {
     const fab = rootRef.current?.closest('.stage')?.querySelector<HTMLElement>('.fab');
     if (!fab) {
-      setReserve(12);
+      setReserve(null);
       return;
     }
     const measure = () => setReserve(fab.offsetWidth + 24);
@@ -38,6 +40,25 @@ export function FragmentBar({
     ro.observe(fab);
     return () => ro.disconnect();
   }, []);
+
+  // Chips that do not fit: fade the cut-off edge, so later (or earlier) fragments read as "more".
+  useLayoutEffect(() => {
+    const box = chipsRef.current;
+    if (!box) return;
+    const measure = () => {
+      const left = box.scrollLeft > 1;
+      const right = box.scrollLeft + box.clientWidth < box.scrollWidth - 1;
+      setOverflow((o) => (o.left === left && o.right === right ? o : { left, right }));
+    };
+    measure();
+    box.addEventListener('scroll', measure, { passive: true });
+    const ro = new ResizeObserver(measure);
+    ro.observe(box);
+    return () => {
+      box.removeEventListener('scroll', measure);
+      ro.disconnect();
+    };
+  }, [fragments.length]);
 
   // Keep the current chip visible (manual scrollLeft: scrollIntoView would also scroll the stage).
   useEffect(() => {
@@ -64,7 +85,9 @@ export function FragmentBar({
       >
         ‹ <span className="cv-wide">{tr(lang, 'prevFragment')}</span>
       </button>
-      <div className="cv-fragchips" ref={chipsRef} role="tablist" aria-label={tr(lang, 'fragments')}>
+      <div
+        className={`cv-fragchips${overflow.left ? ' ov-l' : ''}${overflow.right ? ' ov-r' : ''}`}
+        ref={chipsRef} role="tablist" aria-label={tr(lang, 'fragments')}>
         {fragments.map((f, i) => {
           const st = fragmentStatus(progress, i);
           const label = st === 'mastered' ? 'statusMastered' : st === 'learning' ? 'statusLearning' : 'statusNew';
@@ -84,6 +107,7 @@ export function FragmentBar({
                 {st === 'mastered' ? '✓' : ''}
               </span>
               {f.title ?? `#${i + 1}`}
+              {i === current && <span className="cv-chip-status">{tr(lang, label)}</span>}
             </button>
           );
         })}

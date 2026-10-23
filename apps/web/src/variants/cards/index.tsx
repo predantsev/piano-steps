@@ -325,6 +325,11 @@ export default function CardsVariant({
               ✓ {tr(lang, frag < lastFrag ? 'gotIt' : 'gotItLast')}
             </button>
           )}
+          {!finished && frag < lastFrag && (
+            <button type="button" className="btn big" onClick={() => selectFragment(frag + 1)}>
+              {tr(lang, 'nextFragmentHint')} ›
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -381,9 +386,13 @@ export default function CardsVariant({
             className="btn big"
             aria-pressed={playingFragment}
             onClick={toggleFragment}
+            disabled={n === 0}
             title={tr(lang, 'playFragmentHint')}
           >
-            {playingFragment ? `■ ${tr(lang, 'stop')}` : `▶ ${tr(lang, 'playFragment')}`}
+            <span className="cv-swap">
+              <span aria-hidden={playingFragment}>▶ {tr(lang, 'playFragment')}</span>
+              <span aria-hidden={!playingFragment}>■ {tr(lang, 'stop')}</span>
+            </span>
           </button>
           <button
             type="button"

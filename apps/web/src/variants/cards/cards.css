@@ -38,6 +38,21 @@
   scrollbar-width: none;
   padding: 2px;
 }
+/* cut-off chips: the clipped edge fades out (no scrollbar on touch) */
+.cv-fragchips.ov-r {
+  mask-image: linear-gradient(to right, #000 calc(100% - 3rem), transparent);
+}
+.cv-fragchips.ov-l {
+  mask-image: linear-gradient(to left, #000 calc(100% - 3rem), transparent);
+}
+.cv-fragchips.ov-l.ov-r {
+  mask-image: linear-gradient(to right, transparent, #000 3rem, #000 calc(100% - 3rem), transparent);
+}
+.cv-chip-status {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--mut);
+}
 .cv-fragchips::-webkit-scrollbar {
   display: none;
 }
@@ -349,6 +364,36 @@
 
 .cv-keys {
   min-height: 140px;
+}
+/* middle C landmark, to find the octave on a real piano (soft coupling to PianoKeyboard's markup) */
+.cv-keys .pk-white[data-pitch='60']::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 1.6rem;
+  width: 0.55rem;
+  height: 0.55rem;
+  margin-left: -0.275rem;
+  border-radius: 50%;
+  background: var(--key-black); /* white keys stay light in both themes */
+  opacity: 0.55;
+  pointer-events: none;
+}
+.cv-keys .pk-white[data-pitch='60']:not(.pk-R):not(.pk-L) .pk-name {
+  color: var(--key-black);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+/* ▶ Fragment / ■ Stop: both labels share one grid cell, so the button never changes width */
+.cv-swap {
+  display: inline-grid;
+}
+.cv-swap > span {
+  grid-area: 1 / 1;
+  text-align: center;
+}
+.cv-swap > [aria-hidden='true'] {
+  visibility: hidden;
 }
 
 @media (max-width: 900px) {
