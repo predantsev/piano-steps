@@ -226,12 +226,13 @@ export function drawFragment(container: HTMLElement, score: Score, measures: Mea
   const head0 = headerWidth(score, true);
   const headN = headerWidth(score, false);
   const widths = built.map((b) => b.minW);
-  let zoom = 0.7;
+  let zoom = 0.6;
   let systems: number[][] = [];
-  for (const z of [1.6, 1.5, 1.4, 1.3, 1.2, 1.1, 1.0, 0.9, 0.8, 0.7]) {
+  for (let k = 0; k <= 20; k++) {
+    const z = Math.round((1.6 - k * 0.05) * 100) / 100; // 1.6 … 0.6
     const usable = opts.width / z - 2 * MARGIN_X;
     const s = pack(widths, usable, head0, headN);
-    const fitsWidth = s.every((sys, k) => sys.reduce((a, i) => a + widths[i], 0) <= usable - (k === 0 ? head0 : headN) + 1 || sys.length === 1);
+    const fitsWidth = s.every((sys, j) => sys.reduce((a, i) => a + widths[i], 0) <= usable - (j === 0 ? head0 : headN) + 1 || sys.length === 1);
     if (fitsWidth && s.length * sysH * z <= opts.height) {
       zoom = z;
       systems = s;
@@ -283,7 +284,8 @@ export function drawFragment(container: HTMLElement, score: Score, measures: Mea
     const bassTop = trebleTop + STAFF_H + gap;
     const head = si === 0 ? head0 : headN;
     const total = sys.reduce((a, i) => a + widths[i], 0);
-    const stretch = Math.max(1, (usable - head) / total);
+    // < 1 only when a single bar is wider than the screen even at the smallest zoom: squeeze, never scroll
+    const stretch = (usable - head) / total;
     let x = MARGIN_X;
     // drawn extent of each staff's notes, stems and beams (for placing the note names)
     const tExt = { min: Infinity, max: -Infinity };

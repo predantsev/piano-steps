@@ -191,13 +191,16 @@ export default function SheetVariant({
       const marks = new Map<number, KeyHighlight>();
 
       if (isPlaying) {
+        // what sounds now, plus the step under the cursor (so a key does not blink off in the
+        // short release gap between two notes)
         const t = player.time;
-        for (const n of soundingAt(L.fragNotes, t)) {
+        let cur = -1;
+        for (let i = 0; i < L.steps.length && L.steps[i].time <= t + 0.02; i++) cur = i;
+        const lit = [...soundingAt(L.fragNotes, t), ...(cur >= 0 ? L.steps[cur].notes : [])];
+        for (const n of lit) {
           active.add(L.indexOf.get(n)!);
           marks.set(n.pitch, { mark: handOf(n) });
         }
-        let cur = -1;
-        for (let i = 0; i < L.steps.length && L.steps[i].time <= t + 0.02; i++) cur = i;
         if (cur >= 0) cursorIdx = L.indexOf.get(L.steps[cur].notes[0])!;
       } else if (L.mode === 'step' && L.stepIdx < L.steps.length) {
         const cur = L.steps[L.stepIdx];
@@ -374,7 +377,7 @@ export default function SheetVariant({
                 aria-selected={i === frag}
                 className={`sv-chip ${i === frag ? 'on' : ''} ${st?.status === 'mastered' ? 'mastered' : ''}`}
                 onClick={() => setFrag(i)}
-                title={st?.status === 'mastered' ? s(lang, 'mastered') : undefined}
+                aria-label={`${fr.title ?? `#${i + 1}`}${st?.status === 'mastered' ? ` · ${s(lang, 'mastered')}` : ''}`}
               >
                 {st?.status === 'mastered' ? '✓ ' : st && st.attempts > 0 ? '• ' : ''}
                 {fr.title ?? `#${i + 1}`}
