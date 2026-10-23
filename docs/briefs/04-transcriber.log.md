@@ -44,3 +44,62 @@ brief was silent.
 - ASSUMPTION: the lesson gets **no `tempo`** unless the user passes `--quantize`; with a tempo
   `autoFragments` cuts whole bars from t = 0 and, without a known downbeat, would cut mid-phrase on a
   rubato recording. Without a tempo the server cuts at the widest gap near every 6 s.
+- Correction to the tempo ASSUMPTION above: the lesson never gets `tempo`, also not with
+  `--quantize` (the beat tracker gives beats, not a downbeat, so bar-based fragments would still be
+  cut from an arbitrary phase). `--quantize` only snaps onsets to a beat-tracked sixteenth grid.
+- **Hand split = beam search** (`hands.py`) with a soft C4 prior + span-within-0.8 s + continuity
+  + no-crossing + ≤5 notes. Evidence: `uv run pytest` — the three demo lessons with hands stripped
+  are recovered 100 %; a synthetic RH melody dipping to A3 over LH C2-G2-C3 goes to the right hand
+  where the fixed split fails. Dead end: with the LH chord right under the melody (C3-E3-G3 then
+  A3) the span rule cannot tell, and the prior wins (A3 → L); test changed to the unambiguous
+  case and the limit is documented.
+- ASSUMPTION: demo lessons served by `GET /api/lessons/{slug}` are saved as
+  `tests/fixtures/demo-lessons.json` (public-domain, already in `packages/core/src/demo.ts`; not
+  a user transcription).
+
+### Accuracy measurement
+
+- **"Align the start" is not enough**: the demo is 72 bpm, Barton plays ~1.14× slower with rubato.
+  The alignment is done reference ↔ audio, never with an engine's output, so both engines are
+  scored against the same target (`evaluate.py`): 13-dim chroma+silence features, slope-constrained
+  subsequence DTW with 1 s of silence prepended to the reference (anchors the start), earliest
+  occurrence within 15 % of the best cost, then an ordered snap of each step to a librosa onset
+  scored by a per-semitone CQT flux of the step's own keys.
+- Dead ends on the way, each seen in `scratchpad/debug_align.py` output (step → mapped time next to
+  the ByteDance onsets of the same pitch, used only as a visual check, never in scoring):
+  1. plain chroma subsequence DTW skipped the first E5-D#5 pair and collapsed bars 7–8 onto one
+     time (ref 7.71…8.75 s → 19.81 s) — F1@50 0.77 / 0.69 was an alignment artefact;
+  2. snapping to the nearest onset peak took a neighbouring onset when the DTW was >125 ms off;
+  3. a per-pitch-flux argmax without onset peaks was fooled by E2's 2nd harmonic (E3) and E5/D#5
+     leakage — fixed with 3 CQT bins per semitone (centre bin) and onset peaks as candidates;
+  4. the Lisitsa recording matched its recapitulation at 44 s (global min) — fixed by taking the
+     earliest local minimum within 15 % of the best.
+  Result on Barton: 45/47 reference steps land on the onset ByteDance also found for that pitch
+  (±25 ms); the last two (quiet E3/A3 in the final ritardando) stay off.
+- **Numbers** (`uv run transcribe eval <url>`, `.work/eval/*.json`; sweep
+  `scripts/sweep_thresholds.py` over Barton `wKvKiN1wYHw`, Rousseau `wfF0zHeU3Zs`, Lisitsa
+  `va6aamQvRDs`): mean onset F1 @ 50 ms — bytedance 0.923 (thresholds 0.2…0.5 all within 0.006),
+  basic-pitch 0.730 at its library default onset 0.5, 0.794 @ 0.6, **0.841 @ 0.7**, 0.827 @ 0.8,
+  0.699 @ 0.9. Decision: default engine **bytedance**, basic-pitch onset threshold **0.7**.
+- Cleanup thresholds (min velocity 0…0.3, overtone rule 0/0.5) moved mean F1 by ≤ 0.007 on these
+  recordings — the engines' own thresholds dominate. Kept conservative defaults (velocity 0.1,
+  30 ms, re-trigger 70 ms, overtone rule off); their benefit on noisier input is **unverified**.
+- Brooklyn Classical `2fcX2dWmR6g`: bytedance recall 1.00 but 25 extra notes (A5/E5/G#5 with long
+  durations, v 0.3–0.57) — the recording carries notes the score's opening does not have (an
+  added upper voice; inferred from the false-positive list, not listened to). Reported separately,
+  not in the mean.
+
+### End to end
+
+- `PIANO_STEPS_URL=http://127.0.0.1:9340 uv run transcribe youtube https://www.youtube.com/watch?v=wKvKiN1wYHw …`
+  → 1083 raw → 1077 notes (R 679, L 398), 200 s, 34 fragments, `offsetSec=11.108`, 42 s wall time.
+  Seen in the app (tab at 1180×820): 34 fragment chips, ▶ Fragment lit E5 first, 🎧 Original opened
+  `youtube-nocookie.com/embed/wKvKiN1wYHw?…&start=11&end=17` (fragment 1 = [0, 4.87) + 11.108).
+  The practice variants on this branch are still the shell's "Basic screen".
+- `fix`: filed feedback on fragment 5 through the API, `transcribe fix … 5 --engine basic-pitch
+  --feedback <id>` replaced 17 → 14 notes, the 1060 notes outside the fragment were byte-identical,
+  the feedback became `resolved` with a resolution text.
+- **Bug found by doing it:** re-fixing with bytedance gave 16 notes, not the original 17 — the B4 on
+  the fragment's first onset moved a few ms before `start` and was dropped while the API had
+  deleted the old one. Fragment bounds sit exactly on onsets. Fixed with `fragment_replacement`
+  (±50 ms, clamp, skip what the neighbours own) + a test; re-run restored all 17 notes within 2 ms.
