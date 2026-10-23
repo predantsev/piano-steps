@@ -146,6 +146,14 @@ export default function App() {
 
   // State a variant publishes for tests/agents (VariantProps.reportState), remembered per mounted variant.
   const variantState = useRef<{ key: string; state: Record<string, unknown> } | null>(null);
+  // A new mount (another variant, lesson or edit) starts empty — also when coming back to the same key,
+  // so a remounted view never shows its previous mount's state. Reset in render: it is idempotent and
+  // runs before any of the new view's effects can report.
+  const lastVariantKey = useRef(variantKey);
+  if (lastVariantKey.current !== variantKey) {
+    lastVariantKey.current = variantKey;
+    variantState.current = null;
+  }
   const reportState = useCallback(
     (state: Record<string, unknown>) => {
       variantState.current = { key: variantKey, state };

@@ -35,7 +35,8 @@ Decision log with evidence: [`05-api-and-test-harness.log.md`](./05-api-and-test
 - **Fragments on bar lines for MusicXML**: `autoFragments` assumes a constant tempo and bars starting at 0,
   which is wrong after a pickup or a tempo change; MusicXML knows the real bar lines.
 - **Error codes instead of sentences in `error`**: agents can switch on a stable code; the sentence moved
-  to `details[0]`. Status codes did not change.
+  to `details[0]`. Malformed-input cases that were 500 are now 400 (`bad-request` / `validation`), a JSON route
+  without `content-type: application/json` answers 415, and an upsert that replaces answers 200 (fix round).
 - **The automation API reads the shell's live state** (a ref updated every render) and calls the same
   actions as the UI, so it cannot drift. `litKeys` are read from the keyboard's DOM — what the screen shows.
 - **It never fakes the audio unlock**: `player.unlock()` without a gesture would leave the app silent for
@@ -82,8 +83,9 @@ Example bodies: test `has example bodies that the API accepts as they are` takes
 patch, and the literal MusicXML example → 201 with notes `48L, 64R, 67R`).
 
 Mutation checks (each reverted):
-- removing one route description + one request example → the OpenAPI completeness test failed with exactly
-  `DELETE /api/lessons/{ref}: no description` and `POST /api/lessons/{ref}/feedback: request application/json has no example`;
+- removing one route description + one request example → the OpenAPI completeness test failed, listing
+  `DELETE /api/lessons/{ref}: no description` and `POST /api/lessons/{ref}/feedback: request application/json has no example`
+  (a reviewer's re-run also listed a third: the feedback route's binary-only body without a curl example);
 - changing the devtools guard to `if (true)` → the build emitted `assets/devtools-DDRw8Zfl.js` and
   `check:bundle` exited 1 naming it;
 - a `console.error` in a page → the e2e fixture failed the test on both projects;
@@ -138,14 +140,18 @@ renders `v0.2.0 · OpenAPI 3.1.0` with the examples. Screenshots at both sizes s
 
 **Note for the transcriber (04) and any API client**: since `1605580` the error body's `error` is a
 stable **code** (`validation`, `not-found`, `conflict`, …) and the human sentence is in `details[0]`; status
-codes are unchanged, and imports with `?upsert=true` that replace a lesson now answer **200** (201 only when
+codes changed where they were wrong: malformed JSON, unreadable MIDI and a fragment edit that empties the
+lesson were 500 and are now 400 (`bad-request` / `invalid-midi` / `validation`), a JSON route without
+`content-type: application/json` is 415 (fix round: an oversized body is 413 `too-large`), and imports with `?upsert=true` that replace a lesson now answer **200** (201 only when
 created). `scripts/lesson-add.ts` was checked: it tests `res.ok` and prints the whole body, so it is unaffected.
 
 **Note for the variant branches when merging**: the e2e suite runs against whatever is in
 `apps/web/src/variants/` — on this branch that is still the placeholder. The tests only rely on shell DOM
-(`[role=tab]`, `.pk [data-pitch]` from `ui/PianoKeyboard`, `main.stage`), but "a held key is lit" assumes the
-default variant (`falling`) shows the shared `PianoKeyboard` and highlights held keys (`pk-*` class). Re-run
-`npm run e2e` after each variant merge.
+(`[role=tab]`, `.pk [data-pitch]` from `ui/PianoKeyboard`, `main.stage`). Fix round: the exact-`litKeys`
+assertions in `e2e/devtools.spec.ts` (which only the placeholder satisfied) are now variant-agnostic and run on
+every tab; checked on main + the three variant branches merged in a scratch clone (see the fix report). They
+still assume every view shows the shared `PianoKeyboard` and lights a held key. Re-run `npm run e2e` after each
+variant merge.
 
 ## Follow-up ideas
 
