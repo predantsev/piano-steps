@@ -68,6 +68,12 @@ export interface DevState {
   offline: boolean;
   settings: { lang: string; noteNames: string; keyLabels: string; speed: number };
   webmcp: { available: boolean; tools: string[] };
+  /**
+   * `framesRunning: false` = no animation frame for 250 ms: the tab is in the background (or the
+   * browser pane is hidden), views that redraw on requestAnimationFrame are frozen and `litKeys`
+   * may be stale. Bring the tab to the front.
+   */
+  display: { framesRunning: boolean };
 }
 
 export interface PianoStepsDevApi {

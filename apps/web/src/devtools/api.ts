@@ -20,6 +20,15 @@ export function createDevApi(getShell: () => DevShell): DevApiHandle {
     log.push(e);
     if (log.length > LOG_SIZE) log.shift();
   });
+  // Animation frames stop in a background tab (also in a hidden browser pane): views that redraw on
+  // requestAnimationFrame then show stale keys. Track it so getState() can say so.
+  let lastFrame = performance.now();
+  let raf = 0;
+  const tick = () => {
+    lastFrame = performance.now();
+    raf = requestAnimationFrame(tick);
+  };
+  raf = requestAnimationFrame(tick);
 
   const shell = () => {
     const s = getShell();
@@ -83,6 +92,7 @@ export function createDevApi(getShell: () => DevShell): DevApiHandle {
         speed: s.settings.speed,
       },
       webmcp: { available: 'modelContext' in document, tools: registeredToolNames() },
+      display: { framesRunning: now - lastFrame < 250 },
     };
   };
 
@@ -203,7 +213,13 @@ export function createDevApi(getShell: () => DevShell): DevApiHandle {
     }
   }
 
-  return { api, dispose: unsubscribe };
+  return {
+    api,
+    dispose: () => {
+      unsubscribe();
+      cancelAnimationFrame(raf);
+    },
+  };
 }
 
 function toPitches(arg: PitchArg | PitchArg[]): number[] {

@@ -5,6 +5,7 @@ import { expect, openApp, state, tapOrClick, test } from './fixtures.ts';
 test('window.pianoSteps presses keys, reads lit keys and plays', async ({ page, hasTouch }) => {
   await openApp(page, '?lesson=ode-to-joy&ui=falling');
 
+  expect((await state(page)).display.framesRunning).toBe(true);
   const held = await page.evaluate(() => window.pianoSteps!.press(['C4', 'E4', 67]));
   expect(held.heldKeys).toEqual([60, 64, 67]);
   expect(held.litKeys.map((k) => k.name)).toEqual(['C4', 'E4', 'G4']);

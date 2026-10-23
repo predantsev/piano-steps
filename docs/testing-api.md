@@ -53,6 +53,7 @@ await ps.stop();
 | `variantState` | whatever the current view published through `reportState` (see below), else `null` |
 | `dialog`, `error`, `offline`, `settings` | the shell's state |
 | `webmcp` | `{ available, tools }` — whether this browser has WebMCP and which tools are registered |
+| `display.framesRunning` | `false` = no animation frame for 250 ms: the tab is in the background or the browser pane is hidden. Views that redraw on `requestAnimationFrame` are then frozen and `litKeys` is stale — bring the tab to the front |
 
 `litKeys` is read from the DOM of `ui/PianoKeyboard` (`.pk [data-pitch]` with a `pk-<mark>` class), so it
 is what the screen really shows. A view that draws its own keyboard without that component shows up only
