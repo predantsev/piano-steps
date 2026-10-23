@@ -1,0 +1,54 @@
+[project]
+name = "piano-transcribe"
+version = "0.1.0"
+description = "piano-steps transcriber: YouTube/audio/MIDI -> lesson, uploaded through the piano-steps API"
+readme = "README.md"
+license = "MIT"
+# The ML wheels (torch, onnxruntime, numba via resampy) lag behind new CPython releases;
+# 3.11 is the newest version every dependency below ships wheels for on macOS arm64 and Linux.
+requires-python = ">=3.11,<3.12"
+dependencies = [
+    "numpy>=1.26",
+    "pretty-midi>=0.2.10",
+    "librosa>=0.10",
+    "mir-eval>=0.7",
+    "yt-dlp>=2025.1.1",
+    # engine: ByteDance high-resolution piano transcription (Kong et al. 2021), PyTorch
+    "piano-transcription-inference==0.0.6",
+    "torch>=2.2",
+    # engine: Spotify basic-pitch (Bittner et al. 2022); run through ONNX on every platform
+    "basic-pitch[onnx]==0.4.0",
+]
+
+[project.scripts]
+transcribe = "piano_transcribe.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.uv]
+# basic-pitch pulls TensorFlow (~500 MB) on Linux for python>=3.11 only to offer a backend we
+# never use: we always load its bundled ONNX model. Override it away.
+override-dependencies = [
+    "tensorflow; sys_platform == 'never'",
+    "tensorflow-macos; sys_platform == 'never'",
+]
+
+[tool.uv.sources]
+# Linux (Docker) gets the CPU-only torch build; the default PyPI wheel drags in CUDA libraries.
+torch = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/piano_transcribe"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
