@@ -71,3 +71,41 @@ export function midiToLesson(data: ArrayBuffer | Uint8Array, opts: MidiImportOpt
 function r(x: number): number {
   return Math.round(x * 10000) / 10000;
 }
+
+export interface MidiExportInput {
+  title?: string;
+  tempo?: Tempo;
+  notes: readonly LessonNote[];
+}
+
+/**
+ * Lesson → Standard MIDI file (format 1) with two tracks: "Right hand" then "Left hand".
+ * Notes without a hand go by pitch (below C4 → left). The tempo (or 120 bpm) and time signature
+ * are written to the header, so a DAW shows the right bars. Re-importing with `midiToLesson`
+ * gives the same pitches and times (to the tick) and the same hands while the right hand sits higher.
+ */
+export function lessonToMidi(lesson: MidiExportInput): Uint8Array {
+  const midi = new Midi();
+  midi.header.name = lesson.title ?? '';
+  midi.header.setTempo(lesson.tempo?.bpm ?? 120);
+  const ts = lesson.tempo?.timeSignature;
+  if (ts) midi.header.timeSignatures.push({ ticks: 0, timeSignature: [ts[0], ts[1]] });
+  midi.header.update();
+
+  const right = midi.addTrack();
+  right.name = 'Right hand';
+  right.channel = 0;
+  const left = midi.addTrack();
+  left.name = 'Left hand';
+  left.channel = 1;
+  for (const n of [...lesson.notes].sort((a, b) => a.start - b.start || a.pitch - b.pitch)) {
+    const hand = n.hand ?? (n.pitch < 60 ? 'L' : 'R');
+    (hand === 'L' ? left : right).addNote({
+      midi: n.pitch,
+      time: n.start,
+      duration: n.duration,
+      velocity: n.velocity ?? 0.8,
+    });
+  }
+  return midi.toArray();
+}
