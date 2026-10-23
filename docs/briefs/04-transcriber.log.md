@@ -39,7 +39,7 @@ brief was silent.
   `uv run transcribe youtube <url>` matches the brief's command shape.
 - ASSUMPTION: downloads are cached per video id in `.work/<video-id>/` so `fix` can reuse them
   instead of re-fetching.
-- ASSUMPTION: lesson time 0 = the first transcribed onset (minus a small lead-in), and
+- ASSUMPTION: lesson time 0 = the first transcribed onset (no lead-in), and
   `source.offsetSec` = clip start in the video + that shift, so "hear the original" lines up.
 - ASSUMPTION: the lesson gets **no `tempo`** unless the user passes `--quantize`; with a tempo
   `autoFragments` cuts whole bars from t = 0 and, without a known downbeat, would cut mid-phrase on a
