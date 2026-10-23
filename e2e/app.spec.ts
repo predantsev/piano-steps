@@ -60,10 +60,12 @@ test('tapping an on-screen key registers it, and a held key is lit', async ({ pa
   // Held down, the key is lit. (Playwright has no touch-and-hold, so the hold uses the mouse.)
   await page.mouse.move(box.x + at.x, box.y + at.y);
   await page.mouse.down();
-  await expect(key).toHaveClass(/\bpk-(hint|ok|bad|next|R|L)\b/);
+  await expect(key).toHaveClass(/\bpk-(hint|ok|bad|next|hold|R|L)\b/);
+  expect((await state(page)).heldKeys).toEqual([60]);
   expect((await state(page)).litKeys.map((k) => k.pitch)).toContain(60);
   await page.mouse.up();
-  await expect.poll(async () => (await state(page)).litKeys.map((k) => k.pitch)).not.toContain(60);
+  // Released: heldKeys is the truth. (litKeys may keep a view's own cue on it, e.g. the sheet's probe.)
+  await expect.poll(async () => (await state(page)).heldKeys).toEqual([]);
 });
 
 test('feedback dialog posts and the feedback is in GET /api/feedback', async ({ page, hasTouch }, testInfo) => {

@@ -2,21 +2,36 @@ import { expect, openApp, state, tapOrClick, test } from './fixtures.ts';
 
 /** The dev automation API itself: `window.pianoSteps` everywhere, WebMCP where the browser has it. */
 
-test('window.pianoSteps presses keys, reads lit keys and plays', async ({ page, hasTouch }) => {
-  await openApp(page, '?lesson=ode-to-joy&ui=falling');
-
+/**
+ * Variant-agnostic: every view draws its own cues on the keyboard (the next step's rings while idle, the
+ * sheet's 2.5 s "where is this key" probe), so these checks only rely on what the shell guarantees —
+ * heldKeys / recentInput — and on "a pressed key is among the lit keys". They run on every variant tab.
+ */
+test('window.pianoSteps presses and releases keys on every variant', async ({ page }) => {
+  const { variants } = await openApp(page, '?lesson=ode-to-joy');
   expect((await state(page)).display.framesRunning).toBe(true);
-  const held = await page.evaluate(() => window.pianoSteps!.press(['C4', 'E4', 67]));
-  expect(held.heldKeys).toEqual([60, 64, 67]);
-  expect(held.litKeys.map((k) => k.name)).toEqual(['C4', 'E4', 'G4']);
-  const released = await page.evaluate(() => window.pianoSteps!.release());
-  expect(released.heldKeys).toEqual([]);
-  expect(released.litKeys).toEqual([]);
+  for (const v of variants) {
+    await page.evaluate((id) => window.pianoSteps!.setVariant(id), v);
+    const held = await page.evaluate(() => window.pianoSteps!.press(['C4', 'E4', 67]));
+    expect(held.heldKeys, v).toEqual([60, 64, 67]);
+    expect(held.litKeys.map((k) => k.name), `${v}: pressed keys are lit`).toEqual(expect.arrayContaining(['C4', 'E4', 'G4']));
+    const released = await page.evaluate(() => window.pianoSteps!.release());
+    expect(released.heldKeys, v).toEqual([]);
+    expect(released.recentInput.slice(-3).map((e) => `${e.type} ${e.pitch} ${e.source}`), v).toEqual(['off 60 sim', 'off 64 sim', 'off 67 sim']);
 
-  const whileHeld = await page.evaluate(() => window.pianoSteps!.press('A3', 100));
-  expect(whileHeld.litKeys.map((k) => k.pitch)).toEqual([57]);
+    const whileHeld = await page.evaluate(() => window.pianoSteps!.press('A3', 100));
+    expect(whileHeld.heldKeys, v).toEqual([57]);
+    expect(whileHeld.litKeys.map((k) => k.pitch), `${v}: A3 lit while held`).toContain(57);
+    expect((await state(page)).heldKeys, v).toEqual([]);
+  }
+  // A bad holdMs is rejected before anything is pressed (no phantom held key).
+  const bad = await page.evaluate(() => window.pianoSteps!.press(60, -1).then(() => 'resolved', (e: Error) => e.message));
+  expect(bad).toMatch(/holdMs must be/);
   expect((await state(page)).heldKeys).toEqual([]);
+});
 
+test('window.pianoSteps plays after a real gesture', async ({ page, hasTouch }) => {
+  await openApp(page, '?lesson=ode-to-joy');
   // Sound (and on iOS the clock) starts only after a real gesture: tap the page once.
   await tapOrClick(page.locator('.brand'), hasTouch);
   await expect.poll(async () => (await state(page)).player.audioContext).toBe('running');
@@ -60,7 +75,7 @@ test('WebMCP tools run through document.modelContext', async ({ page }) => {
     expect.arrayContaining(['get_state', 'list_lessons', 'select_lesson', 'set_variant', 'press_keys', 'release_keys', 'play', 'stop']),
   );
   expect(raw.result.heldKeys).toEqual([62, 66]);
-  expect(raw.result.litKeys.map((k: { name: string }) => k.name)).toEqual(['D4', 'F#4']);
+  expect(raw.result.litKeys.map((k: { name: string }) => k.name)).toEqual(expect.arrayContaining(['D4', 'F#4']));
 
   // The same tools through the helper.
   const call = (name: string, args: Record<string, unknown> = {}) =>

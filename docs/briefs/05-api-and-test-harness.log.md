@@ -205,3 +205,12 @@ the brief was silent and I chose.
   `res.ok` and prints the whole JSON body on failure → unaffected.
 - The literal MusicXML example in the spec had never been sent; new test `has example bodies that the API accepts
   as they are` POSTs every spec example as-is (MusicXML → 201, notes `48L, 64R, 67R`). `npm test` → 33 passed.
+
+---
+
+## Fix round (brief 10-fix-api.md, 2026-10-23)
+
+- Rebased on origin/main (cfc4381: #8, #10, #12) — `git rebase origin/main` → "Successfully rebased", no conflicts.
+  After `npm install`: typecheck exit 0, `npm test` → 4 files, 41 tests passed.
+- Variant branches at start: feat/1 335fbc2, feat/2 81fe150, feat/3 1cf9d89 (all 0 behind main; still moving).
+- ASSUMPTION: e2e ports for this package are 9352/9353 (`E2E_WEB_PORT`/`E2E_API_PORT`), scratch combined tree 9354/9355 — the brief says "935x" without exact numbers.

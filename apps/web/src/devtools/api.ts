@@ -1,11 +1,14 @@
 import { MAX_PIANO_PITCH, MIN_PIANO_PITCH, parsePitch, pitchName } from '@piano-steps/core';
 import { getContext } from 'tone';
 import type { NoteEvent } from '../input/noteInput.ts';
+import type { KeyMark } from '../ui/PianoKeyboard.tsx';
 import type { DevShell } from './shell.ts';
 import type { DevKey, DevState, PianoStepsDevApi, PitchArg } from './types.ts';
 import { callWebMcpTool, registeredToolNames } from './webmcp.ts';
 
-const MARKS = ['R', 'L', 'next', 'ok', 'bad', 'hint'];
+/** Every mark PianoKeyboard can draw. A Record, so a new KeyMark fails to compile until it is listed here. */
+const MARK_SET: Record<KeyMark, true> = { R: true, L: true, hold: true, next: true, ok: true, bad: true, hint: true };
+const MARKS = Object.keys(MARK_SET) as KeyMark[];
 const LOG_SIZE = 30;
 
 export interface DevApiHandle {
@@ -143,6 +146,9 @@ export function createDevApi(getShell: () => DevShell): DevApiHandle {
     async press(pitches, holdMs) {
       const list = toPitches(pitches);
       if (!list.length) throw new Error('press(pitches): give at least one pitch, e.g. 60, "C4" or [60, 64, 67]');
+      // Validate before pressing: a throw after the loop would leave the keys held.
+      if (holdMs !== undefined && !(typeof holdMs === 'number' && holdMs >= 0 && Number.isFinite(holdMs)))
+        throw new Error('press(pitches, holdMs): holdMs must be a number of milliseconds ≥ 0');
       const { input, player } = shell();
       for (const p of list) {
         input.emit('on', p, 'sim');
@@ -151,7 +157,6 @@ export function createDevApi(getShell: () => DevShell): DevApiHandle {
       await settle();
       const state = getState();
       if (holdMs !== undefined) {
-        if (!(holdMs >= 0)) throw new Error('press(pitches, holdMs): holdMs must be a number of milliseconds ≥ 0');
         await sleep(holdMs);
         releaseAll(list);
         await settle();
@@ -232,13 +237,18 @@ function toPitches(arg: PitchArg | PitchArg[]): number[] {
   });
 }
 
-/** Keys the on-screen keyboard shows highlighted (PianoKeyboard renders `.pk-<mark>` on `[data-pitch]`). */
+/**
+ * Keys the on-screen keyboard shows highlighted (PianoKeyboard renders `.pk-<mark>` on `[data-pitch]`,
+ * plus a `.pk-ring` child when a filled key also comes up next).
+ */
 function litKeys(): DevKey[] {
   const out = new Map<number, DevKey>();
   for (const el of document.querySelectorAll<HTMLElement>('.pk [data-pitch]')) {
     const mark = MARKS.find((m) => el.classList.contains(`pk-${m}`));
     const pitch = Number(el.dataset.pitch);
-    if (mark && !out.has(pitch)) out.set(pitch, { pitch, name: pitchName(pitch), mark });
+    if (!mark || out.has(pitch)) continue;
+    const ring = mark !== 'next' && !!el.querySelector(':scope > .pk-ring');
+    out.set(pitch, { pitch, name: pitchName(pitch), mark, ...(ring ? { next: true as const } : {}) });
   }
   return [...out.values()].sort((a, b) => a.pitch - b.pitch);
 }

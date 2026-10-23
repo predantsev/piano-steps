@@ -48,7 +48,7 @@ await ps.stop();
 | `fragment` | `{ position, title, start, end }` the view says the user is on, or `null` (whole lesson) |
 | `player` | `state`, `time` (s), `rate`, `from`, `to`, `loop`, `audioUnlocked`, `audioContext`, `samplesLoaded` |
 | `heldKeys` | MIDI numbers held down right now (finger, computer keyboard or this API) |
-| `litKeys` | keys the on-screen keyboard highlights, with their mark: `R`/`L` (hand), `next`, `ok`, `bad`, `hint` |
+| `litKeys` | keys the on-screen keyboard highlights, with their mark: `R`/`L` (hand: press now), `hold` (still held from an earlier step), `next` (ring), `ok`, `bad`, `hint`; `next: true` on a filled key that also comes up next (a repeated note) |
 | `recentInput` | the last 30 key events `{type:'on'|'off', pitch, name, source, msAgo}` — a tap is over before you can look, it shows up here (`source: 'screen'`) |
 | `variantState` | whatever the current view published through `reportState` (see below), else `null` |
 | `dialog`, `error`, `offline`, `settings` | the shell's state |
@@ -58,6 +58,12 @@ await ps.stop();
 `litKeys` is read from the DOM of `ui/PianoKeyboard` (`.pk [data-pitch]` with a `pk-<mark>` class), so it
 is what the screen really shows. A view that draws its own keyboard without that component shows up only
 through `variantState`.
+
+**`heldKeys` is the source of truth for presses; `litKeys` is what the view draws.** `litKeys` mixes the
+user's presses with the view's own cues: the upcoming step's `next` rings while idle, and view-specific
+`hint`s (the sheet view keeps the last released key lit for 2.5 s to show where it sits on the staff). So a
+test asserts "the pressed key is among the lit keys", never an exact `litKeys` list, and checks a release
+through `heldKeys` / `recentInput`. The e2e suite runs the same checks on every variant tab.
 
 ### Sound and the clock
 

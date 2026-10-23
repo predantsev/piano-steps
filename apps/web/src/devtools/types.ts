@@ -11,8 +11,13 @@ export type PitchArg = number | string;
 export interface DevKey {
   pitch: number;
   name: string;
-  /** How the on-screen keyboard shows it: R / L (hand), next, ok, bad, hint. */
+  /**
+   * How the on-screen keyboard shows it: R / L (hand: press now), hold (still held from an earlier step),
+   * next (ring: coming up), ok, bad, hint (a variant's own cue — e.g. the key being held, or the sheet's probe).
+   */
   mark: string;
+  /** A filled key that also comes up next (a repeated note): the ring is drawn on top of the fill. */
+  next?: true;
 }
 
 export interface DevInputEvent {
