@@ -59,8 +59,12 @@ function savePrefs(p: Prefs) {
   }
 }
 
-/** Seconds between `player.time` and what is heard: Tone's look-ahead + the device output latency. */
-function audioLag(): number {
+/**
+ * Seconds from asking for a sound to hearing it: Tone's look-ahead + the device output latency.
+ * The engine never subtracts it from `player.time` (that is already audible time, #10); it only
+ * uses it to ask early — see `EngineHooks.audioLead`.
+ */
+function audioLead(): number {
   try {
     const ctx = Tone.getContext();
     const raw = ctx.rawContext as AudioContext;
@@ -109,7 +113,7 @@ export default function FallingNotes({
           rerender();
           queueMicrotask(() => paintRef.current()); // keys follow presses at once, even if frames are throttled
         },
-        audioLag,
+        audioLead,
       }),
     // prefs are pushed with setOptions below; the engine is per lesson + player
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -256,6 +260,7 @@ export default function FallingNotes({
         phase: engine.phase,
         bars,
         now,
+        waiting: engine.waitingStep ? { step: engine.waitingStep, next: engine.upcomingStep } : null,
         pressed: engine.pressed,
         wrong: engine.wrong?.pitch ?? null,
         held: input.held,

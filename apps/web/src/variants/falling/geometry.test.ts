@@ -1,6 +1,6 @@
 import { isBlackKey, keyboardRange } from '@piano-steps/core';
 import { describe, expect, it } from 'vitest';
-import { keyGeometry, timeToY } from './geometry.ts';
+import { fitRange, keyGeometry, timeToY } from './geometry.ts';
 
 /** The CSS percentages PianoKeyboard.tsx renders, recomputed independently. */
 function keyboardCss(lo: number, hi: number) {
@@ -51,5 +51,33 @@ describe('timeToY', () => {
     expect(timeToY(10, 10, 3, 400)).toBe(400);
     expect(timeToY(13, 10, 3, 400)).toBe(0);
     expect(timeToY(11.5, 10, 3, 400)).toBe(200);
+  });
+});
+
+describe('fitRange', () => {
+  const whites = ([lo, hi]: [number, number]) => {
+    let c = 0;
+    for (let p = lo; p <= hi; p++) if (!isBlackKey(p)) c++;
+    return c;
+  };
+  it('two-hand Für Elise bars 2–3 (A2…E5): G2…F5, 21 white keys instead of 28', () => {
+    expect(fitRange([45, 52, 57, 64, 69, 71, 72, 76])).toEqual([43, 77]);
+    expect(whites(fitRange([45, 76]))).toBe(21);
+  });
+  it('a small melody still gets at least 15 white keys, ends on white keys', () => {
+    const r = fitRange([60, 62, 64, 65, 67]);
+    expect(whites(r)).toBeGreaterThanOrEqual(15);
+    expect(isBlackKey(r[0]) || isBlackKey(r[1])).toBe(false);
+    expect(r[0]).toBeLessThan(60);
+    expect(r[1]).toBeGreaterThan(67);
+  });
+  it('black-key extremes get a white key beyond them', () => {
+    const [lo, hi] = fitRange([61, 82], 1);
+    expect([lo, hi]).toEqual([59, 84]);
+  });
+  it('stays on the piano', () => {
+    const [lo, hi] = fitRange([21, 108]);
+    expect(lo).toBe(21);
+    expect(hi).toBe(108);
   });
 });

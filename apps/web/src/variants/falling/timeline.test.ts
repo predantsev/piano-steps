@@ -1,4 +1,4 @@
-import type { LessonNote } from '@piano-steps/core';
+import { demoLessons, groupSteps, LessonInput, notesInRange, prepareLesson, type LessonNote } from '@piano-steps/core';
 import { describe, expect, it } from 'vitest';
 import { keyMarks } from './marks.ts';
 import {
@@ -6,7 +6,6 @@ import {
   isActive,
   nextOnsetBars,
   playerHands,
-  snapSpan,
   soundingBars,
   stepAtOrAfter,
   visibleBars,
@@ -51,21 +50,6 @@ describe('windowNotes', () => {
     expect(w.map((x) => x.pitch)).toEqual([60, 62, 43, 64]);
     expect(w.find((x) => x.pitch === 43)!.duration).toBeCloseTo(0.25);
     expect(w.find((x) => x.pitch === 60)!.duration).toBe(0.5);
-  });
-});
-
-describe('snapSpan', () => {
-  // the demo Für Elise case: bounds rounded to ms, onsets to 0.1 ms
-  const fe = [n(76, 1.4583, 0.2, 'R'), n(45, 1.6667, 0.2, 'L'), n(69, 1.6667, 0.4, 'R'), n(71, 4.1667, 0.4, 'R')];
-  it('a chord a hair before the start belongs to the fragment that starts there', () => {
-    expect(snapSpan(fe, { start: 1.667, end: 4.167 })).toEqual({ start: 1.6667, end: 4.1667 });
-    expect(windowNotes(fe, snapSpan(fe, { start: 1.667, end: 4.167 })).map((x) => x.pitch)).toEqual([45, 69]);
-  });
-  it('and not to the one that ends there', () => {
-    expect(windowNotes(fe, snapSpan(fe, { start: 0, end: 1.667 })).map((x) => x.pitch)).toEqual([76]);
-  });
-  it('leaves bounds alone when no onset is close', () => {
-    expect(snapSpan(fe, { start: 0, end: 1.6 })).toEqual({ start: 0, end: 1.6 });
   });
 });
 
@@ -138,17 +122,26 @@ describe('keyMarks', () => {
     const bars = visibleBars(win, span, 0, 3, false, 'both');
     const m = keyMarks({ phase: 'idle', bars, now: 0, pressed: new Set(), wrong: null, held: [] });
     expect([...m.keys]).toEqual([
-      [48, { mark: 'next' }],
-      [64, { mark: 'next' }],
+      [48, { mark: 'next', hand: 'L' }],
+      [64, { mark: 'next', hand: 'R' }],
     ]);
   });
   it('while playing, sounding keys take their hand colour and the next step is outlined', () => {
     const bars = visibleBars(win, span, 0.6, 3, false, 'both');
     const m = keyMarks({ phase: 'playing', bars, now: 0.6, pressed: new Set(), wrong: null, held: [] });
-    expect(m.keys.get(62)).toEqual({ mark: 'R', label: undefined });
-    expect(m.keys.get(48)).toEqual({ mark: 'L', label: undefined });
-    expect(m.keys.get(60)).toEqual({ mark: 'next' });
+    expect(m.keys.get(62)).toEqual({ mark: 'R', hand: 'R' });
+    expect(m.keys.get(48)).toEqual({ mark: 'L', hand: 'L' });
+    expect(m.keys.get(60)).toEqual({ mark: 'next', hand: 'R' });
     expect(m.focusTime).toBe(1);
+  });
+  it('a left-hand next note gets a left-hand ring; a repeated key gets the ring on top of its fill', () => {
+    const all = windowNotes(notes, { start: 0, end: 4 });
+    const bars = visibleBars(all, { start: 0, end: 4 }, 1.6, 3, false, 'both');
+    const m = keyMarks({ phase: 'playing', bars, now: 1.6, pressed: new Set(), wrong: null, held: [] });
+    expect(m.keys.get(43)).toEqual({ mark: 'next', hand: 'L' });
+    const b2 = visibleBars(all, { start: 0, end: 4 }, 2.2, 3, false, 'both');
+    const m2 = keyMarks({ phase: 'playing', bars: b2, now: 2.2, pressed: new Set(), wrong: null, held: [] });
+    expect(m2.keys.get(64)).toEqual({ mark: 'R', hand: 'R', next: true }); // E4 sounds and comes again at 2.5
   });
   it('wait-mode feedback: right keys ok, a wrong key bad', () => {
     const bars = visibleBars(win, span, 1, 3, false, 'both');
@@ -157,4 +150,45 @@ describe('keyMarks', () => {
     expect(m.keys.get(61)).toEqual({ mark: 'bad' });
     expect(m.focusTime).toBe(1);
   });
+  it('waiting: the whole step is lit (a rolled chord too), the next step is ringed, held-over keys striped', () => {
+    const rolled = [n(48, 0, 2, 'L'), n(60, 1, 0.4, 'R'), n(64, 1.03, 0.4, 'R'), n(67, 1.5, 0.4, 'R')];
+    const steps = groupSteps(rolled);
+    const bars = visibleBars(rolled, { start: 0, end: 2 }, 1, 3, false, 'both');
+    const m = keyMarks({
+      phase: 'waiting',
+      bars,
+      now: 1,
+      waiting: { step: steps[1], next: steps[2] },
+      pressed: new Set(),
+      wrong: null,
+      held: [],
+    });
+    expect([...m.keys].sort((a, b) => a[0] - b[0])).toEqual([
+      [48, { mark: 'hold', hand: 'L' }],
+      [60, { mark: 'R', hand: 'R' }],
+      [64, { mark: 'R', hand: 'R' }],
+      [67, { mark: 'next', hand: 'R' }],
+    ]);
+  });
+});
+
+describe('demo lessons after core snapping (#8)', () => {
+  // the variant no longer snaps fragment bounds itself: prove the core-prepared bounds give the
+  // same notes as core notesInRange (and so the player) for every demo fragment
+  for (const input of demoLessons()) {
+    const lesson = prepareLesson(LessonInput.parse(input));
+    it(`${lesson.slug}: every fragment holds exactly core's notes, and every note is in one fragment`, () => {
+      let total = 0;
+      for (const f of lesson.fragments) {
+        const mine = windowNotes(lesson.notes, f).map((x) => `${x.pitch}@${x.start}`);
+        const core = notesInRange(lesson.notes, f.start, f.end).map((x) => `${x.pitch}@${x.start}`);
+        expect(mine.sort()).toEqual(core.sort());
+        for (const x of windowNotes(lesson.notes, f)) expect(x.start).toBeGreaterThanOrEqual(f.start - 1e-9);
+        total += mine.length;
+      }
+      const last = lesson.fragments.at(-1)!;
+      const tail = lesson.notes.filter((x) => x.start >= last.end - 0.002).length;
+      expect(total + tail).toBe(lesson.notes.length);
+    });
+  }
 });

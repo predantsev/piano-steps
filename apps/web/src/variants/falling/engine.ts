@@ -4,7 +4,6 @@ import {
   covers,
   period,
   playerHands,
-  snapSpan,
   stepAtOrAfter,
   waitSteps,
   windowNotes,
@@ -18,6 +17,8 @@ export interface PlayerLike {
   readonly time: number;
   play(options?: PlayOptions): void;
   stop(): void;
+  /** Silence every sounding note (wait mode's `playChord` steps too) without changing the state. */
+  releaseAll(): void;
   setRate(rate: number): void;
   playChord(pitches: number[], durationSec?: number, velocity?: number): void;
   subscribe(fn: (e: PlayerEvent) => void): () => void;
@@ -51,14 +52,25 @@ export interface EngineHooks {
   onChange(): void;
   /** Wall clock in ms (performance.now by default). */
   now?(): number;
-  /** Seconds the audible sound lags behind `player.time` (Tone's look-ahead + output latency). */
-  audioLag?(): number;
+  /**
+   * Seconds from asking the audio graph for a sound to hearing it (Tone's look-ahead + output
+   * latency). `player.time` already follows what is heard, so this is never subtracted from it; it
+   * only says how early to *ask*: a wait-mode step is sounded this much before it lands, and a run
+   * is started this much before the lead-in reaches the fragment start.
+   */
+  audioLead?(): number;
 }
 
 const EPS = 1e-3;
 /** Real seconds of lead-in before a run that starts at the fragment start. */
 export const PREROLL_SEC = 1.5;
 const WRONG_FLASH_MS = 650;
+/** `LessonPlayer` schedules a run's first note this long after `play()` (player.ts START_DELAY). */
+const PLAYER_START_DELAY = 0.05;
+/** …and a `playChord` this long after the call (player.ts `Tone.now() + 0.01`). */
+const CHORD_DELAY = 0.01;
+/** The bridge stops this far short of the run start, so the first chord is not lit before it sounds. */
+const BRIDGE_GAP = 1e-3;
 
 /**
  * Practice state machine for the falling-notes screen.
@@ -88,6 +100,12 @@ export class PracticeEngine {
   private lastVisual = 0;
   private fall: { from: number; to: number; t0: number; target: number; wraps: boolean; sounded: boolean } | null = null;
   private preroll: { from: number; t0: number } | null = null;
+  /**
+   * Drives the drawing while a run is starting: `player.time` sits on the run start until its first
+   * note is heard, so the lane keeps moving on the engine clock from `from` up to just short of `to`
+   * (the run start, unwrapped) and hands over once the player's clock moves.
+   */
+  private bridge: { from: number; to: number; t0: number } | null = null;
   private unsub: (() => void) | null = null;
   private readonly lessonEnd: number;
 
@@ -108,9 +126,7 @@ export class PracticeEngine {
     return () => {
       this.unsub?.();
       this.unsub = null;
-      this.fall = null;
-      this.preroll = null;
-      if (this.player.state !== 'stopped') this.player.stop();
+      this.halt();
     };
   }
 
@@ -118,8 +134,9 @@ export class PracticeEngine {
 
   setSpan(span: Span) {
     this.halt();
-    const end = Math.min(span.end, this.lessonEnd);
-    this.span = snapSpan(this.lessonNotes, { start: span.start, end: end > span.start ? end : span.end });
+    // Fragment bounds come snapped to onsets from core (#8). A fragment past the last note, or with
+    // end <= start, is an empty span: no notes, no steps, and Play stays off.
+    this.span = { start: span.start, end: Math.max(span.start, Math.min(span.end, this.lessonEnd)) };
     this.notes = windowNotes(this.lessonNotes, this.span);
     this.steps = waitSteps(this.notes, this.opts.hands);
     this.cursor = this.span.start;
@@ -182,9 +199,10 @@ export class PracticeEngine {
     const { rate } = this.opts;
     switch (this.phase) {
       case 'playing':
-        if (this.player.state === 'playing')
-          return Math.max(this.runFrom, this.player.time - this.audioLag() * rate);
-        return this.cursor;
+        if (this.player.state !== 'playing') return this.cursor;
+        if (this.bridge && this.player.time <= this.runFrom + EPS)
+          return Math.min(this.bridge.to - BRIDGE_GAP, this.bridge.from + this.elapsed(this.bridge.t0) * rate);
+        return this.player.time;
       case 'falling':
         if (!this.fall) return this.cursor;
         return Math.min(this.fall.to, this.fall.from + this.elapsed(this.fall.t0) * rate);
@@ -202,14 +220,16 @@ export class PracticeEngine {
     this.lastVisual = v;
     if (this.phase === 'falling' && this.fall) {
       const f = this.fall;
-      if (!f.sounded && (f.to - v) / this.opts.rate <= this.audioLag()) {
+      if (!f.sounded && (f.to - v) / this.opts.rate <= this.audioLead() + CHORD_DELAY) {
         f.sounded = true;
         this.soundStep(f.target);
       }
       if (v >= f.to - 1e-9) this.arrive();
-    } else if (this.phase === 'preroll' && v >= this.span.start - 1e-9) {
-      this.preroll = null;
-      this.startRun(this.span.start);
+    } else if (this.phase === 'preroll' && v >= this.span.start - (this.audioLead() + PLAYER_START_DELAY) * this.opts.rate - 1e-9) {
+      // start the player early by its start-up delay, so the first note is heard as the lane reaches it
+      this.startRun(this.span.start, { from: v, to: this.span.start });
+    } else if (this.phase === 'playing' && this.bridge && this.player.state === 'playing' && this.player.time > this.runFrom + EPS) {
+      this.bridge = null; // the player's clock has taken over
     }
     if (this.wrong && this.now() > this.wrong.until) {
       this.wrong = null;
@@ -235,6 +255,7 @@ export class PracticeEngine {
 
   /** Play the fragment from its start (continuous mode), with a short lead-in. */
   start() {
+    if (!this.notes.length) return;
     this.halt();
     this.cursor = this.span.start;
     this.preroll = { from: this.span.start - PREROLL_SEC * this.opts.rate, t0: this.now() };
@@ -301,6 +322,11 @@ export class PracticeEngine {
   get waitingStep(): Step | null {
     return this.phase === 'waiting' ? (this.steps[this.stepIdx] ?? null) : null;
   }
+  /** Wait mode: the step after the waiting one (the first again when looping) — the keyboard's `next` ring. */
+  get upcomingStep(): Step | null {
+    if (this.phase !== 'waiting') return null;
+    return this.steps[this.stepIdx + 1] ?? (this.opts.loop ? (this.steps[0] ?? null) : null);
+  }
   get targetStep(): Step | null {
     if (this.phase === 'falling' && this.fall) return this.steps[this.fall.target] ?? null;
     return null;
@@ -308,11 +334,19 @@ export class PracticeEngine {
 
   // ── internals ────────────────────────────────────────────────────────────
 
-  private startRun(from: number) {
+  private startRun(from: number, bridge: { from: number; to: number } = { from, to: from }) {
     this.fall = null;
     this.preroll = null;
     this.runFrom = from;
+    if (!this.notes.length) {
+      this.bridge = null;
+      this.cursor = this.span.start;
+      return this.setPhase('idle');
+    }
     const fromStart = Math.abs(from - this.span.start) < EPS;
+    this.bridge = { ...bridge, t0: this.now() };
+    // 'playing' before play(): the player emits 'end' synchronously when there is nothing to play
+    this.setPhase('playing');
     this.player.play({
       from,
       to: this.span.end,
@@ -321,7 +355,6 @@ export class PracticeEngine {
       hands: playerHands(this.opts.hands),
       muted: !this.opts.sound,
     });
-    this.setPhase('playing');
   }
 
   private startFall(i: number) {
@@ -367,10 +400,13 @@ export class PracticeEngine {
     for (const n of step.notes) this.player.playChord([n.pitch], Math.max(0.15, n.duration / this.opts.rate), n.velocity ?? 0.8);
   }
 
+  /** Stop whatever runs and silence it — wait-mode steps too (they ring on with the player stopped). */
   private halt() {
     this.fall = null;
     this.preroll = null;
+    this.bridge = null;
     if (this.player.state !== 'stopped') this.player.stop();
+    else this.player.releaseAll();
   }
 
   private onPlayerEvent(e: PlayerEvent) {
@@ -378,7 +414,11 @@ export class PracticeEngine {
       if (e.type === 'loop') this.hooks.onAttempt();
       else if (e.type === 'end') {
         this.hooks.onAttempt();
-        if (this.opts.loop) this.startRun(this.span.start);
+        // A run resumed mid-fragment ends at the fragment end; with loop on, go on from the top (the
+        // lane keeps falling into the next pass meanwhile). A run from the start loops inside the
+        // player, so an 'end' there means it had nothing to play — never restart that (no recursion).
+        if (this.opts.loop && this.runFrom > this.span.start + EPS)
+          this.startRun(this.span.start, { from: this.span.end, to: this.span.end });
         else {
           this.cursor = this.span.start; // show the fragment ready to go again
           this.setPhase('done');
@@ -414,7 +454,7 @@ export class PracticeEngine {
     return Math.max(0, (this.now() - t0) / 1000);
   }
 
-  private audioLag(): number {
-    return this.hooks.audioLag ? this.hooks.audioLag() : 0;
+  private audioLead(): number {
+    return this.hooks.audioLead ? this.hooks.audioLead() : 0;
   }
 }

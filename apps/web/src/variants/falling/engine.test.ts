@@ -9,14 +9,22 @@ class FakePlayer implements PlayerLike {
   plays: PlayOptions[] = [];
   chords: number[][] = [];
   rates: number[] = [];
+  releases = 0;
+  /** Behave like LessonPlayer with nothing to play: stop and emit 'end' inside play(). */
+  endAtOnce = false;
   private listeners = new Set<(e: PlayerEvent) => void>();
   play(o: PlayOptions = {}) {
     this.plays.push(o);
     this.time = o.from ?? 0;
     this.setState('playing');
+    if (this.endAtOnce) this.finish();
   }
   stop() {
+    this.releases++;
     this.setState('stopped');
+  }
+  releaseAll() {
+    this.releases++;
   }
   setRate(r: number) {
     this.rates.push(r);
@@ -65,7 +73,7 @@ const make = (opts: Partial<PracticeOptions> = {}) => {
     player,
     notes,
     { rate: 1, hands: 'both', loop: true, wait: false, sound: true, ...opts },
-    { onAttempt: () => attempts++, onChange: () => {}, now: () => clock, audioLag: () => lag },
+    { onAttempt: () => attempts++, onChange: () => {}, now: () => clock, audioLead: () => lag },
   );
   e.attach();
   e.setSpan({ start: 0, end: 2 });
@@ -98,7 +106,7 @@ describe('continuous mode', () => {
     expect(attempts).toBe(2);
   });
 
-  it('draws behind the player clock by the audio lag (scaled by speed)', () => {
+  it('draws at the player clock as is (it already follows what is heard, #10)', () => {
     const e = make();
     e.primary();
     advance(e, 2000);
@@ -106,9 +114,29 @@ describe('continuous mode', () => {
     e.setOptions({ rate: 0.5 });
     expect(player.rates).toEqual([0.5]);
     player.time = 1;
-    expect(e.visualTime()).toBeCloseTo(0.95);
-    player.time = 0.02;
-    expect(e.visualTime()).toBe(0); // never before the run start
+    e.tick();
+    expect(e.visualTime()).toBe(1);
+  });
+
+  it('starts the player early by the audio lead and bridges the lane until its clock moves', () => {
+    lag = 0.1;
+    const e = make({ rate: 0.5 });
+    e.primary();
+    // lead-in = 1.5 s real from -0.75; the run must start 0.15 s real (0.075 lesson-s) before 0
+    advance(e, 1400); // v = -0.05
+    expect(e.phase).toBe('playing');
+    expect(player.plays).toHaveLength(1);
+    expect(player.time).toBe(0); // the player holds on its start until the first note is heard
+    expect(e.visualTime()).toBeCloseTo(-0.05);
+    advance(e, 50);
+    expect(e.visualTime()).toBeCloseTo(-0.025); // still moving on the engine clock
+    advance(e, 200);
+    expect(e.visualTime()).toBeCloseTo(-0.001); // stops just short of the first chord (not lit early)
+    player.time = 0.01;
+    advance(e, 16);
+    expect(e.visualTime()).toBe(0.01); // the player took over
+    player.time = 0; // a seamless loop wrap later must not bring the bridge back
+    expect(e.visualTime()).toBe(0);
   });
 
   it('pause keeps the drawn position; resume plays from there and loops from the start on end', () => {
@@ -157,6 +185,35 @@ describe('continuous mode', () => {
     await Promise.resolve();
     expect(e.phase).toBe('paused');
     expect(e.visualTime()).toBeCloseTo(0.8);
+  });
+});
+
+describe('empty or out-of-range fragment', () => {
+  it('has no notes and Play does nothing (no run, no stuck "playing")', () => {
+    const e = make();
+    e.setSpan({ start: 3.5, end: 4 }); // the lesson's last note ends at 3
+    expect(e.span).toEqual({ start: 3.5, end: 3.5 });
+    expect(e.notes).toEqual([]);
+    e.primary();
+    advance(e, 3000);
+    expect(e.phase).toBe('idle');
+    expect(player.plays).toEqual([]);
+    e.setSpan({ start: 1, end: 0.5 }); // end before start
+    expect(e.notes).toEqual([]);
+  });
+
+  it('an end emitted inside play() finishes the run instead of leaving it "playing" or recursing', () => {
+    const e = make({ loop: false });
+    player.endAtOnce = true;
+    e.primary();
+    advance(e, 2000);
+    expect(e.phase).toBe('done');
+    expect(player.plays).toHaveLength(1);
+    const looped = make({ loop: true });
+    looped.primary();
+    advance(looped, 2000);
+    expect(looped.phase).toBe('done'); // a run from the start that ends at once is not restarted
+    expect(player.plays).toHaveLength(2);
   });
 });
 
@@ -243,6 +300,28 @@ describe('wait mode', () => {
     e.next();
     expect(e.phase).toBe('waiting');
     expect(e.stepIdx).toBe(0);
+  });
+
+  it('silences ringing steps on a fragment change, a restart and a wait-mode toggle', () => {
+    const e = make({ wait: true });
+    e.next();
+    e.next();
+    const r0 = player.releases;
+    e.setSpan({ start: 0, end: 2 });
+    expect(player.releases).toBe(r0 + 1);
+    e.restart();
+    expect(player.releases).toBe(r0 + 2);
+    e.setOptions({ wait: false });
+    expect(player.releases).toBe(r0 + 3);
+  });
+
+  it('a chord is one step: one Next per chord, and the step after it is known', () => {
+    const e = make({ wait: true });
+    expect(e.waitingStep?.pitches).toEqual([48, 64]);
+    expect(e.upcomingStep?.pitches).toEqual([62]);
+    e.next();
+    e.next();
+    expect(e.waitingStep?.pitches).toEqual([62]);
   });
 
   it('one hand: stops only on that hand, Hear it replays the waiting step even when muted', () => {

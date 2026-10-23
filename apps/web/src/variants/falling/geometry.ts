@@ -35,3 +35,46 @@ export function keyGeometry(range: readonly [number, number]): Map<number, KeyRe
 export function timeToY(t: number, now: number, lookAhead: number, height: number): number {
   return height - ((t - now) / lookAhead) * height;
 }
+
+/**
+ * A keyboard range sized to the notes being practised, so the keys are as wide as the screen
+ * allows (core `keyboardRange()` pads to whole octaves and ≥ 25 keys, which keeps a two-hand
+ * fragment at 28 white keys ≈ 41 px on an iPad). One white key of margin on each side, at least
+ * `minWhites` white keys, and both ends on white keys — `PianoKeyboard` places a black key from the
+ * white key below it, so a black end key would break its layout.
+ */
+export function fitRange(pitches: Iterable<number>, minWhites = 15): [number, number] {
+  let min = Infinity;
+  let max = -Infinity;
+  for (const p of pitches) {
+    min = Math.min(min, p);
+    max = Math.max(max, p);
+  }
+  if (!Number.isFinite(min)) return [48, 71];
+  const LO = 21; // A0
+  const HI = 108; // C8
+  const down = (p: number) => {
+    let q = p - 1;
+    while (q > LO && isBlackKey(q)) q--;
+    return Math.max(LO, q);
+  };
+  const up = (p: number) => {
+    let q = p + 1;
+    while (q < HI && isBlackKey(q)) q++;
+    return Math.min(HI, q);
+  };
+  let lo = isBlackKey(min) ? down(min) : min;
+  let hi = isBlackKey(max) ? up(max) : max;
+  lo = down(lo);
+  hi = up(hi);
+  const whites = () => {
+    let c = 0;
+    for (let p = lo; p <= hi; p++) if (!isBlackKey(p)) c++;
+    return c;
+  };
+  for (let i = 0; whites() < minWhites && (lo > LO || hi < HI); i++) {
+    if ((i % 2 === 0 && hi < HI) || lo <= LO) hi = up(hi);
+    else lo = down(lo);
+  }
+  return [lo, hi];
+}
