@@ -1,5 +1,5 @@
 import { octaveOf, pitchName, type Hand, type NoteNameSystem } from '@piano-steps/core';
-import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { Lang } from '../../settings.ts';
 import { layoutStrip, maxChord, trackOffset, type CardStep, type LaneChip } from './model.ts';
 import { tr } from './strings.ts';
@@ -63,6 +63,13 @@ export function StepStrip({ steps, current, hasLeft, noteNames, lang, onTap, onS
   const laneH: Record<Hand, number> = { R: hR, L: hL };
 
   const offset = trackOffset(layout, size.w - 2 * PAD, Math.min(current, steps.length - 1));
+  // Slide only when moving between steps of the same fragment at the same size — not on the
+  // first measurement, a resize or a fragment change (those would animate a jump from nowhere).
+  const prev = useRef({ steps, w: size.w });
+  const animate = prev.current.steps === steps && prev.current.w === size.w && size.w > 0;
+  useEffect(() => {
+    prev.current = { steps, w: size.w };
+  });
   const hands: Hand[] = hasLeft ? ['R', 'L'] : ['R'];
 
   // swipe: horizontal drag ≥ 40 px that is clearly more horizontal than vertical
@@ -114,7 +121,14 @@ export function StepStrip({ steps, current, hasLeft, noteNames, lang, onTap, onS
           }
         }}
       >
-        <div className="cv-track" style={{ width: layout.total, transform: `translateX(${PAD + offset}px)` }}>
+        <div
+          className="cv-track"
+          style={{
+            width: layout.total,
+            transform: `translateX(${PAD + offset}px)`,
+            transition: animate ? undefined : 'none',
+          }}
+        >
           {steps.map((s, i) => {
             const state = i === current ? 'is-current' : i === current + 1 ? 'is-next' : i < current ? 'is-past' : '';
             const names = s.pitches.map((p) => pitchName(p, noteNames)).join(' + ');

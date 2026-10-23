@@ -88,12 +88,17 @@ export function FragmentBar({
           );
         })}
       </div>
-      <span className="cv-learned" title={`${done} / ${fragments.length} ${tr(lang, 'learned')}`}>
+      <span
+        className="cv-learned"
+        role="img"
+        aria-label={`${done} / ${fragments.length} ${tr(lang, 'learned')}`}
+        title={`${done} / ${fragments.length} ${tr(lang, 'learned')}`}
+      >
         <span className="cv-learned-bar" aria-hidden="true">
           <span style={{ width: `${(100 * done) / Math.max(1, fragments.length)}%` }} />
         </span>
-        <span className="cv-learned-num">
-          {done}/{fragments.length} <span className="cv-wide">{tr(lang, 'learned')}</span>
+        <span className="cv-learned-num" aria-hidden="true">
+          ✓ {done}/{fragments.length}
         </span>
       </span>
       <button
