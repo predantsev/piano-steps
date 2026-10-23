@@ -2,7 +2,7 @@
 
 Branch `feat/1-variant-falling`, on top of `origin/main` cfc4381 (rebase: "Current branch … is up to
 date"). Decisions and evidence in detail: `docs/briefs/01-variant-falling.log.md` § "Fix round".
-No blocker. No shell/core file was edited.
+No blocker. No shell/core file was edited: `git diff --stat origin/main..HEAD -- . ':!apps/web/src/variants/falling' ':!docs/briefs'` prints nothing.
 
 ## Workarounds removed
 
@@ -51,7 +51,7 @@ No blocker. No shell/core file was edited.
 size checks ran in headless Chromium (`playwright-core` 1.64.1 in the session scratchpad, not in the
 repo): 1180×820 and 1440×900, `colorScheme` light and dark, all three demo lessons, every fragment
 chip (layout fits: `scrollHeight` = viewport height; lane 360 px / 421 px tall). Screenshots looked at:
-1180 dark Für Elise (whole lesson), 1180 light Bars 2–3 in wait mode. No page errors or console
+1180 dark Für Elise (whole lesson), 1440 light Für Elise (whole lesson), 1180 light Bars 2–3 in wait mode. No page errors or console
 errors during the wait-mode → next-fragment → continuous-play flow. Dev server stopped afterwards
 (`lsof` on 9310/9311 → nothing listening).
 
@@ -60,7 +60,7 @@ errors during the wait-mode → next-fragment → continuous-play flow. Dev serv
 - Audio/visual sync by ear and the run-start bridge on a real AudioContext (unit-tested with a fake clock only).
 - The empty-fragment path in the browser (unit-tested; no lesson data was mutated).
 - A real iPad (touch, reading distance); checks used a touch-emulating headless context.
-- Light/dark screenshots were captured for every lesson but only two were inspected by eye.
+- Light/dark screenshots were captured for every lesson; three were inspected by eye (listed above), the rest only measured.
 
 ## Shell requests
 
