@@ -136,3 +136,8 @@ None. (`git diff --stat main..HEAD` touches only `apps/web/src/variants/cards/**
 3. Maybe: auto-play the step's sound on Next (an opt-in toggle) — useful for an ear player.
 4. Maybe: start the lesson at the first fragment that is not yet mastered, instead of the last one
    opened.
+5. **Two soft couplings to shell class names** (read-only, no shell edits): `FragmentBar` measures
+   `.stage .fab` to keep clear of the floating buttons (fallback: 13rem CSS padding), and the
+   Space / ← / → handler ignores keys while a `.sheet-backdrop` dialog is open. If the shell renames
+   these, the variant degrades gracefully (padding fallback; keys would also act behind a dialog).
+   A cleaner path is a shell-provided "reserved top-right width" / "dialog open" in `VariantProps`.

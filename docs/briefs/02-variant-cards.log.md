@@ -136,3 +136,8 @@ Appended as the work goes. Evidence = the file or command the decision rests on.
   did not open the other variants' branches).
 - Synthetic lesson `cards-test-scale` deleted again: `DELETE /api/lessons/cards-test-scale` →
   `204`; list → `['fur-elise-opening', 'ode-to-joy', 'twinkle-twinkle']`.
+- Soft couplings to shell class names, both read-only: `.stage .fab` is measured (ResizeObserver)
+  for the fragment bar's right padding; `.sheet-backdrop` present → Space / ← / → are ignored, so
+  typing or pressing Space in the shell's dialogs never moves the step (the feedback textarea is
+  already skipped by the INPUT/TEXTAREA check; evidence: `FeedbackDialog.tsx:34`,
+  `SourcePlayer.tsx:35` and the settings sheet in `App.tsx` all use `sheet-backdrop`).
