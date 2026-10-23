@@ -271,3 +271,22 @@ the brief was silent and I chose.
   fragments are not in MIDI (re-cut on import).
 - Tests: core (3/4, leading rest, R below C4; L-only), HTTP (the finding's rv-melody: 67@0.5, 62@1, 57@1.5, 55@2,
   4/4) → notes deep-equal, tempo `{bpm:120,timeSignature:[4,4]}`.
+
+### Major #9 — 5287c40; nits #5, #0, #1 — 5204fb0
+- Token: `cleanApiToken` drops whitespace/zero-width/BOM, refuses anything outside printable ASCII; a bad stored
+  token is never sent; the token goes only on non-GET (the server checks writes only) so a bad one can never
+  break loading. Field shown when health says auth OR a token is stored OR the typed one was refused.
+  ASSUMPTION: refusing (with a visible hint) beats silently stripping Cyrillic letters — a stripped token would
+  just fail later with 401.
+- reportState: reset in render when the variant key changes (covers falling → cards → falling). No variant calls
+  `reportState` yet (grep of the three branches: 0 hits) → runtime-unverified.
+- Report wording (#0, #1, merge note) corrected in `05-api-and-test-harness.report.md`.
+
+### Final verification
+- Branch gates: typecheck 0; `npm test` 55 passed; build `index-DrG-pOJO.js 607.31 kB`; check:bundle ok;
+  e2e (9352/9353) 25 passed, 1 skipped.
+- Fresh combined clone: origin/main + feat/1 a8fd0c6 + feat/2 cd2ae06 + feat/3 d6ed793 + feat5 5204fb0 (only
+  package-lock auto-merged): typecheck 0, `npm test` 153 passed, e2e `--repeat-each 3` (9354/9355) → 75 passed, 3 skipped.
+- Dev server 9350/9351 (API_TOKEN=devtoken): screenshots of Settings with a refused token at 1180×820 WebKit and
+  1440×900 Chromium, light + dark — readable. `curl` 22 MB → 413 too-large; text/plain → 415. Both servers
+  killed by PID (59051 vite, 59140 API); `lsof` shows no listener.
