@@ -1,0 +1,9 @@
+Read /Users/predantsev-m4mb/Projects/IdeaProjects/Startups/piano-steps/docs/briefs/verify-round.md and execute it for these parameters.
+- Package: API + test harness (shell, core, server, e2e; not a UI variant)
+- Branch: feat/5-api-test-harness (already rebased on current origin/main, which contains the falling and cards variants)
+- Worktree: /Users/predantsev-m4mb/Projects/IdeaProjects/Startups/piano-steps/.claude/worktrees/api
+- Findings: /Users/predantsev-m4mb/Projects/IdeaProjects/Startups/piano-steps/docs/briefs/findings/05-api.review.json
+- Fix report: /Users/predantsev-m4mb/Projects/IdeaProjects/Startups/piano-steps/.claude/worktrees/api/docs/briefs/05-api-and-test-harness.fix-report.md (the fix round is listed there)
+- Step 3 extra gates: npm run check:bundle, and the full e2e suite with E2E_WEB_PORT=9355 E2E_API_PORT=9356 npx playwright test (both projects)
+- Step 4: ports web 9357, API 9358; also check the API token flow in Settings, an .mxl import through the Import button, and /api/docs
+- Output file: /Users/predantsev-m4mb/Projects/IdeaProjects/Startups/piano-steps/docs/briefs/findings/05-api.verify.md

@@ -1,0 +1,192 @@
+[
+ {
+  "severity": "minor",
+  "title": "Play-along count-in plays an extra weak tick ~70-85 ms before the accented downbeat (fragments not starting at 0)",
+  "file": "/Users/predantsev-m4mb/Projects/IdeaProjects/Startups/piano-steps/.claude/worktrees/cards/apps/web/src/variants/cards/index.tsx",
+  "line": 124,
+  "lens": "claims",
+  "evidence": "index.tsx:81-83 starts playback at `fragmentWindow(fr).from - countIn`, which is f.start - 0.02 - countIn. index.tsx:124 computes `tickIndex(t, c.f.start, metro.tickSec)` from the unshifted f.start. player.ts:90-91 and :177 hold player.time at startLesson for the first 50 ms. Simulation (scratchpad/ticks.mts, 60 Hz rAF, rate 1): 'ode #2 startLesson 4.7800 k=-5@0ms k=-4(accent)@83ms k=-3@683ms'; 'fur elise bars 2-3 startLesson 0.3970 k=-4@0ms k=-3(accent)@83ms ...'; 'ode #1 startLesson -2.4000 k=-4(accent)@0ms' (clean only because Math.max(0, …) removes the shift).",
+  "failure_scenario": "The user turns on '♩ Play along' and plays any fragment except the first (e.g. Ode to Joy #2). The count-in starts with a soft tick and then the accented tick ~83 ms later, an audible flam, so the 'one-bar count-in' has perBar+1 ticks. This repeats on every loop pass. The report's claim of a one-bar count-in is therefore not exact; it had marked tick spacing as unverified.",
+  "fix_hint": "Count ticks from the same origin playback uses, e.g. tickIndex(t, fragmentWindow(c.f).from + EDGE_SEC…), or more simply drop the first rAF tick when k < -metro.perBar. Alternatively apply EDGE_SEC only to `to`, not to `from`, for the count-in start. Add a unit test that the first emitted tick index is -perBar."
+ },
+ {
+  "severity": "minor",
+  "title": "Report/log claim a '13rem CSS padding' fallback for the floating-button reserve; the actual fallback is 12px",
+  "file": "/Users/predantsev-m4mb/Projects/IdeaProjects/Startups/piano-steps/.claude/worktrees/cards/apps/web/src/variants/cards/FragmentBar.tsx",
+  "line": 31,
+  "lens": "claims",
+  "evidence": "FragmentBar.tsx:30-34: `const fab = rootRef.current?.closest('.stage')?.querySelector('.fab'); if (!fab) { setReserve(12); return; }`. Line 56 sets `style={{ paddingRight: reserve ?? undefined }}`, and this inline style overrides cards.css:24 `padding-right: 13rem`. The 13rem is only in effect before useLayoutEffect runs, which happens before paint. Report follow-up 5 says 'fallback: 13rem CSS padding' and 'degrades gracefully'; log line 19 says 'fallback 13rem'.",
+  "failure_scenario": "If the shell renames `.fab` or `.stage`, or renders the variant outside `.stage`, the fragment bar gets 12 px of right padding. Its right end ('✓ n/N' and the 'Fragment ›' button) then sits under the absolutely positioned, z-index:20 'Original / Sounds wrong' buttons (App.css:50-57). That is not a graceful degradation, and the report states the opposite.",
+  "fix_hint": "Either make the not-found branch `setReserve(null)` so the 13rem CSS fallback applies, or correct the report/log wording. Better long-term: the VariantProps 'reserved top-right width' that the report itself proposes."
+ },
+ {
+  "severity": "nit",
+  "title": "Variant reads shell DOM class names (.stage .fab, .sheet-backdrop) outside the VariantProps contract",
+  "file": "/Users/predantsev-m4mb/Projects/IdeaProjects/Startups/piano-steps/.claude/worktrees/cards/apps/web/src/variants/cards/FragmentBar.tsx",
+  "line": 30,
+  "lens": "claims",
+  "evidence": "FragmentBar.tsx:30 `closest('.stage')?.querySelector('.fab')` and index.tsx:220 `document.querySelector('.sheet-backdrop')`. AGENTS.md 'Domain invariants' says a variant 'talks to the shell only through `VariantProps` (`apps/web/src/variant.ts`)'; variant.ts:14-15 says 'if a variant needs something from the shell, it is added here first'. These are read-only couplings with no shell file edits (scope is clean), and the report discloses them as follow-up 5.",
+  "failure_scenario": "A rename in App.tsx/App.css silently breaks the variant. The fragment bar runs under the floating buttons (see the previous finding), and Space/←/→ move steps behind an open dialog. Neither typecheck nor the tests would catch this.",
+  "fix_hint": "Add `reservedRight` / `dialogOpen` (or similar) to VariantProps in a separate `shell:` commit, as the report suggests, or accept and document the coupling explicitly."
+ },
+ {
+  "severity": "nit",
+  "title": "Report's Commits section is stale by one commit (11cd85f not listed)",
+  "file": "/Users/predantsev-m4mb/Projects/IdeaProjects/Startups/piano-steps/.claude/worktrees/cards/docs/briefs/02-variant-cards.report.md",
+  "line": 61,
+  "lens": "claims",
+  "evidence": "`git log --oneline main..HEAD` shows 9 commits. The report lists 7, plus 'docs(cards): #2 decision log and report' (0211e3b). It does not list 11cd85f 'docs(cards): #2 note the soft couplings to shell class names', which added follow-up 5 to the report and log (`git show --stat 11cd85f`: log.md +5, report.md +5).",
+  "failure_scenario": "A reviewer reconciling the report against the branch finds an unexplained extra commit. It is harmless (docs only), but the report is not an exact record.",
+  "fix_hint": "Add 11cd85f to the Commits section, or regenerate the list from `git log --oneline main..HEAD` as the last step."
+ },
+ {
+  "severity": "nit",
+  "title": "Report misquotes the vitest include pattern",
+  "file": "/Users/predantsev-m4mb/Projects/IdeaProjects/Startups/piano-steps/.claude/worktrees/cards/docs/briefs/02-variant-cards.report.md",
+  "line": 17,
+  "lens": "claims",
+  "evidence": "The report says the root include is `apps/**/src/**/*.test.ts`. vitest.config.ts:5 actually reads `'apps/**/src/**/*.test.{ts,tsx}'`. The test file is picked up either way (the verbose run lists all 22 cards tests).",
+  "failure_scenario": "Cosmetic only. A reader copying the quoted glob would get a narrower pattern than the real config.",
+  "fix_hint": "Quote the config verbatim."
+ },
+ {
+  "severity": "minor",
+  "title": "Play-along count-in has an extra weak tick about 35-130 ms before the accented first beat (every fragment except one starting at t=0)",
+  "file": "apps/web/src/variants/cards/index.tsx",
+  "line": 83,
+  "lens": "correctness",
+  "evidence": "index.tsx:83 starts the run at `w.from - countIn`, and model.ts:51 sets `w.from = f.start - 0.02`. index.tsx:124 counts ticks from `c.f.start`, not from `w.from`, so the first frame lands on k = -perBar-1. Simulation with the real tickIndex/metronome/fragmentWindow (scratchpad ticks.mts) printed, for example, `ode-to-joy #1 start=7.2 ... k=-5@4.78 k=-4@4.7995(ACC)`, `twinkle-twinkle #1 start=5.333 ... k=-5@2.6463 k=-4@2.6658(ACC)` and `fur-elise-opening #1 start=1.667 ... k=-4@0.397 k=-3@0.417(ACC)`. Only the fragments starting at 0 begin cleanly (`k=-4@-2.4(ACC)`), because `Math.max(0, ...)` clamps w.from. The unit test hides this: model.test.ts:154 asserts `tickIndex(8, 10, 0.5) === -4`, but the real start is 10-0.02-2 = 7.98, and the script printed `real from=10-0.02-2 -> -5`.",
+  "failure_scenario": "Ode to Joy, fragment #2 (start 7.2 s), Play along ON, press ▶ Fragment. The first rAF frame fires while player.time is still clamped to `startLesson` (player.ts:90-91 and :177 hold time for 50 ms), so it plays a weak tick (k=-5). After about 50 ms + 19.5 ms/rate the accented count-in downbeat (k=-4) follows. The user hears a 'ti-TICK' flam and 5 ticks instead of a 4-tick bar: a gap of roughly 35-70 ms at 100 % and 110-130 ms at 25 % (wall times inferred from player.ts, not heard). This repeats on every loop pass.",
+  "fix_hint": "Anchor the count-in to the same origin as the ticks. Either start the run at `fr.start - countIn` and keep `to: w.to`, or count ticks from `w.from + EDGE_SEC`, or drop ticks with k < -perBar. Update model.test.ts:154 to use the real `from`."
+ },
+ {
+  "severity": "minor",
+  "title": "Global Space handler swallows Space on every focused button in the app, including the shell's",
+  "file": "apps/web/src/variants/cards/index.tsx",
+  "line": 221,
+  "lens": "correctness",
+  "evidence": "index.tsx:215-227 is a window keydown listener. It skips only INPUT/TEXTAREA/SELECT/contentEditable and open `.sheet-backdrop` dialogs, then calls `e.preventDefault()` and `actions.current.next()` for `' '`. No check limits it to focus inside the variant. The agent's own report confirms that preventDefault cancels button activation: in the row 'Space on a focused button', 'Back focused, Space → step 2 → 3 (Next), Back not triggered'.",
+  "failure_scenario": "While the cards tab is mounted, a keyboard user tabs to a shell button (⚙ settings at App.tsx:181, a variant tab at App.tsx:152, ⚑ Sounds wrong / 🎧 Original at App.tsx:196-203, ⤒ Import) and presses Space. The button does not activate; the practice step advances instead. Inside the variant, Space on a focused 'Got it' / 'Again' button does nothing: next() returns because `done`, and the default is prevented. Enter still works.",
+  "fix_hint": "Handle Space only when the target is body/document or inside the variant root (and not a button there other than the strip). Otherwise leave the event alone. Arrow keys can stay global."
+ },
+ {
+  "severity": "minor",
+  "title": "Metronome grid and bar accents are anchored to the fragment start, not the music's beat or bar grid",
+  "file": "apps/web/src/variants/cards/index.tsx",
+  "line": 124,
+  "lens": "correctness",
+  "evidence": "index.tsx:124 `tickIndex(t, c.f.start, metro.tickSec)` and :127 accent when `k % perBar === 0`, so tick phase and accents come from wherever the fragment starts. Script output for Für Elise 'Motif': `FE motif accents at [ 0, 1.25 ]`, while step onsets are `0, 0.208, 0.417, ...`. demo.ts:30 (`E5/0.25 D#5/0.25 |` pickup) and demo.ts:56 ('the pickup shifts bar lines') put the bar-1 downbeat at 0.417 s.",
+  "failure_scenario": "Für Elise 'Motif', Play along: the count-in's accent and the first in-music accent land on the pickup note at 0 s, the bar-1 downbeat at 0.417 s is unaccented, and an accent falls on the 3rd eighth of bar 1 (1.25 s). More generally, with an explicit fragment that starts off the beat grid, every tick is off-beat. Example: tempo 120 4/4, fragment {start: 0.25} over notes on 0.5, 1.0, ...; ticks fall at 0.25, 0.75, ..., exactly between the notes (inferred from :124; not run).",
+  "fix_hint": "Take tick phase from the lesson grid (k = floor(t / tickSec), which is what core autoFragments assumes: bars from t=0), or snap f.start to the nearest grid tick before computing k. Accents need a pickup/offset field in the format to be fully right."
+ },
+ {
+  "severity": "minor",
+  "title": "With non-contiguous fragments, a note in the last 20 ms of a fragment belongs to no fragment (missing from the strip and from playback)",
+  "file": "apps/web/src/variants/cards/model.ts",
+  "line": 51,
+  "lens": "correctness",
+  "evidence": "model.ts:50-56: every fragment's window is shifted to [start-0.02, end-0.02), on the assumption that the next fragment begins right at `end`. Script (edges.mts) with notes at 1, 9.99, 12.5 and explicit fragments A={0,10}, B={12,20} printed: `core notesInRange A = [ 60, 62 ] | cards A = [ 60 ] | cards B = [ 64 ]`. The D4 at 9.99 s is in neither fragment. index.tsx:81-83 uses the same window for player.play, so it is not heard either.",
+  "failure_scenario": "An agent-authored lesson has fragments with gaps between them (for example 'Verse' [0,10] and 'Chorus' [12,20]), or a last fragment whose end lies within 20 ms of the onset of a very short final note. That note is silently dropped from the card strip, the keyboard highlights, the on-screen check and ▶ Fragment playback.",
+  "fix_hint": "Shift a fragment's end only when another fragment starts within EDGE_SEC of it (contiguous boundary). Otherwise keep [start-EDGE, end) so no onset can fall between windows."
+ },
+ {
+  "severity": "minor",
+  "title": "Loop restart re-enters synchronously and can recurse without bound (stack overflow) on a fragment whose window ends before it starts",
+  "file": "apps/web/src/variants/cards/index.tsx",
+  "line": 106,
+  "lens": "correctness",
+  "evidence": "index.tsx:103-106: on 'end', when `c.mode === 'fragment' && c.loop`, it calls `startRef.current(...)` synchronously inside the player's emit. player.ts:112-123/174-184: `play` → `run` → `tick()` runs synchronously. In tick (player.ts:186-215), `this.time` is clamped to `startLesson` (= from), and if `from >= runEnd` (`runEnd = min(to, lastEnd)`) it emits 'end' again immediately. ctx.current is not re-rendered in between, so `c.mode` is still 'fragment' and the cycle repeats. The first press is safe because `mode` is still null in ctx at that point. Inferred from code; not executed.",
+  "failure_scenario": "Contrived but reachable. Take a fragment that starts at or after the lesson's last note end (a trailing silent fragment, n = 0) or a fragment like {start:0, end:0.01} (fragmentWindow → `{from:0,to:-0.01}`, script output). Turn Loop ON and Play along ON and press ▶ Fragment; the count-in makes `from < runEnd`, so it plays. Turn Play along OFF before the pass ends. The next restart uses `from = w.from >= runEnd`, which ends instantly → 'end' → restart → ... → RangeError: Maximum call stack size exceeded, thrown from the player's setInterval tick.",
+  "fix_hint": "In the 'end' handler, do not restart when the pass would be empty (w.from >= min(w.to, last note end)). Or restart asynchronously (queueMicrotask/setTimeout) with a re-entrancy guard. Also consider disabling ▶ Fragment when n === 0."
+ },
+ {
+  "severity": "nit",
+  "title": "Play-along count-in without a tempo is defined in lesson seconds, so its length scales with speed (6 s of silence at 25 %)",
+  "file": "apps/web/src/variants/cards/index.tsx",
+  "line": 82,
+  "lens": "correctness",
+  "evidence": "index.tsx:82 `const countIn = silent ? (metro ? metro.tickSec * metro.perBar : 1.5) : 0;` is subtracted from lesson time (:83). player.ts:90 advances lesson time at `rate`. metronome(undefined) returns null (model.ts:217-218), so no ticks mark the wait.",
+  "failure_scenario": "A lesson without `tempo` (for example a transcription), speed 25 %, Play along ON, ▶ Fragment: the user waits 1.5/0.25 = 6 s with only the 'Count-in… get ready' caption and no ticks before step 1 lights up. At 100 % it is 1.5 s. Inferred from code arithmetic; not observed.",
+  "fix_hint": "Express the fallback count-in in wall-clock seconds: `1.5 * rate` lesson seconds."
+ },
+ {
+  "severity": "major",
+  "title": "Held-over keys are filled exactly like keys to press now, so the keyboard alone shows a false chord",
+  "file": "apps/web/src/variants/cards/index.tsx",
+  "line": 271,
+  "lens": "touch-ux",
+  "evidence": "index.tsx:271 `for (const x of heldOver(steps, step)) highlights.set(x.pitch, { mark: handOf(x) });` uses the same mark as the current step's notes on line 272; the only difference is the missing finger label. Browser, Ode to Joy #1 at 1180x820 light, step 3: caption read \"Step 3 of 12 · Press F4 · keep holding C3\", yet the screenshot shows C3 solid blue and F4 solid orange. That looks the same as step 1, where the caption was \"Together: right E4 · left C3\". Für Elise \"Bars 2–3\" step 2: caption \"Press E3 · keep holding A4\", keyboard shows E3 solid blue and A4 solid orange. The only distinction is the small grey caption tail (.cv-held, 0.9em, var(--mut)).",
+  "failure_scenario": "The owner watches the on-screen keyboard while playing an acoustic piano. In Ode to Joy #1, steps 2–4 all show C3 lit next to the new right-hand key. That reads as a two-key chord, so he re-strikes C3 at every step instead of holding it. The rhythm comes out wrong and nothing in his main view (the keys) tells him otherwise.",
+  "fix_hint": "Give held keys a visibly different mark from press-now keys, for example a pale or striped hand colour or a hand-coloured outline. That likely needs a new KeyHighlight mark in the shared PianoKeyboard, as a `shell:` commit. Alternatively, do not light held keys and rely on the strip's hold bar."
+ },
+ {
+  "severity": "minor",
+  "title": "The 'next key' cue uses the right-hand colour, is almost invisible on black keys, and is dropped for repeated notes",
+  "file": "apps/web/src/variants/cards/index.tsx",
+  "line": 275,
+  "lens": "touch-ux",
+  "evidence": "getComputedStyle on :root gives --accent=#d97757 and --hand-r=#d97757 in light, and #e0805f for both in dark. The shared `.pk-key.pk-next { box-shadow: inset 0 0 0 3px var(--accent) }` (ui/PianoKeyboard.css:80) and the variant's own `.cv-card.is-next::before { border: 2px dashed var(--accent) }` (cards.css:172-174) are therefore both the right-hand colour. Für Elise \"Bars 2–3\" step 1 screenshot: the next note E3 is a left-hand note (blue chip on card 2) but is outlined orange on the keyboard, and card 2 has an orange dashed frame. Zoom on Für Elise \"Motif\" step 1 (next = D#5, a black key next to the lit E5): the 3px orange inset is barely distinguishable from the black key in both light and dark. index.tsx:275 `if (!highlights.has(p)) highlights.set(p, { mark: 'next' })` skips the next mark when the next key is already lit. Twinkle C4→C4 and Ode E4→E4: after Next the keyboard looked identical (screenshots before and after a step).",
+  "failure_scenario": "Looking ahead to the next key, the owner sees an orange outline and reads it as right hand when the note is for the left. When the next key is black he may not notice the outline at all. On a repeated note, tapping Next changes nothing on the keyboard, which can look as if the tap did not register.",
+  "fix_hint": "Draw the next outline in the next note's hand colour, thicker and with a light ring on black keys. That is a shared PianoKeyboard change, or a 'next-R' / 'next-L' mark. For a repeated note show an 'again' cue, such as a brief pulse or a ×2 badge. Use a token other than --accent for the strip's is-next frame."
+ },
+ {
+  "severity": "minor",
+  "title": "Fragment chips are cut off with no visible cue when the shell shows both floating buttons",
+  "file": "apps/web/src/variants/cards/FragmentBar.tsx",
+  "line": 56,
+  "lens": "touch-ux",
+  "evidence": "Probe at 1180x820, UK, Twinkle: I injected `<button class=\"btn\">🎧 Оригінал</button>` into .fab, matching what App.tsx:195-198 renders when hasOriginal(lesson). JS readings after a frame rendered: fab width 317, .cv-fragbar padding-right 341px, .cv-fragchips clientWidth 380 vs scrollWidth 506. Chips #5 (x 517–595) and #6 (x 601–680) sit past the box's right edge at 556. cards.css:38 sets `scrollbar-width: none`. The screenshot shows #1–#4 plus only the empty ring of #5; #6 is invisible. No overlap with the fab (the overlap audit found 0). Not reproduced on a real lesson, because no demo lesson has a source.",
+  "failure_scenario": "On an iPad, a transcribed lesson with an original video and 6 or more fragments shows only the first 4 chips. The owner cannot see that later fragments exist, or what their status is, unless he happens to swipe the chip row or step through with \"Фрагмент ›\". This gets worse with more fragments, even without the Original button.",
+  "fix_hint": "Show an edge fade or chevron when the chip row overflows, or let chips wrap onto two rows or shrink to compact numbered dots when space is short."
+ },
+ {
+  "severity": "minor",
+  "title": "Swapping '▶ Fragment' for '■ Stop' shifts the whole listen row by about 20px",
+  "file": "apps/web/src/variants/cards/index.tsx",
+  "line": 358,
+  "lens": "touch-ux",
+  "evidence": "JS measurements at 1180x820, Twinkle. Idle: ▶ Step x=228, ▶ Fragment x=327 (w 133), ⟳ Loop x=468, ♩ Play along x=568. Immediately after a real click on ▶ Fragment: ▶ Step x=248, ■ Stop x=347 (w 93), ⟳ Loop x=449, ♩ Play along x=549. The two screenshots taken before and after the click show the same shift.",
+  "failure_scenario": "The owner taps ▶ Fragment near its right edge (x 449–460) and taps the same spot again to stop. That spot is now ⟳ Loop, so the fragment keeps playing and loop turns on. The buttons also jump every time playback starts or stops.",
+  "fix_hint": "Give the play/stop button a fixed min-width (the width of the longer label in each language), or keep the label and swap only the icon."
+ },
+ {
+  "severity": "minor",
+  "title": "On-screen piano keys are narrower than the 44px touch minimum at iPad width",
+  "file": "apps/web/src/variants/cards/index.tsx",
+  "line": 67,
+  "lens": "touch-ux",
+  "evidence": "index.tsx:67 `const range = useMemo(() => keyboardRange(lesson.notes.map((n) => n.pitch)), [lesson.notes]);` uses the range of the whole lesson. Für Elise at 1180x820: .pk-white width 42px and .pk-black width 25px (getBoundingClientRect); at 1440x900, 51px and 31px. AGENTS.md (Domain invariants, Touch first) requires '≥44 px targets'. Key rendering lives in the shared ui/PianoKeyboard.tsx.",
+  "failure_scenario": "On an iPad, someone who uses the optional on-screen check (tap the keys) on Für Elise misses black keys (25px wide) or hits the neighbouring key. The narrow 4-octave image is also harder to read from the music stand.",
+  "fix_hint": "Pass a range around the current fragment, with one or two keys of padding and a minimum of about 2 octaves, so the keys get wider. Or accept this explicitly, since the check is optional."
+ },
+ {
+  "severity": "nit",
+  "title": "Fragment status (new / learning / learned) is explained only in hover tooltips",
+  "file": "apps/web/src/variants/cards/FragmentBar.tsx",
+  "line": 80,
+  "lens": "touch-ux",
+  "evidence": "FragmentBar.tsx:79-80: the status words exist only in aria-label and `title={tr(lang, label)}`. Visually, status is an empty ring, a yellow half-filled dot (.st-learning, cards.css:74-77) or a green ✓ dot (.st-mastered). The full \"n / N learned\" text is likewise only in title (FragmentBar.tsx:95). Screenshots show no legend. The touch-first checklist in docs/briefs/README.md says 'no hover-only affordances'.",
+  "failure_scenario": "On an iPad there is no hover, so the owner cannot find out what the yellow dot means compared with the empty ring.",
+  "fix_hint": "Add a tiny visible legend, or show the status as a word for the current chip."
+ },
+ {
+  "severity": "nit",
+  "title": "The right/left keyboard mapping has a weak octave anchor for someone at an 88-key acoustic piano",
+  "file": "apps/web/src/variants/cards/cards.css",
+  "line": 234,
+  "lens": "touch-ux",
+  "evidence": "The keyboard is a crop of 3–4 octaves (the Für Elise screenshot shows labels C2…C5). The C labels are 0.62rem, about 11px, grey (shared ui/PianoKeyboard.css:37-41). The octave digit on cards and in the caption is `.cv-name small { font-size: 0.55em }` (cards.css:234-236). Middle C has no landmark (no marker or stronger label on C4).",
+  "failure_scenario": "From the music stand the owner sees which key in the crop is lit, but has to work out which octave on his real piano it is. The only cues are an 11px grey label and a small subscript digit.",
+  "fix_hint": "Mark middle C prominently (dot or bold label), or make the C labels larger when the keyboard is tall enough."
+ },
+ {
+  "severity": "nit",
+  "title": "Fragments with no left-hand notes still draw an empty LEFT lane",
+  "file": "apps/web/src/variants/cards/StepStrip.tsx",
+  "line": 60,
+  "lens": "touch-ux",
+  "evidence": "index.tsx:66 `lessonHasLeft(lesson.notes)` is decided for the whole lesson, and StepStrip.tsx:59-61 splits the lane height whenever hasLeft is true. In the Für Elise 'Motif' screenshot (1180x820), all 8 cards have an empty lower lane under a 'LEFT' label. The chip font is already at its 46px cap, so no size is lost; the cost is empty space and visual noise.",
+  "failure_scenario": "A right-hand-only fragment shows a large empty blue-labelled band, which can read as 'something is missing here'.",
+  "fix_hint": "This is optional. Lane positions are kept the same across fragments on purpose, so this may be acceptable. Alternatively, collapse the left lane when the current fragment has no left-hand notes."
+ }
+]
