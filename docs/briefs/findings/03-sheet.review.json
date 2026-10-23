@@ -1,0 +1,202 @@
+[
+ {
+  "severity": "minor",
+  "title": "BOUND_EPS workaround is redundant once main's core fix #8 (8261619) is merged; the report's Finding 1 is stale",
+  "file": "apps/web/src/variants/sheet/index.tsx",
+  "line": 28,
+  "lens": "claims",
+  "evidence": "`git -C <wt> log --oneline 8a070bf..main` -> `8261619 fix(core): #8 snap fragment bounds to note onsets, one time tolerance (#9)`. In that diff: steps.ts adds `TIME_EPS = 0.002` (used in notesInRange) and `snapFragments`, and switches autoFragments `round()` to 4 decimals; demo.ts `beats()` goes from *1000 to *10000; player.ts uses TIME_EPS. In a scratch copy of HEAD with that diff applied, my script printed notesRaw == notesShifted for every demo fragment (e.g. Motif 8/8, Bars 6–8 18/18). Before main's fix, Twinkle's auto fragments were off too (raw 10/13/9/11/12/9 vs shifted 10/11/11/11/10/11), but the report text names only demo.ts beats(). The variant still applies `BOUND_EPS = 0.005` at index.tsx:93 (notesInRange) and :255 (player.play from/to), and its comment at :22-27 describes the old rounding problem.",
+  "failure_scenario": "After merging, the variant shifts both window edges by 5 ms on top of core's 2 ms tolerance. A note within about 7 ms before a fragment's end, which other variants put in that fragment, lands in the next one. The comment and the report's request for a core fix describe a problem that main already solved, which misleads the next reader. Merged tests still pass 31/31, so nothing breaks today.",
+  "fix_hint": "When rebasing onto main, delete BOUND_EPS and its comment, and use `notesInRange(lesson.notes, f.start, f.end)` and `player.play({ from: f.start, to: f.end, … })`. Mark report Finding 1 as fixed by #8."
+ },
+ {
+  "severity": "nit",
+  "title": "The report blames the >500 kB build warning on the index chunk alone, but the sheet chunk is also over the limit",
+  "file": "docs/briefs/03-variant-sheet.report.md",
+  "line": 53,
+  "lens": "claims",
+  "evidence": "`npm run build` at HEAD prints `dist/assets/index-BWYXodFe.js 603.65 kB` and `dist/assets/sheet-C91AhEY5.js 744.70 kB`, then `(!) Some chunks are larger than 500 kB after minification`. The index chunk has no VexFlow code (grep: Bravura=0, StaveNote=0), and HEAD+main builds index at 603.91 kB. So the index part of the claim is right, but the sheet chunk alone would also trigger the warning.",
+  "failure_scenario": "An orchestrator who reads 'the warning is the shell's' does not see that this branch adds a second chunk over 500 kB (745 kB / 398 kB gzip, mostly embedded font), which is the cost the report's Finding 2 describes.",
+  "fix_hint": "Reword to say both index (603.65 kB, already present on main) and sheet (744.70 kB, new) exceed 500 kB. Link it to Finding 2 (vexflow/core plus a separately loaded woff2)."
+ },
+ {
+  "severity": "nit",
+  "title": "The report says all colours go through CSS variables, but one literal colour remains",
+  "file": "apps/web/src/variants/sheet/sheet.css",
+  "line": 226,
+  "lens": "claims",
+  "evidence": "`.sv-kbd { … background: rgb(0 0 0 / 0.15); }` (sheet.css:222-228). Every other colour in the file is var(--…). A loop over every `var(--x)` used in sheet.css found all 15 defined in apps/web/src/styles.css / App.css. The report (report.md:15) says 'Layout and all colours through the shell's CSS variables'.",
+  "failure_scenario": "The 'Space' keycap inside the primary Next button uses a fixed translucent black that does not follow the theme. It is barely visible on a dark accent in dark mode. Cosmetic only.",
+  "fix_hint": "Use a shell variable (e.g. `color-mix(in srgb, var(--accent-fg) 18%, transparent)` or `var(--panel-2)`), or reword the report."
+ },
+ {
+  "severity": "major",
+  "title": "Fragment membership (seconds ±5 ms) disagrees with the drawn bars (snapped ticks): an early downbeat note at a fragment boundary is a step of the previous fragment, but its head is only drawn (faded) in the next one",
+  "file": "apps/web/src/variants/sheet/index.tsx",
+  "line": 91,
+  "lens": "correctness",
+  "evidence": "index.tsx:91 picks the drawn bars with measuresInWindow(score, f.start, f.end), which keeps only bars with m.start < b - 0.25 ticks (quantize.ts:430). index.tsx:92-95 picks the fragment's notes and steps by raw seconds: notesInRange(notes, f.start - BOUND_EPS, f.end - BOUND_EPS) with BOUND_EPS = 0.005. Probe p2: 120 bpm 4/4, quarter notes, the downbeat of bar 4 (6.0 s) played 50 ms early at 5.95 s, auto fragments [0,6) and [6,11.95). Output: `early note index 12 drawn at tick 48 event t3-0` / `frag 0 [0,6) bars=1,2,3 steps=13 contains early note: true; its head drawn in this fragment: false` / `frag 1 [6,11.95) bars=4,5,6 steps=11 contains early note: false; its head drawn in this fragment: true`. Probe p7, the end-edge version: a single note at 7.3 s, tempo 90, fragment {5.333, 7.31}, `drawn bars [ 2 ] note event at tick 44`, so the lesson's only note is not drawn at all. The demo lessons and 40 random tempo-less lessons show 0 mismatches (p1), so the BOUND_EPS workaround described in the report covers only the 0.3 ms demo rounding.",
+  "failure_scenario": "A MIDI import of a human performance keeps the header bpm (packages/core/src/midi.ts:53-59), so prepareLesson cuts auto fragments exactly on bar lines. Any downbeat played 5–60 ms early at such a boundary hits this. In fragment k (Step mode), the last step lights its keys, but no head carries that lesson index, so paint() finds no cursorHead and the cursor disappears (index.tsx:213, 219-225, 515-525). In fragment k+1, the same note is drawn on bar k+1's downbeat but with ps-out (render.ts:370-373). It is not among the steps or in inside, it is never lit, and playback from f.start-0.005 skips it (player.ts:179). Tapping that key shows no staff highlight. The UI effects are inferred from the code, not observed in a browser.",
+  "fix_hint": "Make the two notions agree inside the variant. Either build inside/steps from snapped positions (the noteLocations(score) tick within the bar window), or widen measures to the union of measuresInWindow and the bars that hold the attack events of every fragNotes index. A half-tick tolerance (score.secPerTick/2) instead of 5 ms when the tempo is given would also close the early-note case."
+ },
+ {
+  "severity": "major",
+  "title": "Pickup heuristic overrides an explicit time signature: melody-only lessons with a long note on beat 3 get every bar line shifted by half a bar when fragment boundaries don't anchor the bar lines",
+  "file": "apps/web/src/variants/sheet/quantize.ts",
+  "line": 289,
+  "lens": "correctness",
+  "evidence": "detectPickup (quantize.ts:255-290) weights downbeat candidates by note length plus a bass bonus. The only thing that favours o=0 is the fragment-boundary alignment term. Boundaries that are not within 0.1 tick of the grid are dropped (quantize.ts:332-334), and a lesson with one fragment has no interior boundaries at all (line 271). Probe p5, tempo {bpm, timeSignature:[4,4]}, right hand only, one explicit fragment covering the piece: `q q h every bar (RH, 4/4, one fragment): pickup=8 → [0] C4:q D4:q | [1] E4:h E4:q F4:q | ...` and `Twinkle RH (4/4, one fragment): pickup=8 → [0] C4:q C4:q | [1] G4:q G4:q A4:q A4:q | [2] G4:h F4:q F4:q | ...`. With prepareLesson's bar-aligned auto fragments the same melodies give pickup=0 (p4), and the demo Twinkle passes because of the left-hand bass bonus and aligned fragments. The true anacrusis case still works with auto fragments (p8: Für Elise pickupTicks 2).",
+  "failure_scenario": "An agent posts a short right-hand melody (for example Twinkle) with tempo 90 and timeSignature [4,4], and either a single fragment or fragments at phrase times that are off the 16th grid. Every bar line is drawn two beats late: the opening appears as a 2-beat pickup bar 0, and the half notes sit at the start of the following bars. The notation is wrong for the whole lesson, even though the time signature was explicit.",
+  "fix_hint": "When the lesson gives a timeSignature, require stronger evidence for a pickup (for example a much higher threshold, or count only bass/chord downbeats). Or treat the onset of the first note as a valid downbeat unless a shorter, lighter run of notes precedes a clearly heavier beat."
+ },
+ {
+  "severity": "minor",
+  "title": "estimateTempo is O(n²) and runs synchronously in render (useMemo), freezing the whole app for large tempo-less lessons",
+  "file": "apps/web/src/variants/sheet/quantize.ts",
+  "line": 147,
+  "lens": "correctness",
+  "evidence": "quantize.ts:146-152 runs `gaps.filter((x) => Math.abs(Math.log(x / g)) < 0.04)` inside `for (const g of gaps)`. It is called from buildScore, which runs in useMemo during the variant's first render (index.tsx:87-90). Probe p3 (Node, this Mac) on random tempo-less lessons: N=1000 → buildScore 18 ms; 3000 → 120 ms; 6000 → 354 ms; 20000 → 6841 ms (estimateTempo alone 5231 ms). I rate it minor because typical transcriptions are 2–6k notes; it is major at the schema cap (LessonInput notes max 20000, lesson.ts:77).",
+  "failure_scenario": "Opening the Sheet tab for an audio transcription without a tempo near the 20000-note cap blocks the main thread for several seconds on a fast Mac, longer on an iPad (inferred). Nothing responds meanwhile, including the shell's lesson selector and buttons, and the browser may show an unresponsive-page prompt.",
+  "fix_hint": "Sort the gaps once and count neighbours with a two-pointer window in log space (O(n log n)). Or sample at most a few thousand gaps."
+ },
+ {
+  "severity": "minor",
+  "title": "Step mode: Back then Next at the end of a fragment records another attempt without a new run",
+  "file": "apps/web/src/variants/sheet/index.tsx",
+  "line": 280,
+  "lens": "correctness",
+  "evidence": "goStep (index.tsx:275-284) calls recordProgress({attempt:true}) every time k reaches steps.length. back() at done (stepIdx === steps.length) goes to steps.length-1 (line 289), and the next next() call goes to steps.length again (line 287), which records again. Tapping the last note on the staff also jumps to the last step (index.tsx:347-350), so a single Next then counts as a completed run. The server increments attempts on every attempt:true (apps/server/src/repo.ts:217).",
+  "failure_scenario": "The user steps through the fragment (attempts=1, \"Fragment done\"), presses ‹ then Next › → attempts=2, and repeats → 3, 4…. Or, in Step mode, they tap the last note head on the staff and press Next once → an attempt is recorded. This contradicts the brief's 'recordProgress per completed fragment run'. Traced from the code; not run in a browser.",
+  "fix_hint": "Record only when the run reached the end through consecutive Next presses from step 0 (track a 'walked from start' flag that resets on back/tap/jump), or record at most once per arrival at done until 'Again' resets it."
+ },
+ {
+  "severity": "minor",
+  "title": "Global keyup handler calls preventDefault on Space without the dialog guard, so Space cannot press buttons in the shell's dialogs (and Space on a focused shell button toggles playback)",
+  "file": "apps/web/src/variants/sheet/index.tsx",
+  "line": 326,
+  "lens": "correctness",
+  "evidence": "The keydown handler returns early when a `.sheet-backdrop` dialog is open (index.tsx:316), but `up` (index.tsx:325-327) calls `e.preventDefault()` for every Space keyup whose target is not a text field, with no backdrop check, on window. The shell's dialogs use `.sheet-backdrop` and contain plain buttons (FeedbackDialog.tsx:52-53 Cancel/Send, SourcePlayer.tsx:47 close). The worker's own browser check shows that preventing keyup cancels button activation in Chromium (report: 'Three Space presses with the \"Steps\" button focused gave Step 4 / 12 (one step per press)').",
+  "failure_scenario": "With the Sheet variant open, the user opens '⚑ Sounds wrong', types a message, tabs to Send and presses Space: nothing happens (Enter still works). Likewise, with focus on a shell button such as the variant tabs or ⚙, Space starts or stops playback (listen mode) or advances a step (step mode) instead of pressing the button. Inferred from the code plus the worker's Chromium observation; not reproduced by me.",
+  "fix_hint": "Apply the same `.sheet-backdrop` check (and ideally a 'target is inside .sv' check) in the keyup handler, and only call preventDefault on keyup when the matching keydown was handled by the variant."
+ },
+ {
+  "severity": "major",
+  "title": "Dark theme: note stems are drawn black and cannot be seen",
+  "file": "apps/web/src/variants/sheet/sheet.css",
+  "line": 102,
+  "lens": "touch-ux",
+  "evidence": "Dark theme at 1180x820, Für Elise 'Motif', body background rgb(25,25,23). A JS walk of the SVG gave computed stroke rgb(0,0,0) on all 8 `path.vf-stem`; their parent is `<g class=\"vf-stem\" stroke=\"black\">`. Ode #1 had 12 stems, also black. sheet.css:102 only overrides `.ps-svg path[stroke='#444']`. render.ts:250-251 sets the context to currentColor, but VexFlow still writes stroke=black on stem groups. Screenshot (dark, 1180 and 1440): the beams float above the note heads with no visible stems. A zoom on Ode bars 2–3 shows the stems as near-black lines on the dark background.",
+  "failure_scenario": "The user's iPad or Mac is in dark mode → every stem disappears, beamed groups look detached from their notes, and the staff no longer reads as notation. The brief requires both themes ('staff ink follows --strong/--fg'). This contradicts the report's dark-theme row.",
+  "fix_hint": "Add `.ps-svg .vf-stem, .ps-svg .vf-stem path { stroke: currentColor; }`, or rewrite the root and child stroke/fill='black' attributes to currentColor after drawing. Re-check flags, ledger lines and ties in dark mode."
+ },
+ {
+  "severity": "major",
+  "title": "A repeated note looks the same on the keyboard as a single note (Step and Listen)",
+  "file": "apps/web/src/variants/sheet/index.tsx",
+  "line": 208,
+  "lens": "touch-ux",
+  "evidence": "Step mode, Twinkle #1. A JS read of lit keys after each Next gave 'Step 1: 48L 60R' (step 2 is C4 again, so no next outline), 'Step 3: 67R' (step 4 is G4 again, so no next outline), then 'Step 4: 53n 67R 69n'. Screenshot at Step 3/7: only G4 lit orange, no key outlined. Cause: index.tsx:208-212 sets the 'next' marks and then lets the current notes overwrite them. Listen mode at 25%: a 40 ms sampler showed key 60 lit continuously from 42 ms to 6280 ms across the two C4 quarter notes, never dark between them. Cause: index.tsx:198-199 adds the current step's notes on top of soundingAt.",
+  "failure_scenario": "The owner watches the screen and plays on an acoustic piano. Twinkle 'C C G G A A G' or Ode 'E E F G': the key shows G, he taps Next and the screen still shows only G. Nothing on the keys says 'press it again'. Only the moving staff cursor and step counter hint at it, and he does not read the staff.",
+  "fix_hint": "Use KeyHighlight.label (an order badge such as 1/2 or ×2) or a short pulse/blank at each new onset. In Step mode, show a next cue even when the next pitch equals the current one, for example a badge on the lit key."
+ },
+ {
+  "severity": "major",
+  "title": "Note names and bar numbers get a black outline from the root svg: hard to read in dark, wrong colour in light",
+  "file": "apps/web/src/variants/sheet/render.ts",
+  "line": 420,
+  "lens": "touch-ux",
+  "evidence": "Ancestor chain of a `.ps-name`: `text.ps-name` → `g.ps-labels` → `svg stroke=black stroke-width=1 fill=black`. Computed stroke is rgb(0,0,0) at 1px, and the zoom is 1.6, so the 12 px label renders at 19.2 px with a black outline of about 1.6 CSS px. `.ps-barnum` also has stroke rgb(0,0,0). Dark screenshot of the Für Elise Motif: the 'B' under note 4 of bar 1 is a blob, the '#' in 'D#' is nearly gone, and bar numbers '0' and '1' are almost invisible. Light zoom of Bars 6–8 (UA/solfège): the left-hand names 'Ля Мі Ля' look near-black instead of the --hand-l blue.",
+  "failure_scenario": "Note names are a must-have reading aid in the brief. In dark mode they become partly unreadable. In light mode the hand-colour coding of the names is lost, because left-hand and right-hand names both look dark.",
+  "fix_hint": "`.ps-name, .ps-barnum { stroke: none; }`, or create the labels group with stroke='none'."
+ },
+ {
+  "severity": "minor",
+  "title": "Listen mode, the default, shows no keys at rest",
+  "file": "apps/web/src/variants/sheet/index.tsx",
+  "line": 47,
+  "lens": "touch-ux",
+  "evidence": "readPrefs defaults to mode 'listen' (index.tsx:47). The rAF loop paints keys only while playing or in Step mode (index.tsx:193-214). Idle Listen screenshots of the Für Elise Motif, Twinkle #1 and Ode #1: the keyboard is entirely blank. After a run ended, the sampler's last entry (6801 ms) had lit keys = '' and the button showed '▶ Play'.",
+  "failure_scenario": "A first-time owner who cannot read the staff opens a fragment and sees no keys. He has to press Play and memorise a fast flash; when the run ends nothing is left on screen to copy from while he plays on the acoustic piano.",
+  "fix_hint": "At rest in Listen mode, outline the fragment's keys (or light the first step and badge the order), or default new users to Step mode."
+ },
+ {
+  "severity": "minor",
+  "title": "At the end of a fragment, Next/Space restarts it instead of moving on",
+  "file": "apps/web/src/variants/sheet/index.tsx",
+  "line": 287,
+  "lens": "touch-ux",
+  "evidence": "Für Elise Motif in Step mode, 8 steps. After the last step the screenshot showed 'Fragment done' and the big button '⟲ Again'. next() wraps to 0 (index.tsx:287), so another Space restarts the same fragment. The only ways forward are the 44 px '›' in the top chips row or 'Got it' (index.tsx:389-399).",
+  "failure_scenario": "The core loop is look → play → tap Next. At each fragment boundary the big Next / Space (the thumb or keyboard target) loops the same fragment, and the owner has to reach for the small top-row arrow to continue.",
+  "fix_hint": "When done, make the main button 'Next fragment ›' (Again as a secondary button), or let Space at done move to the next fragment."
+ },
+ {
+  "severity": "minor",
+  "title": "Fixed 236 px reserve is too small for the floating buttons when a lesson has a YouTube source",
+  "file": "apps/web/src/variants/sheet/sheet.css",
+  "line": 16,
+  "lens": "touch-ux",
+  "evidence": "Measured: `.sv-top` padding-right is 236px (sheet.css:16). The single-button fab measured 165 px (EN) and 173 px (UA, '⚑ Звучить не так'). hasOriginal() adds '🎧 Оригінал' for any lesson with a YouTube source.url (SourcePlayer.tsx:12-14). Simulated in the DOM only (I cloned a 🎧 button into .fab and added 8 chips): the fab spanned x 851–1168, the Got it button ('✓ Вивчено') sat at x 864–944, and elementFromPoint at Got it's right side returned the 'Оригінал' button. A zoom showed '🎧 Оригінал' drawn over 'Вивчено'. Not observed with a real lesson; the demos have no source.url.",
+  "failure_scenario": "The owner's real lessons are YouTube transcriptions with many fragments. In UA at 1180x820 the 'Got it' button (and the › arrow) end up under the '🎧 Оригінал' floating button, so taps hit the wrong control.",
+  "fix_hint": "Measure .fab and reserve its real width (ResizeObserver, or a shell CSS variable), or move the floating buttons out of the chips row."
+ },
+ {
+  "severity": "minor",
+  "title": "Fragment chips: hidden scrollbar and the active chip is never scrolled into view",
+  "file": "apps/web/src/variants/sheet/sheet.css",
+  "line": 23,
+  "lens": "touch-ux",
+  "evidence": "sheet.css:23 sets `scrollbar-width: none` on .sv-chips. `grep -n 'scrollIntoView\\|scrollLeft\\|scrollTo' apps/web/src/variants/sheet/*.ts*` returned nothing. In the DOM simulation with 12 chips, the row cut a chip mid-word ('Ba…') with no scroll cue. That the › arrow can move to a chip outside the visible area is inferred from the code; not observed with a real lesson (the demos have at most 6 chips).",
+  "failure_scenario": "A lesson with many fragments: tapping › past the visible chips leaves the active chip off-screen, so the owner loses track of where he is, and he cannot tell that more chips can be swiped into view.",
+  "fix_hint": "Call scrollIntoView({inline:'nearest'}) on the active chip when frag changes; add an edge fade as a scroll cue."
+ },
+ {
+  "severity": "minor",
+  "title": "Step mode drops held notes (the bass whole note disappears after step 1)",
+  "file": "apps/web/src/variants/sheet/index.tsx",
+  "line": 205,
+  "lens": "touch-ux",
+  "evidence": "Twinkle #1: C3 is a whole note under four right-hand quarter notes. Lit keys per step (JS): step 1 '48L 60R', step 2 '60R 67n', step 3 '67R', step 4 '53n 67R 69n'. C3 (48) is lit only at step 1. The Step branch (index.tsx:205-213) paints only cur.notes; soundingAt is used only while playing.",
+  "failure_scenario": "The owner follows the keys in Step mode and lets go of the bass after the first step, because the key went dark. He cannot see that it should be held through the bar (Twinkle bar 1, the Ode bass whole notes).",
+  "fix_hint": "In Step mode, also mark notes still sounding at the step's time (for example a dimmer hand colour or a 'hold' style)."
+ },
+ {
+  "severity": "minor",
+  "title": "On-screen keys are narrower than 44 px (shared keyboard, range chosen by the variant)",
+  "file": "apps/web/src/variants/sheet/index.tsx",
+  "line": 99,
+  "lens": "touch-ux",
+  "evidence": "Für Elise at 1180x820: the range is pitches 36–82 (C2 to A#5, 28 white keys), so white keys are 42.1 px wide and black keys 25.3 px (getBoundingClientRect). At 1440x900 they are 51.4 and 30.8 px. The range is keyboardRange(all lesson notes) (index.tsx:99), passed to the shared PianoKeyboard (index.tsx:486-491). Whether other variants behave the same is unverified.",
+  "failure_scenario": "Tapping a key to 'see it on the staff' on an iPad at 1180 px: white keys are just under the 44 px rule and black keys well under it. Low impact, because the owner plays an acoustic piano and key taps are secondary.",
+  "fix_hint": "Narrow the range to the current fragment (plus margin) on small widths, or accept it as a shell-level exception."
+ },
+ {
+  "severity": "nit",
+  "title": "The grand-staff brace is cut off about 3 px at the left edge",
+  "file": "apps/web/src/variants/sheet/render.ts",
+  "line": 244,
+  "lens": "touch-ux",
+  "evidence": "svg.getBBox() x = -2 (logical) at zoom 1.6. The brace path's client rect left was -3 px, while the stage (.sv-stage, overflow-x hidden) starts at 0. The zoom screenshot shows the brace touching or cut at the viewport edge, at 1180 and 1440.",
+  "failure_scenario": "The left curl of the brace is clipped on every fragment; cosmetic.",
+  "fix_hint": "Add a few logical px of left margin before the brace (MARGIN_X), or set overflow-x visible with padding on the stage."
+ },
+ {
+  "severity": "nit",
+  "title": "Two keys lit for about 100 ms during slow playback (cursor look-ahead)",
+  "file": "apps/web/src/variants/sheet/index.tsx",
+  "line": 198,
+  "lens": "touch-ux",
+  "evidence": "Für Elise Motif at 25%, sampled every 100 ms: at 2504 ms the lit keys were '76R 75R' (2 note heads on), and at 5003 ms '71R 74R', each for one sample before falling back to a single key. The 0.02 s look-ahead in lesson time is 80 ms of real time at 25%.",
+  "failure_scenario": "When studying the order at slow speed, the next key flashes on while the previous one is still lit, so two keys appear to be pressed together.",
+  "fix_hint": "Scale the look-ahead by the rate, or exclude soundingAt notes that belong to the previous step once the cursor has moved."
+ },
+ {
+  "severity": "nit",
+  "title": "No on-screen hint that notes and keys can be tapped; two '‹' buttons do different things",
+  "file": "apps/web/src/variants/sheet/strings.ts",
+  "line": 35,
+  "lens": "touch-ux",
+  "evidence": "`grep -n tapHint` finds it only in strings.ts:35; index.tsx never renders it. The previous-fragment button (top row) and the Step 'Back' button (controls row) both show only '‹' (index.tsx:369 and 443-445); they differ only by aria-label.",
+  "failure_scenario": "The owner may never discover tap-a-note or tap-a-key, and may confuse 'previous fragment' with 'step back'.",
+  "fix_hint": "Show tapHint once (dismissible), and label the step Back button (e.g. '‹ Back')."
+ }
+]

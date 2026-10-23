@@ -1,0 +1,9 @@
+Read /Users/predantsev-m4mb/Projects/IdeaProjects/Startups/piano-steps/docs/briefs/verify-round.md and execute it for these parameters.
+- Variant: sheet
+- Branch: feat/3-variant-sheet (already rebased on current origin/main)
+- Worktree: /Users/predantsev-m4mb/Projects/IdeaProjects/Startups/piano-steps/.claude/worktrees/sheet
+- Findings: /Users/predantsev-m4mb/Projects/IdeaProjects/Startups/piano-steps/docs/briefs/findings/03-sheet.review.json
+- Fix report: /Users/predantsev-m4mb/Projects/IdeaProjects/Startups/piano-steps/.claude/worktrees/sheet/docs/briefs/03-variant-sheet.fix-report.md
+- Fix-round commits: everything after commit 6f12641 (git log 6f12641..HEAD)
+- Ports for step 4: web 9335, API 9336
+- Output file: /Users/predantsev-m4mb/Projects/IdeaProjects/Startups/piano-steps/docs/briefs/findings/03-sheet.verify.md

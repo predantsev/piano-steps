@@ -1,0 +1,162 @@
+[
+ {
+  "severity": "major",
+  "title": "Lane will lag the sound once the pending player-clock fix (#10) merges: double look-ahead compensation",
+  "file": "apps/web/src/variants/falling/engine.ts",
+  "line": 186,
+  "lens": "claims",
+  "evidence": "engine.ts:186 draws at `player.time - this.audioLag() * rate`, where audioLag = ctx.lookAhead + outputLatency (index.tsx:63-72). origin/bug/10-player-clock 884d0fa changes player.ts `time` to use `audibleNow() = ctx.immediate() - outputLatency`, so player.time already equals what is heard (`git diff main...origin/bug/10-player-clock -- apps/web/src/audio/player.ts`).",
+  "failure_scenario": "If #10 merges and this branch merges unchanged, continuous-mode bars and lit keys trail the audio by (0.1 s + output latency) × rate. The engine test 'draws behind the player clock by the audio lag' still passes because it uses a FakePlayer, so nothing catches it. Wait mode is unaffected because it runs its own clock and sounds the step through playChord.",
+  "fix_hint": "Coordinate with #10: once player.time is audible-time, drop audioLag() from visualTime(). Keep it only for the wait-mode soundStep lead, since playChord still schedules at Tone.now(). The report already says 'If keys now light after the sound, drop audioLag()'."
+ },
+ {
+  "severity": "minor",
+  "title": "Report finding #1 (fragment-boundary bug) is overtaken by main and under-scoped",
+  "file": "docs/briefs/01-variant-falling.report.md",
+  "line": 116,
+  "lens": "claims",
+  "evidence": "main 8261619 'fix(core): #8 snap fragment bounds to note onsets' adds TIME_EPS = 0.002 to notesInRange and player.ts, rounds demo beats() to 4 decimals and adds snapFragments in prepare/autoFragments. The branch is not rebased (merge-base 8a070bf). A tsx script over the demo lessons at merge-base also shows Twinkle's auto-fragments #3 and #6 losing their boundary chord through steps.ts round() to 1 ms, which the report does not mention.",
+  "failure_scenario": "An orchestrator acting on the report could open a second core fix for an issue main already closed. After merge, the variant's snapSpan becomes a redundant second snap. The two file sets are disjoint, so there is no textual conflict, but tests on the merged tree were not run.",
+  "fix_hint": "Mark finding #1 as resolved by #8/8261619. Optionally keep snapSpan as a harmless guard, or remove it after rebasing on main."
+ },
+ {
+  "severity": "nit",
+  "title": "Build-size line in the report is stale (measured before the last code commit)",
+  "file": "docs/briefs/01-variant-falling.report.md",
+  "line": 69,
+  "lens": "claims",
+  "evidence": "The report says 'final state … falling-*.js 21.83 kB'. `npm run build` at HEAD prints 'falling-DdqJV-7B.js 21.85 kB'. A scratch build of `git archive 8efbb0c` prints 'falling-DE-R05Vg.js 21.83 kB'. Commit 042b567 updated the test count in the report but not this line.",
+  "failure_scenario": "The report claims final-state verification for a number that belongs to the previous commit, a small grounding lapse. The build itself passes.",
+  "fix_hint": "Update the line to 21.85 kB, or label it with the commit it was measured at."
+ },
+ {
+  "severity": "major",
+  "title": "Empty or out-of-range fragment: Play causes infinite player recursion (RangeError every frame); with loop off the engine is stuck in 'playing'",
+  "file": "apps/web/src/variants/falling/engine.ts",
+  "line": 121,
+  "lens": "correctness",
+  "evidence": "engine.ts:121-122: `const end = Math.min(span.end, this.lessonEnd); this.span = snapSpan(..., { start: span.start, end: end > span.start ? end : span.end })`. When the fragment starts at or after lessonEnd, or end <= start, this deliberately keeps the original span. startRun (engine.ts:316-324) then calls `player.play({from: span.start, to: span.end, loop: opts.loop && fromStart})`, and only after that calls setPhase('playing').\n\nIn player.ts:176 `runEnd = min(to, lastEnd)` is <= from. tick (player.ts:203-207) sees `time >= runEnd` immediately, then runs `halt(false); emit loop; this.run(from)`, which calls tick synchronously again, with no guard.\n\nindex.tsx:285-289 calls requestAnimationFrame(frame) before engine.tick(). After the throw, phase stays 'preroll' with preroll=null, so visualTime() returns cursor = span.start (engine.ts:192) and the next tick calls startRun again (engine.ts:210-212).\n\nProbe (scratchpad probe2.test.ts, real LessonPlayer plus fake Tone; lesson ends at 2, setSpan({start:2,end:4}), Play, then 1.5 s) printed: `frame 1: threw=RangeError onChange calls=2716 phase=preroll player.state=playing`, and the same for frames 2 and 3. Each onChange is a rerender() dispatch plus a queued paint microtask (index.tsx:108-111).\n\nWith loop off (probe.test.ts P1b, span {1.5, 0.5}) there is no error, but the output was `attempts: 0 phase playing`. The player emitted 'end' synchronously inside play(), while the engine was still in 'preroll', so the event was ignored (engine.ts:377).\n\nThe API accepts such data:\n- PUT /api/lessons/{ref}/fragments/{position}/notes takes `z.array(LessonNote)` with no min (apps/server/src/app.ts:247).\n- replaceFragmentNotes keeps lesson.fragments (apps/server/src/repo.ts:173-176).\n- Fragment has no start<end check (packages/core/src/lesson.ts:27-31).",
+  "failure_scenario": "An agent handles feedback by emptying the last fragment: PUT .../fragments/7/notes {\"notes\":[]}. The lesson's last note now ends before fragment 7 starts. The user picks chip #8 and taps Play (loop is on by default). After the 1.5 s lead-in, every animation frame throws \"RangeError: Maximum call stack size exceeded\" and dispatches about 2,700 rerenders plus queued canvas paints. The page janks or freezes, the console fills with errors, and the UI stays on \"Get ready…\" / \"❚❚ Pause\" until the user presses Pause. With loop off, the button stays \"Pause\" forever, nothing plays and no attempt is recorded.",
+  "fix_hint": "In setSpan, treat a span with start >= lessonEnd or end <= start as empty: no notes, and start()/primary() must not start a run (disable Play the way wait mode already does with noNotes). Also set phase before calling player.play(), or handle 'end'/'loop' arriving synchronously inside play(). Separately, report the unguarded run→tick→run recursion in the shared player.ts (from >= runEnd) to the orchestrator."
+ },
+ {
+  "severity": "minor",
+  "title": "At each loop wrap and at the end of the lead-in, the lane jumps and freezes about (0.05 s + audioLag): keys light about 0.2 s before the sound",
+  "file": "apps/web/src/variants/falling/engine.ts",
+  "line": 186,
+  "lens": "correctness",
+  "evidence": "engine.ts:186: `return Math.max(this.runFrom, this.player.time - this.audioLag() * rate)`.\n\nAt the player's internal loop (player.ts:204-207, `run(this.opts.from)`), startLesson is reset to from and startedAt = Tone.now()+0.05 (player.ts:177-178). player.time is therefore clamped at from for 0.05 s, and `time - lag*rate` stays below runFrom for another `lag` seconds. The visual drops from span.end - lag*rate straight to span.start and is held there.\n\nThe first note is scheduled at startedAt, so it becomes audible 0.05 s + lag after the wrap. The same clamp applies after the preroll hands over to startRun(span.start) (engine.ts:210-212), and after the engine's own restart on 'end' (engine.ts:381).\n\nProbe (scratchpad probe.test.ts P3, real LessonPlayer, fake Tone clock, lag 0.15, span [0,2), rate 1) printed:\n`2.050s:v=1.850`\n`2.075s:v=0.000(after loop)` … `2.275s:v=0.000(after loop)`\n`2.300s:v=0.025`\nThat is a forward jump of 0.15 lesson-s, then 0.2 s frozen on the now-line. While frozen, keyMarks (marks.ts:31-33) lights the first chord's keys because soundingBars uses `b.start <= now`.",
+  "failure_scenario": "Continuous mode, loop on (the default), any fragment, e.g. Ode to Joy #1 at 100 %. On every pass the bars of the first chord jump about 0.15 lesson-s (~20 px at look-ahead 3 s on a 465 px lane) onto the now-line. They sit there with their keys lit for about 0.2 s before the chord is heard, while the tail of the previous pass is still sounding but already gone from the lane. The same early light happens at the end of every \"Get ready…\" lead-in. This defeats the audio-lag compensation (log D3) at exactly the downbeat the user is watching.",
+  "fix_hint": "Keep visual time continuous across the wrap. When a run is a loop pass and `player.time - lag*rate < runFrom`, draw at `span.end + (player.time - lag*rate - span.start)` (unwrapped), which visibleBars already supports. For the preroll, call startRun when `v >= span.start - (0.05 + lag) * rate`, and keep the preroll clock driving the visual until the player catches up."
+ },
+ {
+  "severity": "minor",
+  "title": "Wait mode: notes started by playChord keep ringing after a fragment change, restart or wait-mode toggle (up to 9.6 s at 25 %)",
+  "file": "apps/web/src/variants/falling/engine.ts",
+  "line": 370,
+  "lens": "correctness",
+  "evidence": "halt() at engine.ts:370-374: `if (this.player.state !== 'stopped') this.player.stop();`. Wait mode never calls player.play(), so the state is always 'stopped', and LessonPlayer.stop() (the only path to sampler/synth.releaseAll(), player.ts:137-141 and 217-223) is never reached.\n\nsoundStep (engine.ts:367) triggers each note for `Math.max(0.15, n.duration / this.opts.rate)`. setSpan (engine.ts:120) and restart (engine.ts:260) rely on halt() to silence the previous fragment.\n\nProbe (scratchpad probe.test.ts P2, real LessonPlayer + fake Tone, bass C3 2.4 s, rate 0.25, wait mode, Next through the wrap) printed:\n`P2 attacks [[\"D4\",2.4],[\"C3\",9.6],[\"E4\",2.4]]`\n`P2 releaseAll before/after fragment change: 0 0 player.state stopped`\n`P2 releaseAll after restart: 0`\n\nThe demo Ode to Joy left hand uses whole notes, `C3/4` at 100 bpm = 2.4 s (packages/core/src/demo.ts:12,15). In continuous mode the same transitions do silence the sound, because the player is 'playing' and stop() runs releaseAll.",
+  "failure_scenario": "Ode to Joy, wait mode, speed 25 %. The user taps Next until a bar's first step lands; its C3/G2 bass is triggered for 9.6 s. They then tap → (next fragment) or ⏮. The old bass keeps sounding for up to about 9 s over the new fragment's first step and over the \"Hear it\" replay. The same thing in continuous mode is cut immediately.",
+  "fix_hint": "Release ringing voices on every halt(). For example, call player.stop() unconditionally (LessonPlayer.stop() always runs releaseAll), or track the wait-mode playChord voices and release them in setSpan/restart/the wait toggle."
+ },
+ {
+  "severity": "minor",
+  "title": "Wait mode keyboard marks split an unquantised chord: part of the waiting step shows as 'next' and the real next step gets no mark",
+  "file": "apps/web/src/variants/falling/marks.ts",
+  "line": 32,
+  "lens": "correctness",
+  "evidence": "While 'waiting', the engine sets cursor = step.time, the earliest onset of a step grouped with 45 ms tolerance (packages/core/src/steps.ts:15-24; engine.ts:359).\n\nkeyMarks then marks sounding keys only where `b.start <= now + EPS` (marks.ts:32-33 via timeline.ts:98-99). It gives 'next' to the earliest onset strictly after now, within 45 ms of it (marks.ts:34-35 via timeline.ts:103-108).\n\nSo a chord note 1-45 ms after step.time is treated as the 'next' step. The pill (index.tsx:457) and the matching logic (engine.ts:291-293) both treat it as part of the current step.\n\nProbe (scratchpad probe3.test.ts: notes C4 @1.000, E4 @1.030, G4 @1.500, wait mode) printed: `waiting step pitches [60,64] now 1 keyboard marks [[60,{\"mark\":\"R\"}],[64,{\"mark\":\"next\"}]]`. G4 has no mark.",
+  "failure_scenario": "A transcribed lesson (unquantised, a stated use case) has a slightly rolled chord C4 + E4 (30 ms apart) followed by G4. In wait mode the pill says \"Play C4 + E4\", but the keyboard lights only C4 in the hand colour, outlines E4 as the next key, and shows nothing on G4. The user reads E4 as the following step instead of part of the chord to press now.",
+  "fix_hint": "In the 'waiting' phase, build the marks from engine.waitingStep.pitches (hand colour) and engine.steps[stepIdx+1] ('next') instead of sampling bars at `now`. Alternatively, use the same 45 ms grouping tolerance in soundingBars while waiting."
+ },
+ {
+  "severity": "major",
+  "title": "Wait mode needs a tap per note, and the only Next target is the top-left button, the point farthest from the hands",
+  "file": "apps/web/src/variants/falling/index.tsx",
+  "line": 384,
+  "lens": "touch-ux",
+  "evidence": "Measured at 1180x820: .fl-primary rect {x:12, y:125, w:135, h:56}, the top-left corner of an iPad on a music stand. Clicking it 8 times walked the Für Elise Motif one note at a time (pill 'Play E5' → 'Play D#5' → … → 'Play C5' → button '↻ Again'), so one pass takes 8 reaches to the top-left. Tapping the lane only plays the tapped bar's note (onLanePointerDown, index.tsx:299-315) and does not advance. Tapping the right on-screen key does advance (C5 tap → 'Play E5', chip ×10→×11), but that is a second 'play it again on glass' step.",
+  "failure_scenario": "The owner sits at his acoustic piano with the iPad on the music stand, plays one note, then lifts a hand to the top-left corner of the iPad before every next note. For an 8-note motif that is 8 reaches per pass. In practice he will drop wait mode, and continuous play at 100% Für Elise is too fast to read.",
+  "fix_hint": "In wait mode, make a large low target count as Next: the whole lane (except a bar tap, or a long press to hear), or a wide Next strip just above the keyboard. Optionally offer a per-fragment wait ('show the whole fragment, I play it, tap once')."
+ },
+ {
+  "severity": "major",
+  "title": "End of a fragment offers only 'Again'; on touch there is no next-fragment control and no 'fragment done' message",
+  "file": "apps/web/src/variants/falling/index.tsx",
+  "line": 327,
+  "lens": "touch-ux",
+  "evidence": "With Loop off and wait mode on, 9 Next taps on Für Elise Motif ended in state {primary:'↻ Again', pills:[]} and the lane reset to the Motif start (screenshot: no message, no hint toward 'Bars 2–3'). The next tap restarted Motif ('Play E5'). index.tsx:327-329 maps phase 'done' to 'again'. ←/→ switch fragments (index.tsx:162-170), but only from a hardware keyboard. 'Got it' only toggles status (index.tsx:376) and does not advance.",
+  "failure_scenario": "The owner keeps tapping the same big button through the fragment. At the end that tap silently restarts the same fragment instead of moving on. To reach 'Bars 2–3' he has to notice and tap a chip in the top row, which breaks the AGENTS.md core loop 'look → play → tap Next'.",
+  "fix_hint": "At 'done' (and after 'Got it'), show 'Next: Bars 2–3 →' as the primary action with 'Again' secondary, plus a short 'Fragment done ✓' pill."
+ },
+ {
+  "severity": "major",
+  "title": "The 'next' key outline uses the right-hand colour, so a left-hand next note looks like a right-hand one",
+  "file": "apps/web/src/variants/falling/marks.ts",
+  "line": 35,
+  "lens": "touch-ux",
+  "evidence": "marks.ts:35 marks upcoming keys as {mark:'next'} with no hand. PianoKeyboard.css:80-81 draws .pk-next as 'box-shadow: inset 0 0 0 3px var(--accent)'. Computed vars: light --accent #d97757 == --hand-r #d97757, dark --accent #e0805f == --hand-r #e0805f. Screenshot of Für Elise 'Bars 2–3' in wait mode at 1180x820: A2 filled blue (LH), A4 filled orange (RH), and the E3 key, whose bars in the lane are blue (left hand), has an orange outline.",
+  "failure_scenario": "Reading the keyboard at a glance, the owner sees an orange outline and prepares the right hand, but the next note belongs to the left hand. The hand colour coding stops being trustworthy exactly on the 'what comes next' cue.",
+  "fix_hint": "Carry the hand on the next mark (e.g. 'nextR'/'nextL', or a CSS var on the key) and outline in --hand-l / --hand-r. This touches the shared PianoKeyboard.css as well, so it needs a 'shell:' commit or a variant-local class."
+ },
+ {
+  "severity": "minor",
+  "title": "Text is small for reading from the piano bench: bar labels 10–13px, key labels 11px and only on C",
+  "file": "apps/web/src/variants/falling/lane.ts",
+  "line": 153,
+  "lens": "touch-ux",
+  "evidence": "lane.ts:153 sets the label font to max(10, min(15, w*0.36)). At 1180x820 on Für Elise, white keys measure 41.3px (≈13px labels) and black keys 24.8px (10px label, octave dropped to 'D#', screenshot). PianoKeyboard .pk-name computed 11.16px, and default keyLabels is 'c' (settings.ts:22), so only C2/C3/C4/C5 are named on the keys. The wait pill is the largest instruction: text 17.1px, note name 19.8px.",
+  "failure_scenario": "At music-stand distance (~60 cm) the owner can read the pill but has trouble reading which bar is which, especially black-key bars ('D#' at 10px). On the keyboard only the Cs are named, so mapping the lit key to his 88-key piano depends on counting from a tiny 'C4'.",
+  "fix_hint": "Let bar labels grow with bar height, not only width (or draw the name above the now-line when the step lands). Consider a bigger note name on or under the lit key in wait mode, and mark middle C."
+ },
+ {
+  "severity": "minor",
+  "title": "On-screen piano keys are below 44px on Für Elise (white 41.3px, black 24.8px)",
+  "file": "apps/web/src/variants/falling/index.tsx",
+  "line": 465,
+  "lens": "touch-ux",
+  "evidence": "JS getBoundingClientRect at 1180x820: Für Elise (28 white keys, C2–B5) white 41.3px, black 24.8x132px. Twinkle and Ode (21 white keys) white 55px, black 33px. Portrait 820x1180 Für Elise: white 28.4px, black 17.1px. My first scan missed these because it only looked at button/select/a/input; keys are div.pk-key.",
+  "failure_scenario": "Tapping the right key on the iPad as the 'I played it' input in wait mode is error-prone on black keys (24.8px wide). A miss flashes the wrong key red.",
+  "fix_hint": "Inherited from core keyboardRange() and the shared PianoKeyboard (the brief mandates that geometry). Possible fix: tighten the range to the fragment ±2 keys, or accept the on-screen keyboard as secondary and rely on the larger Next target from the first finding."
+ },
+ {
+  "severity": "minor",
+  "title": "The wait pill and the 👁 look-ahead button cover upcoming bars at the top of the lane",
+  "file": "apps/web/src/variants/falling/falling.css",
+  "line": 126,
+  "lens": "touch-ux",
+  "evidence": "Measured at 1180x820: .fl-pill-wait {x:420, y:201, w:340, h:54} and .fl-lookahead {x:1078, y:199, w:80, h:44}, both over the lane (lane y=189..595). Screenshots: on Für Elise 'Bars 2–3' an A3 bar and an orange bar are partly hidden behind the pill; on Twinkle an orange bar at the top right sits behind '👁 3s'. The worker's report also notes this under follow-ups.",
+  "failure_scenario": "The furthest-ahead notes (about 0.4 s at 3 s look-ahead) are hidden in the middle and right of the lane, exactly where the owner looks to see what comes next.",
+  "fix_hint": "Move the pill into the controls row (or under the now-line), and put the look-ahead toggle into the controls row as well."
+ },
+ {
+  "severity": "nit",
+  "title": "The wait pill tells iPad users to press Space",
+  "file": "apps/web/src/variants/falling/strings.ts",
+  "line": 27,
+  "lens": "touch-ux",
+  "evidence": "strings.ts:27 'then tap Next (or Space)' / 'і натисни «Далі» (або пробіл)'. Shown on every step in wait mode (pill text read via JS: '🔊 Play C5 then tap Next (or Space)').",
+  "failure_scenario": "On an iPad without a keyboard the Space hint is noise in the one line he has to read every step.",
+  "fix_hint": "Show the '(or Space)' part only when (hover: hover) and (pointer: fine), or drop it."
+ },
+ {
+  "severity": "nit",
+  "title": "Icon-only controls ('⏮', '👁 3s') say little about what they do",
+  "file": "apps/web/src/variants/falling/index.tsx",
+  "line": 392,
+  "lens": "touch-ux",
+  "evidence": "index.tsx:392-394 restart button shows '⏮' only (label in aria-label/title, which iPad never shows). index.tsx:436-443 look-ahead button shows '👁 3s' (screenshot top-right of lane). There are no tooltips on touch.",
+  "failure_scenario": "The owner does not know that '👁 3s' changes how far ahead he sees, or that '⏮' restarts the fragment.",
+  "fix_hint": "Add short visible text ('From start', 'See 3 s ahead') or group them in a labelled control."
+ },
+ {
+  "severity": "nit",
+  "title": "Portrait (outside the requested sizes): the 'Whole lesson' chip is cut mid-word with no scroll affordance",
+  "file": "apps/web/src/variants/falling/falling.css",
+  "line": 21,
+  "lens": "touch-ux",
+  "evidence": "At 820x1180, .fl-frags clientWidth 508 vs scrollWidth 601. Screenshot shows the chip clipped as 'Who' next to 'Got it'.",
+  "failure_scenario": "In portrait the owner may not discover 'Whole lesson' (or later fragments of a longer lesson) because nothing shows the row scrolls.",
+  "fix_hint": "Add an edge fade or wrap the chips to two rows when there is no room."
+ }
+]

@@ -1,0 +1,607 @@
+{
+ "claims": [
+  {
+   "claim": "npm run typecheck (workspaces + e2e/tsconfig.json) exits 0",
+   "verdict": "confirmed",
+   "evidence": "`npm run typecheck` ran core, server and web tsc, then `tsc --noEmit -p e2e/tsconfig.json`; EXIT=0. package.json typecheck script includes the e2e tsconfig.",
+   "lens": "claims"
+  },
+  {
+   "claim": "npm test: Test Files 3 passed, Tests 33 passed (was 16 tests)",
+   "verdict": "confirmed",
+   "evidence": "`npm test` printed 'Test Files 3 passed (3) / Tests 33 passed (33)' in 1.43s. At merge base 8a070bf, grep of it( in the test files gives app.test.ts 7 + core.test.ts 9 = 16. Current main has more (20), but the report compares against the base.",
+   "lens": "claims"
+  },
+  {
+   "claim": "npm run build → index-BklhQyMe.js 605.41 kB (baseline 603.57 kB)",
+   "verdict": "confirmed",
+   "evidence": "Branch build printed 'dist/assets/index-BklhQyMe.js 605.41 kB'. Building `git archive 8a070bf` in scratch (ca05-base) printed 'index-CF3ZKvmg.js 603.57 kB'.",
+   "lens": "claims"
+  },
+  {
+   "claim": "packages/core re-export of musicxml.ts is tree-shaken from the web bundle (same bundle hash before/after)",
+   "verdict": "confirmed",
+   "evidence": "Scratch builds at 8a070bf and at 8f8c1d1 (the core commit) both produced index-CF3ZKvmg.js 603.57 kB.",
+   "lens": "claims"
+  },
+  {
+   "claim": "npm run check:bundle: ok — 6 files, none contains pianoSteps, modelContext, registerTool, installDevtools, press_keys, devtools",
+   "verdict": "confirmed",
+   "evidence": "check:bundle printed exactly that line, EXIT=0. My own grep of apps/web/dist found 0 hits for pianoSteps, modelContext, registerTool, installDevtools, press_keys, devtools and framesRunning. The only extra marker I tried that hit was 'reportState' (1 occurrence): it is the VariantProps prop name passed by App.tsx, not devtools code.",
+   "lens": "claims"
+  },
+  {
+   "claim": "Dev automation API is loaded only in dev builds (import.meta.env.DEV + dynamic import)",
+   "verdict": "confirmed",
+   "evidence": "App.tsx:158 and :181 guard with import.meta.env.DEV and use `import('./devtools/index.ts')`; shell.ts is only type-imported. Bundle grep is clean.",
+   "lens": "claims"
+  },
+  {
+   "claim": "Mutation: guard changed to if (true) → build emits assets/devtools-*.js and check:bundle exits 1 naming it",
+   "verdict": "confirmed",
+   "evidence": "In scratch copy ca05-head, `sed` on App.tsx:181 → build emitted 'assets/devtools-OUl5foGm.js 9.93 kB'; check:bundle listed devtools-OUl5foGm.js containing pianoSteps/modelContext/registerTool/installDevtools/press_keys, exit=1. The hash differs from the report's DDRw8Zfl; the substance is the same.",
+   "lens": "claims"
+  },
+  {
+   "claim": "Mutation: removing the DELETE description + the feedback request example made the OpenAPI test fail with exactly those two problems",
+   "verdict": "refuted",
+   "evidence": "Reproduced at HEAD in ca05-head (DELETE description removed, `body(FeedbackInput, undefined)`). The test fails, but with three problems: 'DELETE /api/lessons/{ref}: no description', 'POST /api/lessons/{ref}/feedback: request application/json has no example', AND 'POST /api/lessons/{ref}/feedback: binary-only body without a curl example in the description'. The test still catches the mutation; only the 'exactly two' wording is off.",
+   "lens": "claims"
+  },
+  {
+   "claim": "Mutation: a console.error in a page fails the e2e test on both projects",
+   "verdict": "confirmed",
+   "evidence": "Temporary spec in scratch copy: both [desktop-chromium] and [ipad-webkit] failed with 'console errors during the test + \"boom from mutation check\"'. e2e/fixtures.ts:18-38 is an auto fixture.",
+   "lens": "claims"
+  },
+  {
+   "claim": "An e2e tap on the iPad project arrives as pointerType 'touch' (desktop: 'mouse')",
+   "verdict": "confirmed",
+   "evidence": "Temporary spec logged 'POINTERTYPE ipad-webkit: [\"touch\"]' and 'POINTERTYPE desktop-chromium: [\"mouse\"]'.",
+   "lens": "claims"
+  },
+  {
+   "claim": "npx playwright test: 21 passed, 1 skipped (skip = WebMCP test on WebKit); ipad-webkit 10 passed 1 skipped, desktop-chromium 11 passed",
+   "verdict": "confirmed",
+   "evidence": "`npx playwright test` → '1 skipped, 21 passed (11.3s)'. The skipped test is '[ipad-webkit] devtools.spec.ts:46 WebMCP tools run through document.modelContext'. Per-project counts match.",
+   "lens": "claims"
+  },
+  {
+   "claim": "npx playwright test --repeat-each=5 → 105 passed, 5 skipped",
+   "verdict": "confirmed",
+   "evidence": "Output '5 skipped / 105 passed (33.7s)', EXIT=0.",
+   "lens": "claims"
+  },
+  {
+   "claim": "CI=1 npx playwright test → 21 passed, 1 skipped",
+   "verdict": "confirmed",
+   "evidence": "Output '1 skipped / 21 passed (10.2s)', with no flaky entries even though retries=1 under CI.",
+   "lens": "claims"
+  },
+  {
+   "claim": "Example bodies test sends every spec example (lesson create/replace, fragments, fragment notes, progress, feedback + patch, MusicXML → 201 with notes 48L, 64R, 67R)",
+   "verdict": "confirmed",
+   "evidence": "apps/server/src/app.test.ts 'has example bodies that the API accepts as they are' does exactly this, and it passes in `npx vitest run --reporter=verbose`.",
+   "lens": "claims"
+  },
+  {
+   "claim": "OpenAPI 3.1, every route has summary/description/example bodies; spec v0.2.0",
+   "verdict": "confirmed",
+   "evidence": "app.ts:572-576 uses doc31 with openapi '3.1.0' and version '0.2.0'. `curl /api/openapi.json` on a live server printed '3.1.0 0.2.0 13' (13 paths). The completeness test passes and catches mutations.",
+   "lens": "claims"
+  },
+  {
+   "claim": "/api/docs renders 'v0.2.0 · OpenAPI 3.1.0' with the examples",
+   "verdict": "unverified",
+   "evidence": "I checked only the spec values via curl, plus the unit test that /api/docs serves HTML referencing /api/openapi.json. The rendered Scalar page was not viewed.",
+   "lens": "claims"
+  },
+  {
+   "claim": "Errors are always { error: <code>, details?: string[] } (+ id on 409)",
+   "verdict": "confirmed",
+   "evidence": "app.ts:146-159 onError/notFound and the auth middleware (examples.ts:85). The edge-case probe (ca05-probe/errshape.mts) got JSON {error, details} for 415, 400, 404 and invalid-musicxml. Caveat: a 415 'bad-request' exists that the docs do not list (see findings).",
+   "lens": "claims"
+  },
+  {
+   "claim": "Status codes did not change (report line 38; repeated in the API-client note, line 140-141)",
+   "verdict": "refuted",
+   "evidence": "ca05-probe/status-probe.mts on base 8a070bf vs HEAD. Malformed JSON POST /api/lessons: 500 → 400 bad-request. Bad MIDI bytes on import/midi: base throws a string that bypasses onError (uncaught, i.e. a 500 via node-server; inferred) → 400 invalid-midi. PUT fragments/0/notes leaving zero notes: 500 → 400 validation (repo.ts Invalid). Upsert-replace on import/midi: 201 → 200; the report does disclose this one.",
+   "lens": "claims"
+  },
+  {
+   "claim": "Imports with ?upsert=true that replace a lesson now answer 200 (201 only when created)",
+   "verdict": "confirmed",
+   "evidence": "Probe: base 'import/midi upsert existing' → 201; HEAD → 200 (app.ts:344).",
+   "lens": "claims"
+  },
+  {
+   "claim": "scripts/lesson-add.ts tests res.ok and prints the whole body, so it is unaffected",
+   "verdict": "confirmed",
+   "evidence": "scripts/lesson-add.ts:55-56 `if (!res.ok) { console.error(`✗ ${res.status}`, JSON.stringify(out, null, 2))`.",
+   "lens": "claims"
+  },
+  {
+   "claim": "MusicXML import: notes, rests, chords, backup/forward, divisions changes, tempo from sound/metronome (changes honoured), two staves → hands, ties (<tie> and <tied>), fingering, .mxl, UTF-16; fragments on bar lines; route with ?title&slug&sourceUrl&upsert&part",
+   "verdict": "confirmed",
+   "evidence": "musicxml.ts:10-15, 56-57 (UTF-16 BOM), 65-70 (unzip + container.xml), 204-205, 231-234, 261, 272-280. The fixture two-hands.musicxml covers each feature (lines 20, 28-29, 33, 36-45, 67-69). The 7 musicxml unit tests and 3 API tests pass. The route is at app.ts:388-405 with MusicXmlQuery = ImportQuery + part. Correctness on real exported scores is unverified, as the report says.",
+   "lens": "claims"
+  },
+  {
+   "claim": "MusicXML also accepted by the web app's Import button",
+   "verdict": "confirmed",
+   "evidence": "App.tsx onImport routes /\\.(musicxml|xml|mxl)$/ to api.importMusicXml, and the input accept list includes them. The e2e test 'imports a MusicXML score through the file input' passes on both projects.",
+   "lens": "claims"
+  },
+  {
+   "claim": "MIDI export: lessonToMidi two tracks 'Right hand'/'Left hand', tempo + time signature; GET /api/lessons/{ref}/export.mid",
+   "verdict": "confirmed",
+   "evidence": "packages/core/src/midi.ts:87-111; app.ts:440-446. Unit tests 'downloads a lesson as a two-track MIDI file that re-imports to the same notes' and 'round-trips a demo lesson through MIDI with two tracks by hand' pass.",
+   "lens": "claims"
+  },
+  {
+   "claim": "Web auth: /api/health fetched once; auth:true shows API token field in Settings (setApiToken); 401 on import says where to put it",
+   "verdict": "confirmed",
+   "evidence": "App.tsx useEffect(..., []) calls getHealth; the token field renders only when health?.auth. Live check (ca05-probe/auth.mjs, WebKit iPad profile, API with API_TOKEN=devtoken on 9391): import without token → state.error 'An API token is needed: add it in Settings (⚙)'; 'TOKEN FIELD VISIBLE: true'; after typing the token, feedback was stored (GET /api/feedback → ['audit with token']).",
+   "lens": "claims"
+  },
+  {
+   "claim": "The 401 message inside the feedback dialog is the server's English detail",
+   "verdict": "confirmed",
+   "evidence": "ca05-probe/auth2.mjs: after Send without token, the page text shows 'Error: Send \"Authorization: Bearer <API_TOKEN>\" on every non-GET request'; the needToken text is absent.",
+   "lens": "claims"
+  },
+  {
+   "claim": "window.pianoSteps has getState, listLessons, selectLesson, setVariant, press, release, play, stop, callTool, help; 8 WebMCP tools (get_state, list_lessons, select_lesson, set_variant, press_keys, release_keys, play, stop)",
+   "verdict": "confirmed",
+   "evidence": "apps/web/src/devtools/api.ts:99-206; webmcp.ts:45-127. The e2e WebMCP test polls for webmcp.tools.length 8 and checks the names; it passes on desktop-chromium.",
+   "lens": "claims"
+  },
+  {
+   "claim": "WebMCP exercised in Playwright Chromium 156 with --enable-features=WebMCPTesting: executeTool(press_keys, D4/F#4) → heldKeys [62,66]; callTool select/set/get/release; bad id → { error }",
+   "verdict": "confirmed",
+   "evidence": "e2e/devtools.spec.ts:46-74 passes on desktop-chromium. ca05-probe/wm2.mjs reports 'chromium 156.0.8078.4'.",
+   "lens": "claims"
+  },
+  {
+   "claim": "WebMCP: registration can't be undone (no unregisterTool); registerTool returns a Promise; duplicate → InvalidStateError",
+   "verdict": "confirmed",
+   "evidence": "ca05-probe/wm2.mjs on Chromium 156 (localhost page): methods [ontoolchange, ontoolactivated, ontoolcancel, executeTool, getTools, registerTool, addEventListener, dispatchEvent, removeEventListener, when]; registerReturnsPromise true; duplicate 'InvalidStateError: Duplicate tool name'.",
+   "lens": "claims"
+  },
+  {
+   "claim": "Chrome 152 wanted WebMCP args as a JSON string",
+   "verdict": "unverified",
+   "evidence": "No Chrome 152 is available here; webmcp.ts:177-183 has the fallback.",
+   "lens": "claims"
+  },
+  {
+   "claim": "WebMCP tools dispatch through window.pianoSteps and return { error } instead of throwing",
+   "verdict": "confirmed",
+   "evidence": "webmcp.ts:145-155. The e2e assertion `set_variant {id:'nope'}` → {error: 'No variant \"nope\"...'} passes.",
+   "lens": "claims"
+  },
+  {
+   "claim": "It never fakes the audio unlock: player.unlock() marks itself unlocked before Tone.start() resolves; play() warns instead",
+   "verdict": "confirmed",
+   "evidence": "apps/web/src/audio/player.ts:57-60 (`this.unlocked = true; await Tone.start();`). devtools/api.ts:169-197 never calls unlock and returns a warning. The 'silent for the whole session' consequence is inferred, not tested.",
+   "lens": "claims"
+  },
+  {
+   "claim": "The automation API reads the shell's live state (a ref updated every render) and calls the same actions as the UI; litKeys are read from the keyboard's DOM",
+   "verdict": "confirmed",
+   "evidence": "App.tsx:158-178 rebuilds devShell.current every render with selectLesson: setLessonRef (same as select onChange at :201) and setVariant = player.stop()+setVariantId (same as the tab onClick at :218-219). devtools/api.ts:236-244 reads '.pk [data-pitch]' classes.",
+   "lens": "claims"
+  },
+  {
+   "claim": "getState().display.framesRunning reports frozen views (false in hidden built-in browser, true in e2e)",
+   "verdict": "confirmed",
+   "evidence": "True in e2e: devtools.spec.ts:8 asserts it and passes. The false case in the hidden built-in browser is unverified.",
+   "lens": "claims"
+  },
+  {
+   "claim": "VariantProps.reportState?(state) added and documented in apps/web/src/variant.ts",
+   "verdict": "confirmed",
+   "evidence": "variant.ts:30-40 doc + optional member; App.tsx passes reportState to the Variant.",
+   "lens": "claims"
+  },
+  {
+   "claim": "E2E config: ipad-webkit (iPad Pro 11 landscape, 1180×820, touch) and desktop-chromium; own API with in-memory DB + Vite dev server on 9391/9390; npm run e2e, e2e:install",
+   "verdict": "confirmed",
+   "evidence": "playwright.config.ts:12-63 (webServer PGLITE_DIR 'memory://', ports from E2E_*_PORT defaulting to 9390/9391); package.json scripts e2e and e2e:install.",
+   "lens": "claims"
+  },
+  {
+   "claim": "CI: new e2e job, and check:bundle in check",
+   "verdict": "confirmed",
+   "evidence": ".github/workflows/ci.yml:22 (check:bundle step) and :24-44 (e2e job). package-lock is in sync with all package.json files, so `npm ci` should work (node check script). Running on GitHub Actions / Linux WebKit is unverified, as the report says.",
+   "lens": "claims"
+  },
+  {
+   "claim": "e2e selectors use shell DOM + window.pianoSteps only; 'held key is lit' relies on the default variant showing the shared PianoKeyboard",
+   "verdict": "confirmed",
+   "evidence": "e2e/*.spec.ts use header select, [role=tab], .pk [data-pitch], main.stage, the file input, dialogs by role/name, and .brand. No apps/web/src/variants/** file is in the diff. Placeholder.tsx:3,60 renders PianoKeyboard.",
+   "lens": "claims"
+  },
+  {
+   "claim": "Seen working in the built-in browser (javascript_tool at 1180×820 / 1440×900): press/release/play/select/setVariant behaviours, screenshots intact",
+   "verdict": "unverified",
+   "evidence": "I did not reproduce the builder's built-in-browser session or screenshots. The equivalent behaviours are confirmed by the passing e2e devtools specs (press(['C4','E4',67]) → heldKeys [60,64,67], lit C4/E4/G4; release → empty; play → playing with time > 0.3) on both projects. The specific values (mark 'hint', time 0.633) were not reproduced.",
+   "lens": "claims"
+  },
+  {
+   "claim": "WebMCP not available in the Claude desktop built-in browser (Chrome 152 Electron)",
+   "verdict": "unverified",
+   "evidence": "I did not open the built-in browser for this.",
+   "lens": "claims"
+  },
+  {
+   "claim": "Commits list (git log --oneline main..HEAD) matches",
+   "verdict": "confirmed",
+   "evidence": "`git log --oneline main..HEAD` lists the same 12 commits (5cde299 is 'the commit updating this report').",
+   "lens": "claims"
+  },
+  {
+   "claim": "Shared-file changes table (files ↔ commits)",
+   "verdict": "confirmed",
+   "evidence": "`git log main..HEAD -- <file>`: App.tsx 73e6766+1f4e339; api.ts/variant.ts/i18n.ts 1f4e339; AGENTS.md/README.md c3d2553; package.json 8f8c1d1+36ff4e7; package-lock.json 8f8c1d1; core package.json/index.ts 8f8c1d1; ci.yml and check-prod-bundle.mjs 36ff4e7. Nit: the Playwright dependency and lock entries landed in the core commit 8f8c1d1.",
+   "lens": "claims"
+  },
+  {
+   "claim": "Branch not pushed",
+   "verdict": "confirmed",
+   "evidence": "`git rev-parse --abbrev-ref @{u}` → 'no upstream configured'; `git branch -r --contains HEAD` is empty.",
+   "lens": "claims"
+  },
+  {
+   "claim": "Local dev DB has one test feedback item from the manual check",
+   "verdict": "unverified",
+   "evidence": "I did not open apps/server/.data.",
+   "lens": "claims"
+  },
+  {
+   "claim": "npm test: 3 files, 33 tests pass",
+   "verdict": "confirmed",
+   "evidence": "`npx vitest run` in the worktree → 'Test Files 3 passed (3) / Tests 33 passed (33)', 1.44 s",
+   "lens": "correctness-security"
+  },
+  {
+   "claim": "The dev automation API (window.pianoSteps / WebMCP) is absent from the production build",
+   "verdict": "confirmed",
+   "evidence": "`npx vite build --outDir <scratch>/webdist` from apps/web → index-BklhQyMe.js 605.41 kB (same hash as the report); grep -r found 0 files for pianoSteps, modelContext, registerTool, installDevtools, press_keys, devtools, fast-xml-parser, XMLParser, unzipSync",
+   "lens": "correctness-security"
+  },
+  {
+   "claim": "When API_TOKEN is set it protects every new write route, including both imports",
+   "verdict": "confirmed",
+   "evidence": "Server on 127.0.0.1:9396 with API_TOKEN=revtok, no auth header: POST /api/lessons, POST import/musicxml, POST import/midi, DELETE lesson, PUT fragments, PUT fragments/0/notes, PATCH feedback, POST feedback, POST progress, POST /api//lessons, POST /api/lessons/, POST /%61pi/lessons → all 401; POST //api/lessons and /API/lessons → 404; GET /api/feedback afterwards → []",
+   "lens": "correctness-security"
+  },
+  {
+   "claim": "Re-importing export.mid with /api/lessons/import/midi gives the same notes back (app.ts:454-455)",
+   "verdict": "refuted",
+   "evidence": "HTTP round-trip of rv-melody: original [(67,0.5,R),(62,1,R),(57,1.5,R),(55,2,R)] 4/4 → back [(67,0,R),(62,0.5,R),(57,1,L),(55,1.5,L)], bpm 120 with no time signature. The three demo lessons do round-trip (rt.ts: pitchDiff 0, handDiff 0, maxΔstart ≤ 0.0001).",
+   "lens": "correctness-security"
+  },
+  {
+   "claim": "MusicXML: ties merged, backup/forward, divisions changes, tempo changes honoured, grace notes skipped",
+   "verdict": "confirmed",
+   "evidence": "mx1.ts: tie across a bar line with divisions 1→4 → [67,2,4]; voices with forward/backup/chord → C4+E4 at 1 s, G4 at 2 s; tempo 60→120 at bar 2 → [76,2,0.5],[77,2.5,0.5]; grace B4 dropped. Exception: ties broken by a same-pitch note in another voice (finding).",
+   "lens": "correctness-security"
+  },
+  {
+   "claim": ".mxl (compressed) is accepted via META-INF/container.xml",
+   "verdict": "confirmed",
+   "evidence": "mx7.ts: a container with rootfile sub/score.musicxml plus a PDF rootfile → [{pitch:60,start:0,duration:2,hand:R}]. Fails for a UTF-16 rootfile and a './' path (mx3.ts, finding).",
+   "lens": "correctness-security"
+  },
+  {
+   "claim": "XML entity expansion / XXE is not exploitable through the MusicXML import",
+   "verdict": "confirmed",
+   "evidence": "mx4.ts/mx5.ts with fast-xml-parser 5.11.2: billion-laughs → title stays '&a9;' (4 ms, 0 MB); a SYSTEM entity → 'External entities are not supported'; a 100 KB entity → 'exceeds maximum allowed size (10000)'; 9 KB × 2000 references → 'Expanded content length limit exceeded: 107964 > 100000'; 200k nested tags → 'Maximum nested tags exceeded'",
+   "lens": "correctness-security"
+  },
+  {
+   "claim": "Content-Disposition on export.mid cannot be header-injected",
+   "verdict": "confirmed",
+   "evidence": "The filename is lesson.slug, constrained by `/^[a-z0-9][a-z0-9-]*$/` (lesson.ts:67) or by slugify; curl -D shows `content-disposition: attachment; filename=\"twinkle-twinkle.mid\"`",
+   "lens": "correctness-security"
+  },
+  {
+   "claim": "Shell wiring has no React effect leaks (devtools install/dispose, health fetch)",
+   "verdict": "confirmed",
+   "evidence": "Read App.tsx: the devtools effect uses a `live` flag and calls off() on cleanup; createDevApi.dispose unsubscribes input and cancels rAF (devtools/api.ts:216-221). The health effect has no cancel, but a late setState after unmount does nothing. Not executed in a browser.",
+   "lens": "correctness-security"
+  },
+  {
+   "claim": "npm run e2e: 21 passed, 1 skipped on ipad-webkit + desktop-chromium",
+   "verdict": "unverified",
+   "evidence": "Not run: ports 9390/9391 were held by another reviewer's processes (PIDs 14827/14852), and Playwright's webServer uses reuseExistingServer:false",
+   "lens": "correctness-security"
+  },
+  {
+   "claim": "The literal MusicXML OpenAPI example → 201 with notes 48L, 64R, 67R",
+   "verdict": "unverified",
+   "evidence": "The test suite passed, but I did not read app.test.ts or rerun that request separately",
+   "lens": "correctness-security"
+  },
+  {
+   "claim": "WebMCP tools work in Chromium 156; the CI e2e job is reliable; works on a real iPad",
+   "verdict": "unverified",
+   "evidence": "Not exercised in this review (the builder's report also lists CI and the real iPad as unverified)",
+   "lens": "correctness-security"
+  },
+  {
+   "claim": "The error-body change ({error: code, details}) breaks no consumer: web app, variants, scripts/lesson-add.ts, transcriber client, docs",
+   "verdict": "confirmed",
+   "evidence": "apps/web/src/api.ts:55-59 maps message = details[0] unless code==='validation'. App.tsx:134-135 branches on status===401 and message==='validation'. ui/FeedbackDialog.tsx:28 shows e.message (now the human sentence). scripts/lesson-add.ts:55 tests `!res.ok` and prints the whole body. Transcriber tools/transcribe/src/piano_transcribe/api.py:25 concatenates body['error'] with every details line, and cli.py:133 branches on `e.status == 409` (409 is unchanged). The only status checks found by grep `201|== 200|status ==` in tools/transcribe/src are cli.py:133 and :222, so the import-upsert 201→200 change does not affect it (the transcriber uses POST /api/lessons, whose status logic is the same as on main: `git show main:apps/server/src/app.ts` handler `lesson.createdAt === lesson.updatedAt ? 201 : 200`). Variants import only PianoKeyboard, variant.ts, settings.ts and audio/player.ts (grep `from '../../…'` in all three worktrees); there are no api.ts/ApiError/fetch uses. docs/api-for-agents.md:17-32 documents the codes. The validation defaultHook is unchanged from main (app.ts:133-143 vs main:96-106).",
+   "lens": "compat"
+  },
+  {
+   "claim": "feat/5's edits to App.tsx, variant.ts, api.ts, i18n.ts, package.json and package-lock.json do not conflict with feat/1, feat/2, feat/3, feat/4 or main",
+   "verdict": "confirmed",
+   "evidence": "`git merge-tree --write-tree --name-only HEAD <b>` exit=0 for all five. The trial clone's sequential merge main(27c747c)→feat/1→feat/2→feat/3→feat/5 had no conflicts ('Auto-merging package-lock.json'); merging cfc4381 afterwards was also clean. `npm ci --prefer-offline` succeeded, and `npm ls` shows vexflow@5.0.0, @playwright/test@1.64.1, fast-xml-parser@5.11.2 and fflate@0.8.3. On the combined tree: `npm run typecheck` exit 0, `npm run build` exit 0, check:bundle `ok — 8 files … none contains pianoSteps, modelContext, …` (vexflow does not trip the 'devtools' marker). Rebased feat/1 (335fbc2) + feat/2 (8711eed) + feat/3 + feat/5 on cfc4381 gives tree 97b1afadf54a…, identical to the tested trial tree.",
+   "lens": "compat"
+  },
+  {
+   "claim": "Builder report: 'e2e selectors use shell DOM + window.pianoSteps only, so the three variants being rebuilt can change freely' (report.md:46-47)",
+   "verdict": "refuted",
+   "evidence": "With the real variants merged, devtools.spec.ts fails 3 tests on exact litKeys equality (see finding 1). The assertions depend on what a variant highlights, not only on shell DOM.",
+   "lens": "compat"
+  },
+  {
+   "claim": "Builder report merge note: the variant-dependent risk is app.spec 'a held key is lit' (report.md:144-147)",
+   "verdict": "refuted",
+   "evidence": "That test (app.spec.ts:47) passes on the combined tree on both projects, and `npx playwright test e2e/app.spec.ts --repeat-each=4` gave `64 passed`. The tests that actually break are devtools.spec.ts:5 and :46, which the note does not mention.",
+   "lens": "compat"
+  },
+  {
+   "claim": "The e2e suite's other placeholder-era assumptions (default variant id 'falling', tab label 'Sheet + keys', variant id order, every tab renders without console errors) hold with the real variants",
+   "verdict": "confirmed",
+   "evidence": "`git diff 8a070bf <branch> -- apps/web/src/variants/index.ts` is empty for all three variant branches. On the combined tree, app.spec.ts:30 'every variant tab renders without console errors' and devtools.spec.ts:30 (expects 'Sheet + keys', ui=sheet) passed on both projects. The `No variant \"nope\". Available: falling, cards, sheet` assertion (devtools.spec.ts:73) was not reached because the test fails at :63 first, but the ids are unchanged per the empty index.ts diff (inferred).",
+   "lens": "compat"
+  },
+  {
+   "claim": "window.pianoSteps.play() still works with the real variants after main's player changes (#10 and #12)",
+   "verdict": "confirmed",
+   "evidence": "Scratch probe on the combined tree after a tap on .brand, for ui=falling, cards and sheet on both projects: play(0,4) → warning null, state 'playing', from 0, to 4, and maxTime ≈2.04-2.12 s after 2 s. Typecheck of devtools against main's new player.ts passes.",
+   "lens": "compat"
+  },
+  {
+   "claim": "feat/5 alone on the latest main (cfc4381) passes its e2e suite",
+   "verdict": "confirmed",
+   "evidence": "Scratch worktree trial-5only (origin/main + feat/5) → `1 skipped, 21 passed (11.5s)`. Its node_modules is a symlink to the trial clone; the core package is unchanged by the variants.",
+   "lens": "compat"
+  },
+  {
+   "claim": "npm test is green after the merges",
+   "verdict": "refuted",
+   "evidence": "Combined tree: `Tests 1 failed | 113 passed (114)`, the failure being apps/web/src/variants/cards/model.test.ts 'a note a hair before a rounded fragment end opens the next fragment (Für Elise)', expected 1.667 to be 1.6667. It reproduces on origin/main + feat/2 only (`Tests 1 failed | 21 passed`), so it comes from feat/2 vs main's #8, not from feat/5.",
+   "lens": "compat"
+  },
+  {
+   "claim": "The CI e2e job passes on GitHub Actions (Linux WebKit)",
+   "verdict": "unverified",
+   "evidence": "Not run; nothing was pushed. Only the local macOS runs above.",
+   "lens": "compat"
+  },
+  {
+   "claim": "The transcriber's final client stays compatible",
+   "verdict": "unverified",
+   "evidence": "feat/4 was still running. I read the committed and working-tree api.py and cli.py at review time (uncommitted files included docker-compose.yml, tools/transcribe/Dockerfile and scripts/video_spike.py). Later changes were not seen.",
+   "lens": "compat"
+  }
+ ],
+ "confirmed": [
+  {
+   "severity": "minor",
+   "title": "Report claims error status codes did not change, but three error paths moved from 500 to 400",
+   "file": "docs/briefs/05-api-and-test-harness.report.md",
+   "line": 38,
+   "lens": "claims",
+   "evidence": "Report line 38 says 'Status codes did not change.' and line 140-141 says 'status codes are unchanged'. Running ca05-probe/status-probe.mts on base 8a070bf vs HEAD: malformed JSON POST /api/lessons 500 → 400 bad-request; bad MIDI bytes on /api/lessons/import/midi throws an uncaught string on base (bypasses Hono onError; a 500 under node-server, inferred) → 400 invalid-midi; PUT /api/lessons/{ref}/fragments/0/notes that empties the lesson 500 → 400 validation (repo.ts Invalid). POST /api/lessons with text/plain is now 415; base mapped every HTTPException to 500 (base app.ts onError).",
+   "failure_scenario": "The API-client note tells the transcriber and agents that only the body shape changed. A client that branches on 500 for bad uploads or malformed requests would now see 400/415 instead. The change is an improvement, but the hand-off note is inaccurate.",
+   "fix_hint": "Reword both sentences: 'malformed-input and invalid-result cases that were 500 are now 400 bad-request/validation (415 for a wrong content type); upsert-replace is 200'."
+  },
+  {
+   "severity": "nit",
+   "title": "'Failed with exactly those two problems' is not what the mutation produces at HEAD",
+   "file": "docs/briefs/05-api-and-test-harness.report.md",
+   "line": 86,
+   "lens": "claims",
+   "evidence": "Reproduced in a scratch copy of HEAD: DELETE description removed and `body(FeedbackInput, undefined)`. vitest listed three problems, including 'POST /api/lessons/{ref}/feedback: binary-only body without a curl example in the description' (rule in app.test.ts OpenAPI completeness test).",
+   "failure_scenario": "Only the report wording is affected. The test does catch the mutation, but a reader trying to reproduce the exact output gets three lines, not two.",
+   "fix_hint": "Drop 'exactly', or list all three messages."
+  },
+  {
+   "severity": "nit",
+   "title": "415 Unsupported Media Type answers error 'bad-request' but is undocumented",
+   "file": "docs/api-for-agents.md",
+   "line": 28,
+   "lens": "claims",
+   "evidence": "ca05-probe/errshape.mts: POST /api/lessons with content-type text/plain or none → '415 {\"error\":\"bad-request\",\"details\":[\"Unsupported Media Type\"]}' (app.ts:151-153 maps any HTTPException < 500 other than 401/404 to bad-request with its own status). The error table lists bad-request only as 400, and no route documents 415.",
+   "failure_scenario": "An agent POSTs JSON without a content-type header and gets a 415 that neither the error table nor the OpenAPI responses mention.",
+   "fix_hint": "Add 415 to the bad-request row (or document it on JSON-body routes)."
+  },
+  {
+   "severity": "nit",
+   "title": "After merging main (cfc4381) the new 'hold' key mark is invisible to litKeys and the e2e lit-key regex",
+   "file": "apps/web/src/devtools/api.ts",
+   "line": 8,
+   "lens": "claims",
+   "evidence": "main commit cfc4381 (#12/#13, merged 18:16 today, after the report) adds KeyMark 'hold' (PianoKeyboard.tsx renders `pk-${h.mark}`). devtools/api.ts:8 MARKS = ['R','L','next','ok','bad','hint']; types.ts:14 documents the same list; e2e/app.spec.ts:63 regex is /\\bpk-(hint|ok|bad|next|R|L)\\b/. The merged tree currently passes (41 unit, e2e 21 passed + 1 skipped, bundle clean) because no variant emits 'hold' yet.",
+   "failure_scenario": "Once a variant marks a held-from-earlier key as 'hold', getState().litKeys silently omits it. An agent or test then concludes the key is not shown even though the screen draws it striped.",
+   "fix_hint": "Add 'hold' to MARKS, DevKey docs and the e2e regex when rebasing, or derive the mark from any pk-<mark> class except pk-key/pk-white/pk-black."
+  },
+  {
+   "severity": "nit",
+   "title": "press() validates holdMs only after the keys are already pressed",
+   "file": "apps/web/src/devtools/api.ts",
+   "line": 154,
+   "lens": "claims",
+   "evidence": "api.ts:147-150 emits 'on' and player.noteOn for every pitch. Only then does line 154 throw 'holdMs must be a number of milliseconds ≥ 0' for an invalid holdMs. Through the press_keys WebMCP tool the error comes back as { error }, and executeTool does not enforce the schema minimum.",
+   "failure_scenario": "press([60], -1) or press_keys {pitches:[60], holdMs:-1} returns an error while C4 stays held in input.held and lit, so the next getState() shows a phantom held key.",
+   "fix_hint": "Validate holdMs before the press loop."
+  },
+  {
+   "severity": "nit",
+   "title": "reportState doc says state is forgotten on unmount, but a remount with the same key returns the previous mount's state",
+   "file": "apps/web/src/App.tsx",
+   "line": 172,
+   "lens": "claims",
+   "evidence": "variantState getter returns variantState.current.state when its key equals `${variant.id}:${lesson.id}:${lesson.updatedAt}`. Switching falling → cards (cards never reports) → falling restores the matching key, and the old object comes back. variant.ts:38 says 'it is forgotten when the variant unmounts'.",
+   "failure_scenario": "Once variants adopt reportState, a test that returns to a variant may read the previous mount's step/expected keys until the new mount reports. There is no impact today because no variant calls it.",
+   "fix_hint": "Clear variantState.current when variantKey changes (e.g. in an effect keyed on variantKey), or include a mount counter in the key."
+  },
+  {
+   "severity": "major",
+   "title": ".mxl upload is a zip bomb: every zip entry is unpacked in memory with no limit, and there is no request-body limit",
+   "file": "/Users/predantsev-m4mb/Projects/IdeaProjects/Startups/piano-steps/.claude/worktrees/api/packages/core/src/musicxml.ts",
+   "line": 65,
+   "lens": "correctness-security",
+   "evidence": "readMxl calls `files = unzipSync(bytes)` (line 65), which unpacks EVERY entry before container.xml is looked up. readUpload in apps/server/src/app.ts:617-628 reads the whole body with `c.req.arrayBuffer()` / `parseBody()` and has no size cap. Probe bomb.ts + bombrun.ts: a 512,192-byte zip with 5 × 100 MB zero files → musicxmlToLesson took 1211 ms; RSS went from 98 to 623 MB, arrayBuffers 527 MB; then it threw 'The .mxl archive contains no MusicXML score'. HTTP: POST /api/lessons/import/musicxml with that file → 400 after 1.28 s. docker-compose.yml:27 defaults `API_TOKEN: ${PIANO_STEPS_API_TOKEN:-}` (empty), and its header documents `PIANO_STEPS_BIND=0.0.0.0` for using an iPad on Wi-Fi.",
+   "failure_scenario": "In the documented LAN setup with no token, any device on the Wi-Fi POSTs a ~5 MB .mxl containing ~5 GB of zeros, or a few 512 KB ones in parallel. The Node process blocks the event loop and allocates gigabytes, then gets OOM-killed or stalls every other request. A body limit alone does not fix this: the ratio is about 1000×.",
+   "fix_hint": "Use `unzipSync(bytes, { filter: f => f.name === 'META-INF/container.xml' || f.name === rootPath })` (two passes, or a filter by .xml/.musicxml name), reject any entry whose `originalSize` exceeds a cap (for example 20 MB), and add `hono/body-limit` to both import routes."
+  },
+  {
+   "severity": "major",
+   "title": "MusicXML <transpose> is ignored, so transposing-instrument parts import at the written pitch, not the sounding pitch",
+   "file": "/Users/predantsev-m4mb/Projects/IdeaProjects/Startups/piano-steps/.claude/worktrees/api/packages/core/src/musicxml.ts",
+   "line": 253,
+   "lens": "correctness-security",
+   "evidence": "The `attributes` case (lines 203-216) reads divisions, staves and time only. Pitch is computed at line 253 as `(octave + 1) * 12 + step + alter`, with no transpose offset. Probe mx1.ts: a Bb clarinet part (`<transpose><diatonic>-1</diatonic><chromatic>-2</chromatic>`) with written D5 → imported pitch 74 (sounding is 72). A guitar part (`<octave-change>-1</octave-change>`, which MuseScore writes for guitar) with written E4 → imported 64 (sounding is 52).",
+   "failure_scenario": "A user imports a melody from a lead sheet or part for Bb clarinet/trumpet, Eb alto sax, or guitar. Every note is silently off by a major 2nd, a major 6th or an octave. The lesson teaches the wrong keys and passes validation.",
+   "fix_hint": "Track `chromatic + 12 * octave-change` (plus `<double/>`) from `<transpose>` per part/staff, and add it to the pitch."
+  },
+  {
+   "severity": "major",
+   "title": "MusicXML fragment cuts are rounded to 3 decimals while note onsets keep 4, so a fragment's downbeat note is filed under the previous fragment",
+   "file": "/Users/predantsev-m4mb/Projects/IdeaProjects/Startups/piano-steps/.claude/worktrees/api/packages/core/src/musicxml.ts",
+   "line": 385,
+   "lens": "correctness-security",
+   "evidence": "measureFragments uses `r3(cuts[k])` (lines 385-386); note starts use `r(...)` with 4 decimals (line 337). Membership is half-open with eps 1e-6, both in notesInRange (steps.ts:33) and repo.replaceFragmentNotes (repo.ts:180). Probe mx2.ts, 4/4, one quarter per beat: 72 bpm → `[0,6.667) → C5 D5 E5 F5 C5 D5 E5 F5 C5 | [6.667,13.333) → D5 E5 F5 …`, because the downbeat at 6.6667 < 6.667. The same happens at 66 bpm (cut 7.273) and 90 bpm (cut 10.667). 100 bpm is fine.",
+   "failure_scenario": "For any score whose bar length in seconds rounds up at the 4th decimal (e.g. 66/72/90 bpm), fragment N+1 starts without its downbeat, and fragment N ends with an extra note. An agent asked to fix 'fragment #2' via PUT /fragments/1/notes never touches that downbeat, because replaceFragmentNotes treats it as part of fragment #1.",
+   "fix_hint": "Round cuts with `r` (4 dp), the same grid as note starts, or snap each cut to the onset of the first note at that bar. Pre-existing and outside this branch: autoFragments (steps.ts:97, `round` to 3 dp) has the same mismatch for MIDI/JSON lessons with a tempo."
+  },
+  {
+   "severity": "major",
+   "title": "An API token with a non-Latin-1 character locks the web app into offline demo mode and hides the token field",
+   "file": "/Users/predantsev-m4mb/Projects/IdeaProjects/Startups/piano-steps/.claude/worktrees/api/apps/web/src/api.ts",
+   "line": 49,
+   "lens": "correctness-security",
+   "evidence": "`call()` adds `authorization: Bearer ${t}` to EVERY request, including GETs (api.ts:49). The Settings field stores raw input on every keystroke: `onChange={(e) => api.setApiToken(e.target.value.trim() || null)}` (App.tsx:343). The field is shown only when `health?.auth` (App.tsx:334), and health is fetched once via call() (App.tsx:63). listLessons treats any non-ApiError as offline (api.ts:93-96). Probe hdr.mjs: `fetch(url, {headers:{authorization:'Bearer abc​'}})` → Chromium `TypeError … String contains non ISO-8859-1 code point`, WebKit `TypeError: Type error`. Node: same TypeError for 'Bearer токен'.",
+   "failure_scenario": "The owner pastes a token carrying a zero-width space, or types it with the Ukrainian layout active. Every fetch then throws TypeError. On the next load, getHealth fails → health=null → the API token field disappears from Settings; listLessons sets offline=true → only the 3 built-in demo lessons show, and nothing points to the token. The only way out is clearing site data. Not verified: whether iPadOS allows a Cyrillic keyboard in a password field; the paste path does not depend on that.",
+   "fix_hint": "Wrap the fetch in call() so a TypeError becomes an ApiError (status 0) with a clear message. Reject or strip non-printable/non-Latin-1 characters in setApiToken. Show the token field whenever getApiToken() is non-null, regardless of health. Consider sending the token only on non-GET requests (the server ignores it on GETs)."
+  },
+  {
+   "severity": "major",
+   "title": "export.mid → import/midi does not give 'the same notes back' as the OpenAPI description promises",
+   "file": "/Users/predantsev-m4mb/Projects/IdeaProjects/Startups/piano-steps/.claude/worktrees/api/apps/server/src/app.ts",
+   "line": 454,
+   "lens": "correctness-security",
+   "evidence": "Spec text at app.ts:454-455: 'Re-importing it with /api/lessons/import/midi gives the same notes back.' lessonToMidi always writes two tracks, even an empty 'Left hand' one (midi.ts:95-100). midiToLesson drops empty tracks (midi.ts:21) and then splits a single track at C4 (midi.ts:25-37); it also trims leading silence > 50 ms and then drops the time signature (midi.ts:49-60). HTTP test on my port-9396 server: created rv-melody (all R: 67@0.5, 62@1, 57@1.5, 55@2, 4/4) → GET export.mid → POST import/midi → `[(67,0,'R'),(62,0.5,'R'),(57,1,'L'),(55,1.5,'L')] {'bpm':120}`. Probe rt2.ts: overlapping same-pitch notes in one hand (C4 0–2 + C4 1–1.5) come back as 0–1.5 and 1–2. Demo lessons do round-trip exactly (rt.ts).",
+   "failure_scenario": "An agent follows the documented export → edit → re-import workflow on a melody-only lesson that dips below middle C, or on a lesson starting with a rest. The lesson silently changes: those notes switch to the left hand, every onset shifts earlier, and the bar grid is lost.",
+   "fix_hint": "Have midiToLesson honour the track names it writes ('Right hand'/'Left hand') and keep a single named track's hand; skip the leading-silence trim when the file came from lessonToMidi (or only trim when the first event is > 1 bar). Or narrow the spec text to what actually holds."
+  },
+  {
+   "severity": "minor",
+   "title": "The MusicXML importer slows down quadratically with many tempo changes and blocks the event loop",
+   "file": "/Users/predantsev-m4mb/Projects/IdeaProjects/Startups/piano-steps/.claude/worktrees/api/packages/core/src/musicxml.ts",
+   "line": 310,
+   "lens": "correctness-security",
+   "evidence": "`toSec` scans every tempo segment with no early break (`for (const x of segs) if (x.q <= q + EPS) s = x;`, lines 310-314). It is called twice per note and once per bar line, all before the 20,000-note validation limit. measureFragments adds `notes.some` for each cut (line 387). Probe cpu.ts (one `<sound tempo>` + one note per measure): 10k measures / 1.3 MB → 1134 ms; 20k / 2.7 MB → 2046 ms; 40k / 5.4 MB → 7760 ms, which is then rejected anyway for having more than 20,000 notes.",
+   "failure_scenario": "An 11–20 MB MusicXML file with a tempo mark in every bar freezes the single Node process for 30 s to minutes. All other API and web requests hang. Combined with the missing body limit, it needs only write access, and the default LAN setup has no token.",
+   "fix_hint": "Binary-search the segments (or walk notes in sorted order with a moving index), and stop parsing once the note count exceeds the 20,000 limit."
+  },
+  {
+   "severity": "minor",
+   "title": "A tie chain is broken by a same-pitch note in another voice, which turns into a spurious re-attack",
+   "file": "/Users/predantsev-m4mb/Projects/IdeaProjects/Startups/piano-steps/.claude/worktrees/api/packages/core/src/musicxml.ts",
+   "line": 284,
+   "lens": "correctness-security",
+   "evidence": "The tie key is `${staff}:${pitch}` with no voice (line 265), and any untied note at that key runs `open.delete(key)` (line 284). Probe mx6.ts (2/4): voice 1 has G4 tie-start at beat 2; after a backup, voice 2 has an untied G4 half note; bar 2 has voice 1 G4 tie-stop → output `[67,0,2],[72,0,1],[67,1,1],…,[67,2,2]`. Expected: one G4 from 1 to 4 s in voice 1.",
+   "failure_scenario": "In piano music where an inner voice shares a pitch with a tied melody note, the import shows a repeated key press the user should not make. The lesson is still accepted.",
+   "fix_hint": "Include `<voice>` in the tie key (e.g. `${staff}:${voice}:${pitch}`), and only delete chains for the note's own voice."
+  },
+  {
+   "severity": "minor",
+   "title": ".mxl container handling differs from plain files: a UTF-16 rootfile is rejected and a './' full-path is not resolved",
+   "file": "/Users/predantsev-m4mb/Projects/IdeaProjects/Startups/piano-steps/.claude/worktrees/api/packages/core/src/musicxml.ts",
+   "line": 81,
+   "lens": "correctness-security",
+   "evidence": "readMxl decodes the score with `strFromU8(file)` (UTF-8 only, line 81) instead of `decodeText` (BOM-aware, lines 55-60), and looks up `files[path]` verbatim (line 79). Probe mx3.ts: the same UTF-16LE+BOM score imports as a plain file → `[{pitch:60,…}]`, but inside an .mxl → 'Not valid XML: char '�' is not expected'. A container `full-path=\"./score.musicxml\"` → 'The .mxl archive contains no MusicXML score'. A normal UTF-8 .mxl with a rootfile in a subfolder plus a PDF rootfile imports fine (mx7.ts).",
+   "failure_scenario": "An exporter that writes UTF-16 MusicXML (the reason decodeText exists) inside .mxl, or writes './'-relative rootfile paths, gets a 400 for a valid score.",
+   "fix_hint": "Use decodeText(file) in readMxl; normalise the full-path (strip a leading './', decode %20); fall back to scanning for a .musicxml/.xml entry when the container path is missing."
+  },
+  {
+   "severity": "nit",
+   "title": "An XML encoding declaration other than UTF-8/UTF-16 is ignored, so the title is garbled",
+   "file": "/Users/predantsev-m4mb/Projects/IdeaProjects/Startups/piano-steps/.claude/worktrees/api/packages/core/src/musicxml.ts",
+   "line": 58,
+   "lens": "correctness-security",
+   "evidence": "decodeText checks the BOM only, then decodes as UTF-8 (lines 55-60). Probe mx3.ts: a file with `encoding=\"ISO-8859-1\"` and the title byte 0xFC → title \"F�r Elise\". Notes are unaffected.",
+   "failure_scenario": "An older Finale/Sibelius Latin-1 export imports with garbled title and composer, and the slug is derived from the garbled title.",
+   "fix_hint": "Read the encoding from the XML declaration and pass it to TextDecoder (fall back to UTF-8)."
+  },
+  {
+   "severity": "nit",
+   "title": "pianoSteps.press() validates holdMs after it has already pressed the keys",
+   "file": "/Users/predantsev-m4mb/Projects/IdeaProjects/Startups/piano-steps/.claude/worktrees/api/apps/web/src/devtools/api.ts",
+   "line": 154,
+   "lens": "correctness-security",
+   "evidence": "Lines 147-150 emit `input.emit('on', p, 'sim')` and `player.noteOn(p)` for every pitch. The holdMs check `if (!(holdMs >= 0)) throw …` runs only at line 154 (read from source, not executed).",
+   "failure_scenario": "`press([60], -5)`, or the WebMCP press_keys tool with holdMs -5 (the JSON schema minimum is advisory), throws or returns {error}. Key 60 stays held, so later getState()/e2e assertions see a stuck key.",
+   "fix_hint": "Validate holdMs before the emit loop."
+  },
+  {
+   "severity": "nit",
+   "title": "lessonToMidi writes a wrong tempo for bpm below about 3.6, so the exported note times are wrong",
+   "file": "/Users/predantsev-m4mb/Projects/IdeaProjects/Startups/piano-steps/.claude/worktrees/api/packages/core/src/midi.ts",
+   "line": 90,
+   "lens": "correctness-security",
+   "evidence": "`midi.header.setTempo(lesson.tempo?.bpm ?? 120)` with no clamp. The schema allows any positive bpm (lesson.ts:57). Probe rt3.ts: bpm 2 → re-import reports bpm 4.5376 and the note at 3 s comes back at 1.3223 s; bpm 3 → 18.6174. The microseconds-per-quarter value overflows MIDI's 24-bit field.",
+   "failure_scenario": "A lesson with a nonsense low tempo (for example from a transcription bug) exports a .mid whose timing is wrong in any DAW or on re-import.",
+   "fix_hint": "Clamp the tempo to the MIDI-representable range (about 3.58 to 60,000,000 bpm), or write 120 when it is out of range."
+  },
+  {
+   "severity": "nit",
+   "title": "The first tempo mark is applied back to the start, overriding the MusicXML default of 120 for the earlier bars",
+   "file": "/Users/predantsev-m4mb/Projects/IdeaProjects/Startups/piano-steps/.claude/worktrees/api/packages/core/src/musicxml.ts",
+   "line": 302,
+   "lens": "correctness-security",
+   "evidence": "`if (!tempos.length || tempos[0][0] > EPS) tempos.unshift([0, tempos[0]?.[1] ?? DEFAULT_BPM])`. Probe mx6.ts: no tempo in bars 1-2, `<sound tempo=\"60\"/>` at bar 3 → notes `[72,0,4],[74,4,4],[76,8,4]`, i.e. bars 1-2 at 60 bpm instead of 120. This is a heuristic choice; the log's 'no tempo → 120' (log.md:60) covers scores with no mark at all.",
+   "failure_scenario": "A score whose opening tempo is text only ('Allegro') with a metronome mark later ('Più mosso ♩=160' at bar 17) imports its first 16 bars at 160 bpm.",
+   "fix_hint": "Start from DEFAULT_BPM at q=0 when the first mark is later, or document the heuristic in the route description."
+  },
+  {
+   "severity": "blocker",
+   "title": "devtools e2e asserts exact litKeys that only the placeholder variant produces; fails once feat/1 (falling) is on main",
+   "file": "/Users/predantsev-m4mb/Projects/IdeaProjects/Startups/piano-steps/.claude/worktrees/api/e2e/devtools.spec.ts",
+   "line": 11,
+   "lens": "compat",
+   "evidence": "Trial merge (main cfc4381 + feat/1 + feat/2 + feat/3 + feat/5), `E2E_WEB_PORT=9396 E2E_API_PORT=9397 npx playwright test` → `3 failed, 1 skipped, 18 passed`. Failures: [ipad-webkit] devtools.spec.ts:5, [desktop-chromium] devtools.spec.ts:5 (line 11: Received + \"C3\" vs ['C4','E4','G4']), [desktop-chromium] devtools.spec.ts:46 (line 63: Received + \"C3\", + \"E4\" vs ['D4','F#4']). A scratch probe on the same tree showed for ui=falling: idle litKeys [C3:next, E4:next]; after press(['C4','E4',67]) [C3:next, C4:hint, E4:next, G4:hint]; after release() [C3:next, E4:next]; press('A3',100) [C3:next, A3:hint, E4:next]. So lines 11, 14 (`toEqual([])`) and 17 (`toEqual([57])`) all fail, plus line 63. Cause: falling/marks.ts:34-35 puts a `next` outline on the upcoming step even when idle, and devtools/api.ts:8 counts `next` as lit. Control run, feat/5 alone on cfc4381 (placeholder variants): `21 passed, 1 skipped`. The run on the pre-#12 main (27c747c) gave the same 3 failures.",
+   "failure_scenario": "When feat/1 and feat/5 are both on main, in either merge order, the new `e2e` job in .github/workflows/ci.yml fails deterministically (CI retries=1 does not help), so the second PR cannot get the green CI that AGENTS.md requires. `npm run e2e` locally is red the same way. The other variants would not fix it if the test were pinned to them: cards idles with [C3:L, E4:R], and sheet keeps the last released key lit as 'hint' for PROBE_MS=2500 (sheet/index.tsx:21), so line 14 fails there too.",
+   "fix_hint": "Assert on the pressed keys, not exact equality. For example, `expect(held.litKeys.map(k=>k.name)).toEqual(expect.arrayContaining(['C4','E4','G4']))`, or filter `litKeys` to `mark==='hint'`/`ok`/`bad`. After release(), assert that heldKeys is [] and that the released pitches carry no hint/ok/bad mark. Apply the same change at lines 17 and 63. Also update the report's merge note to point at devtools.spec.ts."
+  },
+  {
+   "severity": "minor",
+   "title": "Dev API litKeys ignores main's new 'hold' key mark (#12, cfc4381)",
+   "file": "/Users/predantsev-m4mb/Projects/IdeaProjects/Startups/piano-steps/.claude/worktrees/api/apps/web/src/devtools/api.ts",
+   "line": 8,
+   "lens": "compat",
+   "evidence": "devtools/api.ts:8 `const MARKS = ['R', 'L', 'next', 'ok', 'bad', 'hint'];`, and litKeys() (api.ts:236-243) only reports keys whose class matches one of these. Main now has `| 'hold' // still held from an earlier step` at `git show main:apps/web/src/ui/PianoKeyboard.tsx` line 13, with `.pk-white.pk-hold` at PianoKeyboard.css:99. docs/testing-api.md:51 lists the marks without 'hold'. The e2e regex at e2e/app.spec.ts:63 `/\\bpk-(hint|ok|bad|next|R|L)\\b/` also lacks it. A grep for `'hold'|pk-hold` in the three variant worktrees matches only the rebased shared PianoKeyboard, so no variant emits 'hold' yet. Typecheck passes because DevKey.mark is `string` (devtools/types.ts:15).",
+   "failure_scenario": "Once a variant adopts #12's 'hold' mark (a note held over from an earlier step), getState().litKeys and the WebMCP get_state/press_keys results silently leave those keys out. An agent or a test that reads 'what the screen shows' then sees fewer lit keys than are drawn.",
+   "fix_hint": "Add 'hold' to MARKS (better: derive the list from the KeyMark type in ui/PianoKeyboard.tsx). Optionally report the `next` ring overlay (KeyHighlight.next / `.pk-ring`) too. Update docs/testing-api.md:51 and the regex at e2e/app.spec.ts:63."
+  },
+  {
+   "severity": "nit",
+   "title": "litKeys cannot tell user-held keys from a variant's own 'hint' marks (sheet keeps a released key lit 2.5 s)",
+   "file": "/Users/predantsev-m4mb/Projects/IdeaProjects/Startups/piano-steps/.claude/worktrees/api/apps/web/src/devtools/api.ts",
+   "line": 236,
+   "lens": "compat",
+   "evidence": "Scratch probe on the combined tree with ui=sheet: after press(['C4','E4',67]) then release(), heldKeys=[] but litKeys=[G4] at +0, +50, +200, +500 and +1500 ms; a single press('D4') then release() also left D4 lit after 500 ms. The source is sheet/index.tsx:216 `if (pr) marks.set(pr.pitch, { mark: pr.hand ?? 'hint' })`, with PROBE_MS = 2500 at line 21: the last pressed key is intentionally shown for 2.5 s.",
+   "failure_scenario": "A future e2e or agent check that does press → release → `litKeys` is empty on the sheet tab fails, or passes only after waiting more than 2.5 s. The `hint` mark is used both for 'user is holding this' and for the sheet's 'where this key sits on the staff' probe.",
+   "fix_hint": "Document in docs/testing-api.md that `heldKeys` is the source of truth for presses and that `litKeys` includes variant decorations. Optionally have variants publish their probe/expected keys through reportState."
+  }
+ ],
+ "dropped": []
+}

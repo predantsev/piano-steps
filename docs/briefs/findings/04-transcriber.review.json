@@ -1,0 +1,364 @@
+{
+ "claims": [
+  {
+   "claim": "Python tests pass: uv run pytest -q → 28 passed",
+   "verdict": "confirmed",
+   "evidence": "`cd tools/transcribe && uv run pytest -q` → `28 passed in 2.16s` (lens 1)"
+  },
+  {
+   "claim": "App unaffected: npm run typecheck exit 0, npm test 16 passed, npm run build exit 0",
+   "verdict": "confirmed",
+   "evidence": "At worktree root: typecheck exit 0; `npm test` → `Tests 16 passed (16)`; build exit 0 (lens 1)"
+  },
+  {
+   "claim": "No media committed; .work/ is gitignored",
+   "verdict": "confirmed",
+   "evidence": "`git ls-files | grep -iE '\\.(wav|mp3|mp4|webm|mid|midi|m4a|pkl|pth|onnx|opus|ogg|flac)$'` → nothing; only JSON fixture is tests/fixtures/demo-lessons.json = the 3 public-domain demos; `git check-ignore -v` → tools/transcribe/.gitignore:2 `.work/`, :1 `.venv/`; .gitignore also has *.mid/*.midi (lens 1)"
+  },
+  {
+   "claim": "No shared-file changes in packages/core, apps/web, apps/server; docker-compose.yml gains a profile-gated transcriber service + 2 volumes",
+   "verdict": "confirmed",
+   "evidence": "`git diff --stat main...HEAD` touches only SKILL.md, docker-compose.yml, docs/briefs/04-*, tools/transcribe/**; `docker compose config --services` → db, app; with `--profile transcriber` → db, app, transcriber; `config -q` exit 0 (lens 1). Full default `docker compose config` of worktree vs main identical after path normalisation, diff rc=0 (lens 3)"
+  },
+  {
+   "claim": "Compose profile builds: image piano-steps-transcriber (2.87 GB)",
+   "verdict": "unverified",
+   "evidence": "Build not re-run (gate). Image presence only: `docker image ls` → `piano-steps-transcriber:latest 2.87GB` (lens 1)"
+  },
+  {
+   "claim": "`docker run --rm piano-steps-transcriber --help` prints usage; container upload via isolated compose project (133 notes, 6 fragments), then down -v",
+   "verdict": "unverified",
+   "evidence": "Running containers is gated. Indirect: no transcriber volumes and no piano compose project left (`docker volume ls`, `docker compose ls -a`) (lens 1)"
+  },
+  {
+   "claim": "YouTube → lesson: 1077 notes, 34 fragments, offsetSec=11.108",
+   "verdict": "unverified",
+   "evidence": "Live run not repeated (no downloads/app). Saved artefact .work/out/before-fix.json has 1077 notes, 34 fragments, offsetSec 11.108; eval alignment start 11.122 s consistent (lens 1)"
+  },
+  {
+   "claim": "Seen and played in the app (34 chips, ▶ Fragment lit E5, 🎧 Original iframe start=11)",
+   "verdict": "unverified",
+   "evidence": "Browser/app not run (lens 1)"
+  },
+  {
+   "claim": "fix on fragment 5: 17 → 14 notes, 1060 notes outside unchanged",
+   "verdict": "confirmed",
+   "evidence": "From saved GET snapshots .work/out/{before-fix,after-fix}.json: fragment 5 [28.614, 32.7) 17 → 14; the 1060 outside notes equal; fragments identical (lens 1). Live run not repeated"
+  },
+  {
+   "claim": "Boundary bug fixed: re-fix restored all 17 notes",
+   "verdict": "confirmed",
+   "evidence": "Partially: .work/out/after-fix2.json → 17 notes in fragment 5, 1077 total; unit test test_fragment_replacement_keeps_boundary_notes_once passes. 'within 2 ms' detail unverified (lens 1). See confirmed findings on boundary handling vs origin/main TIME_EPS"
+  },
+  {
+   "claim": "Feedback resolved, visible in GET /api/feedback?status=resolved",
+   "verdict": "unverified",
+   "evidence": "Needs live API with that lesson; code path cli.py:186-216 read (lens 1). Feedback endpoints and shape were exercised E2E on :9396 with a test lesson (lens 3)"
+  },
+  {
+   "claim": "`audio`, `midi --dry-run --save-json` (kind midi, hands from tracks), 409 → exit 2 with --replace hint",
+   "verdict": "confirmed",
+   "evidence": "Artefacts .work/out/dup.err, midi-check.json; cli.py:131-135 (lens 1). 409 → rc=2 reproduced E2E against both the branch API and the api worktree on :9396 (lens 3)"
+  },
+  {
+   "claim": "Accuracy: Barton bytedance 0.990 / basic-pitch 0.909, seq 0.990/0.891",
+   "verdict": "confirmed",
+   "evidence": "Re-run on cached .work/wKvKiN1wYHw/eval-0-60.wav (reference from fixture): `bytedance cleaned (default) n_est 52 F1@50 0.99 seq 0.99`; `basic-pitch ... F1@50 0.909 seq 0.891` — identical to .work/eval/final-wKvKiN1wYHw.json (lens 1, script scratchpad/reeval.py)"
+  },
+  {
+   "claim": "Rousseau 0.990/0.901, Lisitsa 0.788/0.712 (seq 0.942/0.831), Brooklyn 0.809/0.839 (seq 0.809/0.855)",
+   "verdict": "confirmed",
+   "evidence": "Against stored .work/eval/final-*.json, not re-run (lens 1)"
+  },
+  {
+   "claim": "Mean F1@50 bytedance 0.923 vs basic-pitch 0.841 at onset 0.7 (0.730 at default 0.5); basic-pitch sweep 0.628/0.730/0.794/0.841/0.827/0.699; bytedance 0.917…0.923",
+   "verdict": "confirmed",
+   "evidence": "sweep.txt/sweep2.txt rows match; arithmetic (0.99+0.99+0.788)/3=0.923, (0.909+0.901+0.712)/3=0.841 (lens 1)"
+  },
+  {
+   "claim": "Cleanup thresholds changed the mean by ≤ 0.007",
+   "verdict": "refuted",
+   "evidence": "sweep.txt: bytedance onset 0.3 min_vel 0.0 → 0.923 vs min_vel 0.3 → 0.912 (Δ0.011); min_vel 0.3 is inside the swept grid (scripts/sweep_thresholds.py `itertools.product([0.0, 0.1, 0.2, 0.3], [0.0, 0.5])`). 0.007 is the basic-pitch spread only. Lens 1 + both refuters"
+  },
+  {
+   "claim": "Hands: beam search 1.000 on first three recordings; Brooklyn 0.962 bd / 0.925 bp vs fixed split 1.000",
+   "verdict": "confirmed",
+   "evidence": "Stored final-*.json hand_accuracy fields (lens 1)"
+  },
+  {
+   "claim": "Speed: bytedance 11.0 s, basic-pitch 2.2 s per 60 s clip; 3:54 video end to end 42 s",
+   "verdict": "unverified",
+   "evidence": "Re-run on cached Barton clip: 12.2 s / 3.1 s (close, not equal); stored final-*.json seconds bd 20.5–40.1, bp 2.4–9.1; 42 s only in the log (lens 1)"
+  },
+  {
+   "claim": "Default engine bytedance; basic-pitch via bundled ONNX; TensorFlow overridden away; Python 3.11 pinned; checkpoint sha256-checked",
+   "verdict": "confirmed",
+   "evidence": "engines.py:28, :31, :121, :82 (sha256 on download; cached file only size-checked :72); pyproject requires-python '>=3.11,<3.12' + tensorflow override; .python-version 3.11 (lens 1)"
+  },
+  {
+   "claim": "No tempo in uploaded lessons",
+   "verdict": "confirmed",
+   "evidence": "lesson.py:59-63 never sets tempo; saved JSONs have no tempo key (lens 1)"
+  },
+  {
+   "claim": "Lesson carries source.kind/url/offsetSec/note and matches the lesson format",
+   "verdict": "confirmed",
+   "evidence": "lesson.py:54-58; built lesson validated with core validateLessonInput via tsx → OK (lens 2, scratchpad/lens2/validate.ts); lesson.ts unchanged between merge-base 8a070bf and origin/main, LESSON_SCHEMA_VERSION 1 (lens 3)"
+  },
+  {
+   "claim": "Hand split = beam search with C4 prior + span + continuity + no crossing + ≤5 notes",
+   "verdict": "confirmed",
+   "evidence": "hands.py:4-13 docstring and HandOptions (lens 1)"
+  },
+  {
+   "claim": "API client is stdlib only; Bearer sent with token",
+   "verdict": "confirmed",
+   "evidence": "api.py imports json/os/urllib only; :46-47 Bearer on non-GET (lens 1). Live: no token → 401 rc=3, `--token tok` → create OK on :9396 (lens 3)"
+  },
+  {
+   "claim": "Skill + README exist with usage, accuracy, limits; skill commands exist",
+   "verdict": "confirmed",
+   "evidence": "SKILL.md 95 lines; README.md:85-89, :123 (lens 1). Every flag in SKILL/README exists: `.venv/bin/transcribe {,youtube,fix,midi} --help` + cli.py:276-320 (lens 3)"
+  },
+  {
+   "claim": "Commit list (8 commits + this report's commit)",
+   "verdict": "confirmed",
+   "evidence": "`git log --oneline main..HEAD` → the 8 listed + 2 report commits (ea4161d, 53916c8), not 1 — nit (lens 1)"
+  },
+  {
+   "claim": "Housekeeping: .work 289 MB, .venv 1.0 GB; check compose project removed; dev server stopped",
+   "verdict": "confirmed",
+   "evidence": "`du -sh` → 289M / 1.0G; no piano compose project. 'dev server stopped' unverified (lens 1)"
+  },
+  {
+   "claim": "Video spike: sequence recall 0.94, onset F1 0.01–0.12, not wired into CLI",
+   "verdict": "unverified",
+   "evidence": "Numbers not re-run (no cached video). 'Not wired' confirmed: cli.py has no video subcommand (lens 1)"
+  }
+ ],
+ "confirmed": [
+  {
+   "severity": "major",
+   "title": "`fix` with an empty re-transcription wipes the fragment and marks the feedback resolved",
+   "file": "tools/transcribe/src/piano_transcribe/cli.py",
+   "line": 202,
+   "evidence": "cli.py:202-216 has no check that the new note list is non-empty. Stub run (scratchpad/lens2/fix_empty.py; refute-l2-a/t.py) → 'before (1): D4 / after (0): (none) / updated ... / feedback F1 resolved', rc 0; calls PATCH in-progress, PUT notes=[], PATCH resolved. Server accepts it: apps/server/src/app.ts:248 body `z.array(LessonNote)` without min; repo.ts:165-178 deletes the fragment's notes. If that fragment held all notes, validateLessonInput fails notes.min(1) (packages/core/src/lesson.ts:77) → plain Error → 500 (app.ts:109-113).",
+   "failure_scenario": "An agent runs `transcribe fix` with a high --onset-threshold, a wrong offsetSec or on a quiet passage; the engine returns nothing. The fragment's notes are deleted, the user's 'sounds wrong' report is closed as resolved, and the fragment shows no keys.",
+   "fix_hint": "Refuse to PUT when the new list is empty; warn / require --force when it shrinks below ~50% of the old one; never resolve the feedback in that case.",
+   "lens": "correctness+security",
+   "refuters": "both confirmed; severity major (refuter A) / minor (refuter B) → kept major: silent data loss + auto-resolved report"
+  },
+  {
+   "severity": "major",
+   "title": "`fix` clamps boundary notes to end-0.001, which origin/main's TIME_EPS=0.002 assigns to the NEXT fragment",
+   "file": "tools/transcribe/src/piano_transcribe/lesson.py",
+   "line": 83,
+   "evidence": "lesson.py:83 `t = min(max(n.start, start), end - 0.001)`. origin/main packages/core/src/steps.ts:35 TIME_EPS = 0.002, :39 notesInRange `n.start < end - TIME_EPS`; apps/web/src/audio/player.ts:217,:251 use TIME_EPS. origin/main apps/server/src/repo.ts:174 still deletes with 1e-6. Repro against main's core (refute-l3-b/r1.mts): notes {0:60, 5.399:72, 5.4:63}, fragments [0,5.4),[5.4,10] → frag0 [60], frag1 [72, 63]. Branch merge-base 8a070bf predates main's 8261619 (the TIME_EPS change), so this appears only after merge.",
+   "failure_scenario": "After merging main, `fix k` inserts a boundary note at end-0.001; the app plays it in fragment k+1, so the fix for k seems to drop it and k+1 gains an extra key. `fix k+1` cannot remove it (server's 1e-6 delete window counts it as k's); only a re-fix of k does.",
+   "fix_hint": "Rebase on main; clamp to at most end - 2*TIME_EPS (or drop new notes at/after end instead of clamping); use one shared EPS=0.002 in notes.py in_window and lesson.py's outside filter. Main-side follow-up: repo.replaceFragmentNotes should use TIME_EPS instead of 1e-6.",
+   "lens": "integration",
+   "refuters": "both confirmed; severity major (refuter B) / minor (refuter A: narrow trigger, recoverable by re-fixing k) → kept major as a post-merge integration bug"
+  },
+  {
+   "severity": "minor",
+   "title": "yt-dlp has no size or duration limit and always downloads the whole video",
+   "file": "tools/transcribe/src/piano_transcribe/audio.py",
+   "line": 55,
+   "evidence": "audio.py:55-75 argv: --no-playlist ... -f bestaudio/best -x --audio-format wav ...; no --max-filesize, no `--match-filter duration<…`, no --download-sections. --start/--end only crop afterwards (cli.py:92-95). Whole-file caching per video id is deliberate (README.md:9; reused by fix).",
+   "failure_scenario": "A multi-hour livestream is downloaded and converted in full (~318 MB/hour of mono 44.1 kHz WAV, inferred) even with `--start 0 --end 30`; without --end the whole file goes to the CPU model.",
+   "fix_hint": "Add `--match-filter 'duration < 1200'` (or a --max-duration flag) and --max-filesize; refuse longer inputs without an explicit flag.",
+   "lens": "correctness+security",
+   "refuters": "both confirmed; both suggest minor (lens said major) → minor"
+  },
+  {
+   "severity": "minor",
+   "title": "Non-API errors end in a Python traceback with exit 1, the same code as 'no notes found'",
+   "file": "tools/transcribe/src/piano_transcribe/cli.py",
+   "line": 324,
+   "evidence": "cli.py:324-330 main() catches only ApiError. Stub runs: `youtube https://example.com/x` → ValueError; `audio /nonexistent.wav` → FileNotFoundError; RuntimeError (_need, _source_audio cli.py:181) and CalledProcessError (audio.py:75,97,115 check=True) also escape. cli.py:99 returns 1 for 'no notes found'.",
+   "failure_scenario": "An agent driving the CLI gets a stack trace and an ambiguous exit 1 for ordinary errors (bad URL, missing file, yt-dlp 403).",
+   "fix_hint": "Catch ValueError, FileNotFoundError, RuntimeError, CalledProcessError, OSError in main(); print one line; use a distinct exit code.",
+   "lens": "correctness+security",
+   "refuters": "both confirmed, minor"
+  },
+  {
+   "severity": "minor",
+   "title": "`fix --feedback` leaves the item stuck in 'in-progress' when anything fails before the PUT",
+   "file": "tools/transcribe/src/piano_transcribe/cli.py",
+   "line": 186,
+   "evidence": "cli.py:186-187 PATCHes in-progress before get_lesson, the fragment range check (return 2 at :192), _source_audio (:195) and the PUT; no try/finally. `transcribe feedback` lists only 'open' by default (cli.py:304). Stub: `fix x 5 --feedback F1` → rc 2, only call PATCH in-progress (refute-l2-a/t.py).",
+   "failure_scenario": "A wrong fragment index, a lesson without a replayable source, or a yt-dlp/API failure drops the item out of the default open queue; it is silently forgotten.",
+   "fix_hint": "Mark in-progress only right before the PUT, or reset to 'open' in a finally block on failure.",
+   "lens": "correctness+security (also raised by claims and integration lenses)",
+   "refuters": "both confirmed, minor"
+  },
+  {
+   "severity": "minor",
+   "title": "`fix` cannot work on a lesson made by `audio`/`midi` without --source-url, and the docs don't say so",
+   "file": "tools/transcribe/src/piano_transcribe/cli.py",
+   "line": 175,
+   "evidence": "cli.py:148 load_local(a.file, a.source_url) and audio.py:99 store url only from --source-url; lesson.py:55-56 sets url only if truthy. cli.py:175-181 _source_audio raises RuntimeError when there is no YouTube id or existing local path. README.md:61-65 and SKILL.md §3 describe fix without that precondition. Read, not run (would need a recording).",
+   "failure_scenario": "User transcribes a local m4a, reports a fragment; the agent runs `fix … --feedback <id>` → traceback and a feedback item stuck in-progress.",
+   "fix_hint": "Store the local path (or a file:// URL) as source.url when --source-url is absent, or refuse `fix` up front with a clear message; document the precondition.",
+   "lens": "integration",
+   "refuters": "both confirmed, minor"
+  },
+  {
+   "severity": "minor",
+   "title": "MIDI import keeps pitches outside 21–108, so one stray note makes the API reject the whole import",
+   "file": "tools/transcribe/src/piano_transcribe/midi_io.py",
+   "line": 26,
+   "evidence": "midi_io.py:26-37 keeps every non-drum note; cmd_midi (cli.py:152-172) never calls drop_out_of_range (cleanup.py:38). zod pitch int 21..108 (packages/core/src/lesson.ts:18). Repro: MIDI with pitches 15,60,120 → read_midi keeps all (refute-l2-b/t.py); `midi x.mid --dry-run --save-json` saved pitch 10 (refute-l2-a/t.py). The server's own MIDI importer skips <21/>108 (packages/core/src/midi.ts:36), so the tool is inconsistent with the app.",
+   "failure_scenario": "A General-MIDI arrangement with one note below A0 or above C8 → 400 'notes.N.pitch' → exit 3; nothing is imported.",
+   "fix_hint": "Apply drop_out_of_range (or octave-fold) in cmd_midi and print how many notes were dropped.",
+   "lens": "correctness+security",
+   "refuters": "both confirmed, minor"
+  },
+  {
+   "severity": "minor",
+   "title": "`fix` pulls a next-fragment note into this fragment when the re-transcription hears it at a different pitch",
+   "file": "tools/transcribe/src/piano_transcribe/lesson.py",
+   "line": 76,
+   "evidence": "lesson.py:76-84 keeps new notes with onset in [end, end+tol) and clamps them to end-0.001 unless an outside old note has the SAME pitch within tol (:81). Repro: fragment_replacement(new=[60@1.01, 62@1.49, 65@2.03], old=[60@1.0, 62@1.5, 64@2.0], 1.0, 2.0) → [(60,1.01),(62,1.49),(65,1.999)] (both refuters' scripts).",
+   "failure_scenario": "The re-transcription mis-hears the first note of the next fragment (octave/overtone error); that wrong note is inserted at the end of the fixed fragment while the next fragment keeps its own, so the user plays an extra note. Combined with the TIME_EPS finding above, after merge it even shows up in the next fragment.",
+   "fix_hint": "Skip new notes within tol of a bound when any outside old note (any pitch) sits within tol on the far side, or do not accept notes past `end` at all.",
+   "lens": "correctness+security (also raised by claims lens)",
+   "refuters": "both confirmed, minor"
+  },
+  {
+   "severity": "minor",
+   "title": "`show` and fix's before/after use a 1e-6 window, while origin/main plays fragments with TIME_EPS=0.002",
+   "file": "tools/transcribe/src/piano_transcribe/notes.py",
+   "line": 54,
+   "evidence": "notes.py:54-56 `start - 1e-6 <= n.start < end - 1e-6`, docstring 'the fragment rule of the lesson format'; callers cli.py:205 (fix before) and cli.py:249 (show). It matched the merge-base core (8a070bf steps.ts:33) and still matches the server delete window (repo.ts:174), but origin/main steps.ts:39 and player.ts:251 use TIME_EPS.",
+   "failure_scenario": "A note with onset 0–2 ms below a bound is listed by `show N` under N but played by the app in N+1, which can mislead which fragment to fix. No data loss.",
+   "fix_hint": "Use one EPS constant equal to core TIME_EPS (0.002) in in_window and fragment_replacement after rebasing.",
+   "lens": "integration",
+   "refuters": "both confirmed; minor (B) / nit (A) → minor"
+  },
+  {
+   "severity": "minor",
+   "title": "Docker transcriber service sees no host files, so `audio`/`midi` in Docker fail — and the docs don't say so",
+   "file": "docker-compose.yml",
+   "line": 40,
+   "evidence": "docker-compose.yml:40-52 transcriber volumes only transcriber-models:/models and transcriber-work:/work; `docker compose --profile transcriber config` shows only type: volume. README.md Docker section (~143-152) and SKILL.md:37 show only `youtube`.",
+   "failure_scenario": "An agent follows the skill inside Docker with a local file → FileNotFoundError traceback (inferred; not run, gate).",
+   "fix_hint": "Document `docker compose run --rm -v \"$PWD:/in\" transcriber midi /in/song.mid`, or add an optional bind mount.",
+   "lens": "integration",
+   "refuters": "both confirmed; minor (B) / nit (A) → minor"
+  },
+  {
+   "severity": "minor",
+   "title": "Report and README overstate how little cleanup thresholds matter (≤ 0.007; actual 0.011 on the default engine)",
+   "file": "tools/transcribe/README.md",
+   "line": 105,
+   "evidence": "README.md:105-106 'The cleanup thresholds moved the mean by ≤ 0.007'; docs/briefs/04-transcriber.report.md:63 same. .work/eval/sweep.txt: 'bytedance 0.3 0.0 0.0 0.923 …' vs 'bytedance 0.3 0.3 0.0 0.912 …' (Δ0.011; same at onset 0.2/0.4/0.5). min_vel 0.3 is in the swept grid (scripts/sweep_thresholds.py). The 0.007 bound is basic-pitch's spread (0.737 vs 0.730). Shipped default min_velocity 0.1 (cleanup.py:21) sits on the 0.923 plateau.",
+   "failure_scenario": "A reader tuning --min-velocity trusts 'no effect'; at 0.3 bytedance loses recall (Lisitsa 0.788 → 0.765). No shipped default changes.",
+   "fix_hint": "Say '≤ 0.011 (min_velocity 0.3 costs bytedance 0.011; ≤ 0.007 otherwise)'.",
+   "lens": "claims",
+   "refuters": "both confirmed; minor (B) / nit (A) → minor"
+  },
+  {
+   "severity": "nit",
+   "title": "A negative --start gives a wrong offsetSec",
+   "file": "tools/transcribe/src/piano_transcribe/cli.py",
+   "line": 83,
+   "evidence": "argparse accepts --start -2; crop clamps to max(start,0) (audio.py:110) but offset = a.start + t0 (cli.py:101) uses -2; build_lesson clamps at 0 (lesson.py:58). crop_t.py: crop(t.wav,-2.0,3.0) → 3.0 s clip from 0.",
+   "failure_scenario": "'Hear the original' starts 2 s early or at 0.",
+   "fix_hint": "Reject start < 0 or end <= start in the parser.",
+   "lens": "correctness+security",
+   "refuters": "nit — not sent to refuters (brief: only non-nit findings are refuted)"
+  },
+  {
+   "severity": "nit",
+   "title": "--slug, --composer, --artist not validated before the engine runs",
+   "file": "tools/transcribe/src/piano_transcribe/lesson.py",
+   "line": 60,
+   "evidence": "validate.ts on a bad lesson → 'slug: lowercase letters, digits and dashes', 'composer: Too big … <=200'; only title is truncated (lesson.py:59).",
+   "failure_scenario": "The transcription finishes, then the upload fails with exit 3; with --dry-run the saved JSON is silently invalid.",
+   "fix_hint": "Truncate composer/artist to 200; check slug ^[a-z0-9][a-z0-9-]*$ up front.",
+   "lens": "correctness+security",
+   "refuters": "nit — not sent to refuters (brief: only non-nit findings are refuted)"
+  },
+  {
+   "severity": "nit",
+   "title": "--retrigger 0 keeps same-pitch, same-onset duplicates",
+   "file": "tools/transcribe/src/piano_transcribe/cleanup.py",
+   "line": 58,
+   "evidence": "merge_retriggers([60@0 dur .5, 60@0 dur .5], 0.0) → [60@0 dur 0.001, 60@0 dur 0.5] (scratchpad/lens2/edge.py).",
+   "failure_scenario": "Only with --retrigger 0: a near-zero-length duplicate key in the chord.",
+   "fix_hint": "Always merge when n.start == prev.start.",
+   "lens": "correctness+security",
+   "refuters": "nit — not sent to refuters (brief: only non-nit findings are refuted)"
+  },
+  {
+   "severity": "nit",
+   "title": "Client rounds times to 1 ms; origin/main stores 0.1 ms",
+   "file": "tools/transcribe/src/piano_transcribe/lesson.py",
+   "line": 15,
+   "evidence": "lesson.py:15-16 round(…, 3); origin/main steps.ts round() and demo.ts beats() use 4 decimals.",
+   "failure_scenario": "Clamped onsets may shift by up to 0.5 ms; within TIME_EPS, harmless today (inferred).",
+   "fix_hint": "Round to 4 decimals.",
+   "lens": "integration",
+   "refuters": "nit — not sent to refuters (brief: only non-nit findings are refuted)"
+  },
+  {
+   "severity": "nit",
+   "title": "Compose PIANO_STEPS_WEB_URL ignores the LAN bind",
+   "file": "docker-compose.yml",
+   "line": 45,
+   "evidence": "`PIANO_STEPS_WEB_URL: http://piano-steps.localhost:${PIANO_STEPS_PORT:-9300}` while app ports use ${PIANO_STEPS_BIND:-127.0.0.1}.",
+   "failure_scenario": "Printed lesson link won't open on the iPad when bound to 0.0.0.0 (inferred).",
+   "fix_hint": "Allow overriding from host env: ${PIANO_STEPS_WEB_URL:-…}.",
+   "lens": "integration",
+   "refuters": "nit — not sent to refuters (brief: only non-nit findings are refuted)"
+  },
+  {
+   "severity": "nit",
+   "title": "Test fixture duplicates demo.ts and will drift after merging main",
+   "file": "tools/transcribe/tests/fixtures/demo-lessons.json",
+   "line": 1,
+   "evidence": "main changed demo.ts beats() rounding 1/1000 → 1/10000 (`git diff 8a070bf main -- packages/core/src/demo.ts`); fixture is a frozen snapshot used by tests and sweep_thresholds.py.",
+   "failure_scenario": "Eval via API and sweep via fixture use slightly different references after merge.",
+   "fix_hint": "Regenerate the fixture after rebase, or document how.",
+   "lens": "claims",
+   "refuters": "nit — not sent to refuters (brief: only non-nit findings are refuted)"
+  },
+  {
+   "severity": "nit",
+   "title": "Speed figures in the report don't match stored eval timings",
+   "file": "docs/briefs/04-transcriber.report.md",
+   "line": 0,
+   "evidence": "Report bd 11.0 s / bp 2.2 s; final-*.json seconds bd 20.5–40.1, bp 2.4–9.1; re-run 12.2 / 3.1 s.",
+   "failure_scenario": "A reader cross-checking the JSON sees 2–4× discrepancies.",
+   "fix_hint": "Say the stored timings ran under load, or cite the clean run.",
+   "lens": "claims",
+   "refuters": "nit — not sent to refuters (brief: only non-nit findings are refuted)"
+  },
+  {
+   "severity": "nit",
+   "title": "Report says '+ this report's commit' but there are two report commits",
+   "file": "docs/briefs/04-transcriber.report.md",
+   "line": 0,
+   "evidence": "`git log --oneline main..HEAD` → ea4161d and 53916c8 after f54121a.",
+   "failure_scenario": "None functional; squash merge makes it moot.",
+   "fix_hint": "List both.",
+   "lens": "claims",
+   "refuters": "nit — not sent to refuters (brief: only non-nit findings are refuted)"
+  }
+ ],
+ "dropped": [
+  {
+   "title": "fix leaves feedback stuck 'in-progress' (claims lens) / same in integration lens L3-3",
+   "why": "Duplicate of the correctness+security finding of the same name; merged into it (the integration-specific trigger is kept as its own finding about lessons without --source-url)."
+  },
+  {
+   "title": "fragment_replacement can pull the next fragment's first note (claims lens)",
+   "why": "Duplicate of the correctness+security finding; merged."
+  },
+  {
+   "title": "--token on the command line is visible in `ps`",
+   "why": "Noted by the correctness lens as a nit and not filed by it."
+  }
+ ]
+}
