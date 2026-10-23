@@ -187,7 +187,11 @@ export function StepStrip({ steps, current, hasLeft, noteNames, lang, onTap, onS
 
 function Chip({ lane, width, height, system }: { lane: LaneChip; width: number; height: number; system: NoteNameSystem }) {
   const c = lane.pitches.length;
-  const longest = Math.max(...lane.pitches.map((p) => pitchName(p, system, { withOctave: false }).length)) + 0.7;
+  // width in "em": the name, the small octave digit, and a finger badge when there is one
+  const longest =
+    Math.max(...lane.pitches.map((p) => pitchName(p, system, { withOctave: false }).length)) +
+    0.7 +
+    (lane.fingers.size > 0 ? 1.1 : 0);
   const fs = Math.max(14, Math.min(46, ((height - 18) * 0.8) / (c * 1.08), (width - 22) / (0.64 * longest)));
   const top = [...lane.pitches].reverse(); // highest note on top, like on a staff
   return (

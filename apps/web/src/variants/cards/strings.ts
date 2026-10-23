@@ -44,7 +44,10 @@ const S = {
   gotIt: { uk: 'Вийшло → наступний', en: 'Got it → next fragment' },
   gotItLast: { uk: 'Вийшло', en: 'Got it' },
   allDoneTitle: { uk: 'Усі фрагменти пройдено', en: 'All fragments done' },
-  allDoneText: { uk: 'Можна зіграти весь урок або почати спочатку.', en: 'Play the whole piece, or start over.' },
+  allDoneText: {
+    uk: 'Можна повторити останній фрагмент або почати з першого.',
+    en: 'Repeat the last fragment, or start again from the first one.',
+  },
   fromStart: { uk: 'З першого фрагмента', en: 'From the first fragment' },
   emptyFragment: { uk: 'У цьому фрагменті немає нот.', en: 'This fragment has no notes.' },
   noFragments: { uk: 'В уроці немає фрагментів.', en: 'This lesson has no fragments.' },
