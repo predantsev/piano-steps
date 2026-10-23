@@ -141,3 +141,42 @@ Appended as the work goes. Evidence = the file or command the decision rests on.
   typing or pressing Space in the shell's dialogs never moves the step (the feedback textarea is
   already skipped by the INPUT/TEXTAREA check; evidence: `FeedbackDialog.tsx:34`,
   `SourcePlayer.tsx:35` and the settings sheet in `App.tsx` all use `sheet-backdrop`).
+
+## 2026-10-23 — fix round (brief 06)
+
+- Branch already on top of `origin/main`: `git merge-base --is-ancestor origin/main HEAD` → exit 0
+  (printed `ANCESTOR`); no rebase needed. `npm install` ran clean.
+- **Removed `fragmentWindow` / `EDGE_SEC`.** `buildSteps` uses `notesInRange(notes, f.start, f.end)`;
+  playback uses `{ from: f.start (or the count-in start), to: f.end }`. Evidence that it is safe:
+  per-fragment step counts through `validateLessonInput` + `prepareLesson` (the path the API
+  serves) are unchanged from the previous round's browser count — twinkle `[7,7,7,7,7,7]`,
+  ode-to-joy `[12,11,7]`, fur-elise-opening `[8,12,12,15]`, every note covered (64/64, 40/40, 53/53)
+  — printed by a throwaway vitest file (deleted afterwards). A lesson with 3-decimal bounds
+  (`end: 1.667`) still opens the next fragment with A2+A4: covered by a unit test through
+  `prepareLesson` (core snaps the bound to 1.6667).
+- `stepAt` tolerance `1e-3` → core `TIME_EPS` (one tolerance, as #8 asks).
+- ASSUMPTION: `heldOver`'s 20 ms is a legato-overlap tolerance (a note must outlast the next onset
+  by more than 20 ms to be "keep holding"), not a fragment-boundary or clock compensation, so it
+  stays — named `HOLD_MIN_SEC` with a comment. Its unit tests are unchanged and pass.
+- **Count-in / metronome grid.** Ticks are counted on the lesson grid from t = 0
+  (`tickIndex(t, tickSec)`, accent on `k % perBar === 0`), the same assumption core `autoFragments`
+  makes. The run starts one bar before the grid tick at/before the fragment start
+  (`countInFrom`), so the first frame (the player holds `time` at `from`) is the accented
+  downbeat and exactly `perBar` ticks precede the start — unit test simulates 240 Hz frames.
+  Without a tempo the get-ready time is `1.5 * rate` lesson seconds = 1.5 s wall clock.
+- ASSUMPTION: the Für Elise pickup (bar 1 downbeat at 0.417 s) cannot be accented right without a
+  pickup/offset field in the lesson format (core) — deferred, not worked around locally.
+- **Loop.** Loop ON at the start → `player.play({ loop: true })`, the player's seamless loop (#12).
+  Loop turned OFF mid-play → stop on the next `loop` event (the wrap). Loop turned ON mid-play →
+  restart on `end`, but only when the fragment has steps and via `queueMicrotask` (never re-entering
+  `play()` from inside the player's emit). ▶ Fragment does nothing for an empty fragment.
+- **Highlights.** Held-over keys → `{ mark: 'hold', hand }` (striped); during playback a sounding
+  note that started before the current step's onset is also `hold`. Every fill carries `hand`.
+  Next step's notes → `{ mark: 'next', hand }`, or `next: true` on an existing fill/hold (repeated
+  note). The strip's next-card frame uses the next card's hand colour (`--hc`), neutral `--mut`
+  when both hands play.
+- **Space** acts as Next only with nothing focused (body) or focus on a step card; any other
+  button keeps its native Space activation. Arrows stay global. `.sheet-backdrop` check kept
+  (the shell's dialogs have no `role="dialog"`) → shell request `dialogOpen`.
+- **Keyboard range** = `keyboardRange(current fragment's pitches)` (default `minKeys` 25). Trade-off:
+  the keyboard range can change between fragments; within one fragment it is stable.

@@ -1,5 +1,5 @@
 // Variant B — "Fragment cards": step by step, "press this, then these two together".
-import { keyboardRange, soundingAt, type Fragment, type LessonNote } from '@piano-steps/core';
+import { keyboardRange, soundingAt, TIME_EPS, type Fragment, type LessonNote } from '@piano-steps/core';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { PianoKeyboard, type KeyHighlight } from '../../ui/PianoKeyboard.tsx';
 import type { VariantProps } from '../../variant.ts';
@@ -7,9 +7,10 @@ import { FragmentBar } from './FragmentBar.tsx';
 import { NoteName, StepStrip } from './StepStrip.tsx';
 import {
   buildSteps,
-  fragmentWindow,
+  countInFrom,
   handOf,
   heldOver,
+  isAccent,
   isStepPlayed,
   lessonHasLeft,
   metronome,
@@ -63,8 +64,12 @@ export default function CardsVariant({
   const f = fragments[frag];
   const steps = useMemo(() => (f ? buildSteps(lesson.notes, f) : []), [lesson.notes, f]);
   const fragNotes = useMemo(() => steps.flatMap((s) => s.notes), [steps]);
-  const hasLeft = useMemo(() => lessonHasLeft(lesson.notes), [lesson.notes]);
-  const range = useMemo(() => keyboardRange(lesson.notes.map((n) => n.pitch)), [lesson.notes]);
+  const hasLeft = useMemo(() => lessonHasLeft(fragNotes), [fragNotes]);
+  // Sized to the current fragment, so the keys are wide enough to tap (≥ 44 px on an iPad when it can).
+  const range = useMemo(
+    () => keyboardRange(fragNotes.length > 0 ? fragNotes.map((x) => x.pitch) : lesson.notes.map((x) => x.pitch)),
+    [fragNotes, lesson.notes],
+  );
   const metro = useMemo(() => metronome(lesson.tempo), [lesson.tempo]);
   const n = steps.length;
   const done = step >= n;
@@ -77,10 +82,9 @@ export default function CardsVariant({
   ctx.current = { f, steps, step, speed, loop, along, mode, playing: playingFragment, done };
 
   /** ▶ the fragment; in play-along mode silently, after a one-bar count-in. */
-  const startFragment = (fr: Fragment, rate: number, silent: boolean) => {
-    const w = fragmentWindow(fr);
-    const countIn = silent ? (metro ? metro.tickSec * metro.perBar : 1.5) : 0;
-    player.play({ from: w.from - countIn, to: w.to, rate, muted: silent });
+  const startFragment = (fr: Fragment, rate: number, silent: boolean, loop: boolean) => {
+    const from = silent ? countInFrom(fr.start, metro, rate) : fr.start;
+    player.play({ from, to: fr.end, rate, muted: silent, loop });
   };
   const startRef = useRef(startFragment);
   startRef.current = startFragment;
@@ -100,11 +104,21 @@ export default function CardsVariant({
     () =>
       player.subscribe((e) => {
         if (e.type === 'state') setPlayerState(e.state);
+        const c = ctx.current;
+        // Loop ON at the start → the player loops seamlessly; Loop turned OFF mid-play stops at the wrap.
+        if (e.type === 'loop' && c.mode === 'fragment' && !c.loop) {
+          player.stop();
+          setMode(null);
+        }
         if (e.type === 'end') {
-          const c = ctx.current;
-          // our own loop (not the player's): a loop toggled mid-play takes effect at the end
-          if (c.mode === 'fragment' && c.loop && c.f) startRef.current(c.f, c.speed, c.along);
-          else setMode(null);
+          // Loop turned ON mid-play takes effect at the end. Never for an empty pass (the player ends
+          // those at once), and never re-entering play() from inside the player's own event.
+          if (c.mode === 'fragment' && c.loop && c.f && c.steps.length > 0) {
+            const { f: fr, speed: rate, along: silent } = c;
+            queueMicrotask(() => {
+              if (ctx.current.mode === 'fragment' && ctx.current.f === fr) startRef.current(fr, rate, silent, true);
+            });
+          } else setMode(null);
         }
       }),
     [player],
@@ -120,11 +134,11 @@ export default function CardsVariant({
     const tick = () => {
       const t = player.time;
       const c = ctx.current;
-      if (c.along && metro && c.f && t < fragmentWindow(c.f).to - 0.01) {
-        const k = tickIndex(t, c.f.start, metro.tickSec);
+      if (c.along && metro && c.f && t < c.f.end - TIME_EPS) {
+        const k = tickIndex(t, metro.tickSec);
         if (k !== lastTick) {
           lastTick = k;
-          const accent = ((k % metro.perBar) + metro.perBar) % metro.perBar === 0;
+          const accent = isAccent(k, metro.perBar);
           player.playChord([accent ? 96 : 91], 0.05, accent ? 0.55 : 0.3); // high, short: a tick
         }
       }
@@ -154,10 +168,10 @@ export default function CardsVariant({
 
   const toggleFragment = () => {
     if (playingFragment) return stopPlayback();
-    if (!f) return;
+    if (!f || n === 0) return;
     setPlay({ step: -1, sounding: [] });
     setMode('fragment');
-    startFragment(f, speed, along);
+    startFragment(f, speed, along, loop);
   };
 
   const changeSpeed = (v: number) => {
@@ -211,13 +225,18 @@ export default function CardsVariant({
   actions.current = { next, back };
 
   // Space / → = Next, ← = Back (keys a…l etc. belong to the shell's computer-keyboard piano).
+  const rootRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
-      const el = e.target as HTMLElement | null;
+      const el = e.target instanceof HTMLElement ? e.target : null;
       if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable))
         return;
-      if (document.querySelector('.sheet-backdrop')) return; // a shell dialog is open
+      // A shell dialog is open (soft coupling to the shell's class name; see the fix report).
+      if (document.querySelector('.sheet-backdrop')) return;
+      // Space activates whatever button has focus; it means "Next" only with nothing focused, or on
+      // the step strip.
+      if (e.key === ' ' && !spaceIsNext(el, rootRef.current)) return;
       if (e.key === 'ArrowRight' || e.key === ' ') {
         e.preventDefault(); // Space must not also "click" the focused button
         actions.current.next();
@@ -264,15 +283,24 @@ export default function CardsVariant({
   );
 
   // ── keyboard highlights ─────────────────────────────────────────────────
+  // Press now = filled in the hand's colour; still held from an earlier step = striped ("hold");
+  // coming up next = a ring in that note's hand colour, on top of the fill for a repeated note.
   const highlights = new Map<number, KeyHighlight>();
+  const press = (x: LessonNote) => highlights.set(x.pitch, { mark: handOf(x), hand: handOf(x), label: fingerLabel(x) });
+  const hold = (x: LessonNote) => highlights.set(x.pitch, { mark: 'hold', hand: handOf(x) });
   if (playingFragment) {
-    for (const x of play.sounding) highlights.set(x.pitch, { mark: handOf(x), label: fingerLabel(x) });
+    const onset = steps[play.step]?.time ?? -Infinity;
+    for (const x of play.sounding) (x.start < onset - TIME_EPS ? hold : press)(x);
   } else if (!done) {
-    for (const x of heldOver(steps, step)) highlights.set(x.pitch, { mark: handOf(x) });
-    for (const x of steps[step].notes) highlights.set(x.pitch, { mark: handOf(x), label: fingerLabel(x) });
+    for (const x of heldOver(steps, step)) hold(x);
+    for (const x of steps[step].notes) press(x);
   }
   const upcoming = done ? undefined : steps[(playingFragment ? play.step : step) + 1];
-  if (upcoming) for (const p of upcoming.pitches) if (!highlights.has(p)) highlights.set(p, { mark: 'next' });
+  if (upcoming)
+    for (const x of upcoming.notes) {
+      const h = highlights.get(x.pitch);
+      highlights.set(x.pitch, h ? { ...h, next: true } : { mark: 'next', hand: handOf(x) });
+    }
   for (const p of input.held) highlights.set(p, { mark: marks.current.get(p) ?? 'hint' });
 
   if (!f) {
@@ -303,7 +331,7 @@ export default function CardsVariant({
   ) : null;
 
   return (
-    <div className="cv-root">
+    <div className="cv-root" ref={rootRef}>
       <FragmentBar fragments={fragments} current={frag} progress={progress} lang={lang} onSelect={selectFragment} />
 
       <StepStrip
@@ -406,6 +434,14 @@ export default function CardsVariant({
       />
     </div>
   );
+}
+
+/** Space means "Next" with nothing focused, or with focus on the step strip — never on another button. */
+function spaceIsNext(el: HTMLElement | null, root: HTMLElement | null): boolean {
+  if (!el || el === document.body || el === document.documentElement) return true;
+  if (!root?.contains(el)) return false;
+  if (el.closest('.cv-viewport')) return true; // a step card: Space moves on, as before the tap
+  return !el.closest('button, a[href], [role="button"], [role="tab"]');
 }
 
 /** "Press E4" · "Press together C4 + E4" · "Together: right E4 · left C3" (+ "keep holding C3"). */

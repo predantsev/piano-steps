@@ -1,6 +1,7 @@
 import {
   groupSteps,
   notesInRange,
+  TIME_EPS,
   type Fragment,
   type FragmentProgress,
   type Hand,
@@ -39,21 +40,9 @@ export interface CardStep {
   lanes: Partial<Record<Hand, LaneChip>>;
 }
 
-/**
- * A note whose onset is a hair before a fragment boundary belongs to the NEXT fragment: bounds are
- * often rounded (the Für Elise demo has `end: 1.667` while the next phrase starts at 1.6667 s), and
- * a "first note" squeezed onto the end of the previous fragment is useless for practice. Steps and
- * playback both use this shifted window, so what is shown is exactly what is heard.
- */
-export const EDGE_SEC = 0.02;
-
-export function fragmentWindow(f: Fragment): { from: number; to: number } {
-  return { from: Math.max(0, f.start - EDGE_SEC), to: f.end - EDGE_SEC };
-}
-
 export function buildSteps(notes: readonly LessonNote[], fragment: Fragment): CardStep[] {
-  const w = fragmentWindow(fragment);
-  const steps = groupSteps(notesInRange(notes, w.from, w.to));
+  // Bounds are snapped to note onsets in core (prepareLesson), so the plain window is exact.
+  const steps = groupSteps(notesInRange(notes, fragment.start, fragment.end));
   return steps.map((s, i) => {
     const next = steps[i + 1];
     const end = next ? next.time : Math.max(fragment.end, s.time + 0.05);
@@ -169,11 +158,17 @@ export function trackOffset(layout: StripLayout, viewport: number, index: number
 export function stepAt(steps: readonly Pick<CardStep, 'time'>[], t: number): number {
   let idx = -1;
   for (let i = 0; i < steps.length; i++) {
-    if (steps[i].time <= t + 1e-3) idx = i;
+    if (steps[i].time <= t + TIME_EPS) idx = i;
     else break;
   }
   return idx;
 }
+
+/**
+ * A note must outlast the next onset by more than this to count as "keep holding": transcribed
+ * legato often overlaps the next note by a few ms, which the player should not be told to hold.
+ */
+export const HOLD_MIN_SEC = 0.02;
 
 /** Notes started in an earlier step of the fragment that still sound when `step` starts ("keep holding"). */
 export function heldOver(steps: readonly CardStep[], index: number): LessonNote[] {
@@ -182,7 +177,7 @@ export function heldOver(steps: readonly CardStep[], index: number): LessonNote[
   const out: LessonNote[] = [];
   for (let i = 0; i < index; i++)
     for (const n of steps[i].notes)
-      if (n.start + n.duration > s.time + 0.02 && !s.pitches.includes(n.pitch)) out.push(n);
+      if (n.start + n.duration > s.time + HOLD_MIN_SEC && !s.pitches.includes(n.pitch)) out.push(n);
   return out;
 }
 
@@ -220,7 +215,24 @@ export function metronome(tempo: Tempo | undefined): { tickSec: number; perBar: 
   return { tickSec: (60 / tempo.bpm) * (4 / den), perBar: num };
 }
 
-/** Tick index at lesson time t, counted from the fragment start (negative during the count-in). */
-export function tickIndex(t: number, fragmentStart: number, tickSec: number): number {
-  return Math.floor((t - fragmentStart) / tickSec + 1e-3);
+type Metronome = { tickSec: number; perBar: number };
+
+/** Tick index on the lesson's beat grid: bars counted from t = 0, as core `autoFragments` assumes. */
+export function tickIndex(t: number, tickSec: number): number {
+  return Math.floor(t / tickSec + 1e-3);
+}
+
+/** Bar accent: the first tick of every bar on the lesson grid. */
+export function isAccent(k: number, perBar: number): boolean {
+  return ((k % perBar) + perBar) % perBar === 0;
+}
+
+/**
+ * Lesson time where a play-along run starts: one bar before the grid tick at (or just before) the
+ * fragment start, so the first tick heard is a bar downbeat. Without a tempo there is no grid:
+ * 1.5 s of wall-clock get-ready time, whatever the speed.
+ */
+export function countInFrom(fragmentStart: number, metro: Metronome | null, rate: number): number {
+  if (!metro) return fragmentStart - 1.5 * rate;
+  return (tickIndex(fragmentStart, metro.tickSec) - metro.perBar) * metro.tickSec;
 }

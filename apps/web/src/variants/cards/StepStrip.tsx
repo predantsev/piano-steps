@@ -1,5 +1,5 @@
 import { octaveOf, pitchName, type Hand, type NoteNameSystem } from '@piano-steps/core';
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import type { Lang } from '../../settings.ts';
 import { layoutStrip, maxChord, trackOffset, type CardStep, type LaneChip } from './model.ts';
 import { tr } from './strings.ts';
@@ -35,6 +35,12 @@ export interface StepStripProps {
   onSwipe(dir: 1 | -1): void;
   /** Rendered over the strip (the end-of-fragment panel). */
   overlay?: ReactNode;
+}
+
+/** `--hc` = the card's hand colour (the "next" frame); neutral when both hands play. */
+function handColour(s: CardStep): CSSProperties {
+  const c = s.lanes.R && s.lanes.L ? 'var(--mut)' : s.lanes.L ? 'var(--hand-l)' : 'var(--hand-r)';
+  return { '--hc': c } as CSSProperties;
 }
 
 export function StepStrip({ steps, current, hasLeft, noteNames, lang, onTap, onSwipe, overlay }: StepStripProps) {
@@ -138,7 +144,7 @@ export function StepStrip({ steps, current, hasLeft, noteNames, lang, onTap, onS
                 type="button"
                 role="listitem"
                 className={`cv-card ${state}`}
-                style={{ left: layout.xs[i], width: layout.ws[i] }}
+                style={{ left: layout.xs[i], width: layout.ws[i], ...handColour(s) }}
                 aria-current={i === current ? 'step' : undefined}
                 aria-label={`${tr(lang, 'step')} ${i + 1}: ${names}`}
                 onClick={() => onTap(i)}

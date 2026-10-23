@@ -170,7 +170,7 @@
   border: 1px solid var(--bd);
 }
 .cv-card.is-next::before {
-  border: 2px dashed var(--accent);
+  border: 3px dashed var(--hc, var(--mut)); /* the next note's hand colour, not the UI accent */
 }
 .cv-card.is-current::before {
   border: 3px solid var(--accent);

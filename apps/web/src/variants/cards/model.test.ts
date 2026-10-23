@@ -1,10 +1,11 @@
-import { autoFragments, demoLessons, parseVoice, type LessonNote } from '@piano-steps/core';
+import { demoLessons, parseVoice, prepareLesson, validateLessonInput, type LessonInput, type LessonNote } from '@piano-steps/core';
 import { describe, expect, it } from 'vitest';
 import {
   buildSteps,
+  countInFrom,
   fragmentStatus,
-  fragmentWindow,
   heldOver,
+  isAccent,
   isStepPlayed,
   layoutStrip,
   lessonHasLeft,
@@ -22,6 +23,13 @@ const R = parseVoice('E4 E4 F4 G4/2 C4+E4', { bpm, hand: 'R' });
 const L = parseVoice('C3/5 G2+D3', { bpm, hand: 'L' });
 const notes: LessonNote[] = [...R, ...L];
 const frag = { start: 0, end: 7 };
+
+/** A lesson as the variant gets it from the API: validated and prepared (fragment bounds snapped). */
+function prepared(l: LessonInput) {
+  const v = validateLessonInput(l);
+  if (!v.ok) throw new Error(JSON.stringify(v.errors));
+  return prepareLesson(v.value);
+}
 
 describe('buildSteps', () => {
   const steps = buildSteps(notes, frag);
@@ -147,12 +155,35 @@ describe('play-along metronome', () => {
     expect(metronome({ bpm: 60 })).toEqual({ tickSec: 1, perBar: 4 });
     expect(metronome(undefined)).toBeNull();
   });
-  it('counts from the fragment start, negative during the count-in', () => {
-    expect(tickIndex(10, 10, 0.5)).toBe(0);
-    expect(tickIndex(10.49, 10, 0.5)).toBe(0);
-    expect(tickIndex(10.5, 10, 0.5)).toBe(1);
-    expect(tickIndex(8, 10, 0.5)).toBe(-4); // first tick of a one-bar count-in in 4/4
-    expect(tickIndex(9.99, 10, 0.5)).toBe(-1);
+  it('ticks and accents follow the lesson grid (bars from t = 0), not the fragment start', () => {
+    expect(tickIndex(10, 0.5)).toBe(20);
+    expect(tickIndex(10.49, 0.5)).toBe(20);
+    expect(tickIndex(10.5, 0.5)).toBe(21);
+    expect(tickIndex(-0.5, 0.5)).toBe(-1);
+    expect(isAccent(20, 4)).toBe(true);
+    expect(isAccent(21, 4)).toBe(false);
+    expect(isAccent(-4, 4)).toBe(true);
+    expect(isAccent(-1, 4)).toBe(false);
+  });
+  it('the count-in is exactly one bar: its first tick is the accented downbeat, perBar ticks before the start', () => {
+    const m = { tickSec: 0.5, perBar: 4 };
+    for (const start of [0, 2, 8, 10]) { // fragments cut on bar lines
+      const from = countInFrom(start, m, 1);
+      const first = tickIndex(from, m.tickSec); // the player holds time at `from` for the first frames
+      expect(first).toBe(tickIndex(start, m.tickSec) - 4);
+      expect(isAccent(first, 4)).toBe(true);
+      // ticks emitted from `from` up to the start: one bar, no extra weak tick
+      const ticks = new Set<number>();
+      for (let t = from; t < start - 1e-9; t += 1 / 240) ticks.add(tickIndex(t, m.tickSec));
+      expect(ticks.size).toBe(4);
+    }
+    // a start off the grid counts in from the grid tick before it
+    expect(countInFrom(0.25, m, 1)).toBe(-2);
+    expect(countInFrom(7.2, m, 1)).toBe(5);
+  });
+  it('without a tempo the get-ready time is 1.5 s of wall clock at any speed', () => {
+    expect(countInFrom(4, null, 1)).toBe(2.5);
+    expect(countInFrom(4, null, 0.25)).toBe(3.625); // 0.375 lesson s = 1.5 s at 25 %
   });
 });
 
@@ -175,7 +206,7 @@ describe('progress helpers', () => {
 describe('demo lessons', () => {
   it('every fragment has steps and every note lands in exactly one fragment', () => {
     for (const l of demoLessons()) {
-      const fragments = l.fragments ?? autoFragments(l.notes, { tempo: l.tempo });
+      const fragments = prepared(l).fragments; // what the variant gets from the API
       expect(fragments.length).toBeGreaterThan(0);
       let count = 0;
       for (const f of fragments) {
@@ -187,16 +218,27 @@ describe('demo lessons', () => {
     }
   });
 
-  it('a note a hair before a rounded fragment end opens the next fragment (Für Elise)', () => {
+  it('a phrase that starts a hair before a rounded fragment bound opens the next fragment (core snaps the bound)', () => {
     const fe = demoLessons().find((l) => l.slug === 'fur-elise-opening')!;
-    const [motif, bars23] = fe.fragments!;
-    expect(motif.end).toBe(1.667); // rounded bound…
     const a4 = fe.notes.find((n) => n.pitch === 69)!;
-    expect(a4.start).toBeCloseTo(1.6667, 4); // …the phrase starts a hair earlier
-    const m = buildSteps(fe.notes, motif);
+    expect(a4.start).toBeCloseTo(1.6667, 4);
+    // an agent-authored lesson with bounds rounded to 3 decimals, as the demo had before core #8
+    const rounded = { ...fe, slug: 'fe-rounded', fragments: [{ start: 0, end: 1.667 }, { start: 1.667, end: 4.167 }] };
+    const [pm, pb] = prepared(rounded).fragments;
+    expect(pm.end).toBeCloseTo(1.6667, 4);
+    const m = buildSteps(fe.notes, pm);
     expect(m.length).toBe(8);
     expect(m.at(-1)!.slotSec).toBeGreaterThan(0.1);
-    expect(buildSteps(fe.notes, bars23)[0].pitches).toEqual([45, 69]); // A2 + A4
-    expect(fragmentWindow(motif)).toEqual({ from: 0, to: 1.647 });
+    expect(buildSteps(fe.notes, pb)[0].pitches).toEqual([45, 69]); // A2 + A4
+  });
+
+  it('without a local edge shift: notes between non-contiguous fragments are dropped only where core drops them', () => {
+    const gap: LessonNote[] = [
+      { pitch: 60, start: 1, duration: 1 },
+      { pitch: 62, start: 9.99, duration: 0.2 }, // 10 ms before a fragment end that has a gap after it
+      { pitch: 64, start: 12.5, duration: 0.5 },
+    ];
+    expect(buildSteps(gap, { start: 0, end: 10 }).flatMap((s) => s.pitches)).toEqual([60, 62]);
+    expect(buildSteps(gap, { start: 12, end: 20 }).flatMap((s) => s.pitches)).toEqual([64]);
   });
 });
