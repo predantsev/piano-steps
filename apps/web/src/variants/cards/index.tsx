@@ -170,13 +170,19 @@ export default function CardsVariant({
     stopPlayback();
     setStep(Math.max(0, Math.min(n, i)));
   };
+  // Functional updates, so two taps landing before a re-render still move two steps.
   const next = () => {
-    if (ctx.current.done) return;
-    goStep(ctx.current.playing ? shown + 1 : step + 1);
+    const c = ctx.current;
+    if (c.done) return;
+    stopPlayback();
+    if (c.playing) setStep(Math.min(n, shown + 1));
+    else setStep((s) => Math.min(n, s + 1));
   };
   const back = () => {
-    const from = ctx.current.playing ? shown : step;
-    if (from > 0) goStep(from - 1);
+    const c = ctx.current;
+    stopPlayback();
+    if (c.playing) setStep(Math.max(0, shown - 1));
+    else setStep((s) => Math.max(0, s - 1));
   };
   const tapCard = (i: number) => {
     stopPlayback();
