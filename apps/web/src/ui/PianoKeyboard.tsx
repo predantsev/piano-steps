@@ -1,4 +1,4 @@
-import { isBlackKey, pitchName, type NoteNameSystem } from '@piano-steps/core';
+import { isBlackKey, pitchName, type Hand, type NoteNameSystem } from '@piano-steps/core';
 import { useMemo, useRef, type CSSProperties } from 'react';
 import './PianoKeyboard.css';
 
@@ -8,18 +8,27 @@ import './PianoKeyboard.css';
  */
 
 export type KeyMark =
-  | 'R' // right hand should press / is sounding
-  | 'L' // left hand
-  | 'next' // coming up next (outline)
+  | 'R' // right hand: press now / sounding now (filled)
+  | 'L' // left hand: press now / sounding now (filled)
+  | 'hold' // still held from an earlier step — keep it down, don't press again (striped, by `hand`)
+  | 'next' // coming up next (ring only, coloured by `hand`)
   | 'ok' // pressed correctly
   | 'bad' // pressed but wrong
   | 'hint';
 
 export interface KeyHighlight {
   mark: KeyMark;
+  /** Which hand — colours 'next' rings and 'hold' stripes (defaults to the right hand). */
+  hand?: Hand;
+  /** Also comes up next (e.g. a repeated note): draws the ring on top of the fill. */
+  next?: boolean;
   /** Small text on the key (e.g. a finger number or "1", "2" for order). */
   label?: string;
 }
+
+const handVar = (h: KeyHighlight | undefined) =>
+  h?.hand ? ({ '--hc': `var(--hand-${h.hand === 'L' ? 'l' : 'r'})` } as CSSProperties) : undefined;
+const hasRing = (h: KeyHighlight | undefined) => !!h && (h.mark === 'next' || h.next === true);
 
 export interface PianoKeyboardProps {
   range: [number, number];
@@ -108,9 +117,10 @@ export function PianoKeyboard({
             key={p}
             data-pitch={p}
             className={`pk-key pk-white ${h ? `pk-${h.mark}` : ''}`}
-            style={{ left: `${i * whiteW}%`, width: `${whiteW}%` }}
+            style={{ left: `${i * whiteW}%`, width: `${whiteW}%`, ...handVar(h) }}
             aria-label={pitchName(p)}
           >
+            {hasRing(h) && <span className="pk-ring" />}
             {h?.label && <span className="pk-badge">{h.label}</span>}
             <span className="pk-name">{keyLabel(p)}</span>
           </div>
@@ -126,9 +136,10 @@ export function PianoKeyboard({
               key={p}
               data-pitch={p}
               className={`pk-key pk-black ${h ? `pk-${h.mark}` : ''}`}
-              style={{ left: `${(leftWhite + 1) * whiteW - whiteW * 0.3}%`, width: `${whiteW * 0.6}%` }}
+              style={{ left: `${(leftWhite + 1) * whiteW - whiteW * 0.3}%`, width: `${whiteW * 0.6}%`, ...handVar(h) }}
               aria-label={pitchName(p)}
             >
+              {hasRing(h) && <span className="pk-ring" />}
               {h?.label && <span className="pk-badge">{h.label}</span>}
               {labels === 'all' && <span className="pk-name">{pitchName(p, noteNames, { withOctave: false })}</span>}
             </div>
