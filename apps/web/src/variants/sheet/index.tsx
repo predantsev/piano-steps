@@ -338,7 +338,8 @@ export default function SheetVariant({
     const d = drawnRef.current;
     if (!d) return;
     const { x, y } = toLogical(d, e.clientX, e.clientY);
-    const h = nearestHead(d, x, y, 34);
+    // ≥ 26 CSS px radius at any zoom (a ≥ 44 px touch target around every note head)
+    const h = nearestHead(d, x, y, Math.max(34, 26 / d.zoom));
     if (!h) return;
     const note = lesson.notes[h.index];
     player.playChord([h.pitch], Math.min(1.2, Math.max(0.4, note.duration / speed)));

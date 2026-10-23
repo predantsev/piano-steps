@@ -51,8 +51,10 @@ Appended as the work goes. Each entry: the decision, the evidence it rests on, d
   its downbeats (note length, +2 for a bass note, +0.5 per chord tone) × (1 + 0.5 × share of
   fragment starts on its bar lines + 0.15 if the last note ends on one). A pickup must beat
   "no pickup" by 25 %. Für Elise: offset 2 ticks (an eighth) wins 30 vs 8 on notes alone; with
-  its explicit fragments it is stronger still. Twinkle (o = 0 scores 184 vs 172 for beat 3) is
-  why the 25 % margin exists.
+  its explicit fragments it is stronger still. Twinkle is why the 25 % margin exists:
+  by my hand count (inferred, not printed by any command) o = 0 scores ≈ 184 vs ≈ 172 for a
+  beat-3 offset, because half notes land on beat 3. The behaviour is pinned by the unit test
+  `pickupTicks === 0` for Twinkle and Ode.
 - Tempo estimate (no `lesson.tempo`): commonest onset gap taken as a quarter, folded into
   60–140 bpm, fine-tuned ±8 % for the least snap error; origin = first onset.
 - `ASSUMPTION:` a note without `hand` goes to the bass staff below C4 (pitch < 60), otherwise
@@ -121,3 +123,10 @@ Appended as the work goes. Each entry: the decision, the evidence it rests on, d
   RH dyads, stray hand-less notes) was created in this worktree's local dev DB
   (`apps/server/.data`, gitignored) through `POST /api/lessons?upsert=true`; generator kept in my
   scratchpad, not in git.
+
+### D5 · Touch target on the staff
+- The tap radius was 34 *logical* px, which is < 44 CSS px across at zoom ≤ 0.64. It is now
+  `Math.max(34, 26 / zoom)`, so the radius is ≥ 26 CSS px at any zoom. Verified: a synthetic
+  `pointerdown` 30 CSS px below the E5 head at 1180×820 → `.ps-probe` count 1, E5 key lit.
+- Names toggle (the only toggle that redraws): off → 0 `.ps-name`, viewBox height 241 → 214;
+  on again → 8 names, height 241.

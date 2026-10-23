@@ -34,11 +34,14 @@ Why it is built this way (more detail in `03-variant-sheet.log.md`):
 ## Commits (`git log --oneline main..HEAD`)
 
 ```
+6f586fd docs(sheet): #3 decision log and report for the sheet variant
 10ada47 fix(sheet): #3 beams, name rows, fragment edges and zoom fitting
 6e603b2 feat(sheet): #3 grand staff in sync with the keyboard
 01d89da feat(sheet): #3 quantise lesson notes into a grand-staff score
 ```
-plus the commit that adds this report and the decision log (`docs(sheet): #3 …`).
+
+There is also a last commit on top of these: the tap radius that scales with zoom, plus these
+report corrections (`fix(sheet): #3 …`).
 
 ## How it was verified
 
@@ -47,9 +50,9 @@ Commands, run in the worktree:
 - `npm test` printed `Test Files 3 passed (3)`, `Tests 29 passed (29)`. 13 of the 29 are new in
   `apps/web/src/variants/sheet/quantize.test.ts`.
 - `npm run build` printed `✓ built`. Chunks: `sheet-*.js 744.68 kB │ gzip: 398.32 kB` and
-  `index-*.js 603.65 kB`. The "> 500 kB" warning comes from the shell's `index` chunk and appears
-  on base `HEAD` too: I stashed my uncommitted edits and rebuilt, and the same `index` chunk got
-  the same warning.
+  `index-*.js 603.65 kB`. The "> 500 kB" warning is triggered by the shell's `index` chunk
+  (603.65 kB in every build I ran). The sheet code is only in the lazily loaded `sheet-*.js`
+  chunk. I did not build `main` itself; my comparison build was on my own commit `6e603b2`.
 
 What the quantiser tests check (`quantize.test.ts`):
 - **Für Elise:** 3/8, pickup = 2 ticks (an eighth), bars numbered `0…8`, snap error < 0.01. Bar by
@@ -77,6 +80,8 @@ In the browser: built-in browser, my own tab, dev server `PORT=9331 API_PORT=933
 | Other lessons | Ode to Joy at 1180×820 and 1440×900 (laptop) showed 3 bars with whole notes in the bass. Twinkle showed 2 bars. |
 | Dark theme + uk + solfège | Twinkle: light ink on dark, staff lines visible, names До До Соль Соль…, controls in Ukrainian. |
 | Unquantised lesson | A synthetic lesson (random notes, no tempo, dyads, notes without a hand) rendered without errors. Pill: "Rhythm is approximate … tempo estimated ≈ 97". Bars outside the fragment window are faded. |
+| Names toggle | Turning Names off took the `.ps-name` count from 8 to 0 and the viewBox height from 241 to 214 (the bars were re-fitted). Turning it back on → 8 names, height 241. |
+| Tap target | A synthetic `pointerdown` 30 CSS px below the E5 head still hit it: `.ps-probe` count 1, E5 key lit. The radius is now ≥ 26 CSS px at any zoom (`Math.max(34, 26 / zoom)` logical px). |
 | Portrait 820×1180 | Renders. The chips row moves below the shell's floating button. |
 | Console | `read_console_messages` with the pattern `sheet|error|Error|warn` returned nothing. |
 
