@@ -35,3 +35,89 @@ Appended as the work goes. Each entry: the decision, the evidence it rests on, d
   `sheet` chunk (`variants/index.ts` uses `lazy(() => import('./sheet/index.tsx'))`).
 - Dependency added with `npm install vexflow@5.0.0 -w @piano-steps/web` → touches
   `apps/web/package.json` (in scope) and the root `package-lock.json` (shared; listed in report).
+
+### D2 · Quantisation model (`apps/web/src/variants/sheet/quantize.ts`)
+- Grid = sixteenths (TPQ 4). Onsets rounded; one voice per staff; notes with the same onset on a
+  staff form a chord; each chord lasts until the next onset on its staff unless the gap is a real
+  rest.
+- Rest-vs-release rule. Evidence: `parseVoice` (`packages/core/src/seq.ts`) writes every demo
+  note at **0.95 ×** its written length, so a naive "round the end" turns Ode to Joy's whole
+  notes (3.8 beats) into 3.75. First rule tried: legato if the gap ≤ 15 % of the time to the
+  next onset → the ±30 ms jitter test failed (Ode E4 became `8. r:16`). Second: ≤ 30 % capped at
+  an eighth → a whole note released at 80 % became `h. ~16 r:8.`. Final: **gap ≤ min(30 % of
+  the onset-to-onset time, one quarter)**. It keeps Für Elise's real sixteenth rest after the
+  eighth A4 (gap = 1.1 ticks > 0.9) and a whole note + quarter rest (gap 4.8 > 4).
+- Pickup detection: every tick in one bar is a candidate bar offset; score = weight of onsets on
+  its downbeats (note length, +2 for a bass note, +0.5 per chord tone) × (1 + 0.5 × share of
+  fragment starts on its bar lines + 0.15 if the last note ends on one). A pickup must beat
+  "no pickup" by 25 %. Für Elise: offset 2 ticks (an eighth) wins 30 vs 8 on notes alone; with
+  its explicit fragments it is stronger still. Twinkle (o = 0 scores 184 vs 172 for beat 3) is
+  why the 25 % margin exists.
+- Tempo estimate (no `lesson.tempo`): commonest onset gap taken as a quarter, folded into
+  60–140 bpm, fine-tuned ±8 % for the least snap error; origin = first onset.
+- `ASSUMPTION:` a note without `hand` goes to the bass staff below C4 (pitch < 60), otherwise
+  treble — the same split the MIDI importer uses (`midi.ts`, `splitPitch` 60).
+- `ASSUMPTION:` key signature is estimated (−5…+5 fifths, the key whose major scale covers the
+  most note-time; a key with more accidentals must cover ≥ 3 % more). All three demos resolve to
+  C / A minor (unit-tested); the estimate is otherwise only exercised by the synthetic tests and
+  the synthetic browser lesson (which got 2 flats). Spelling is naive: sharps in C and sharp keys,
+  flats in flat keys; no Gb/F#/C# majors (avoids Cb/E#).
+- `ASSUMPTION:` triplets and 32nds are snapped to the 16th grid ("approximate rhythm is OK").
+- `ASSUMPTION:` a held note under moving notes in the same hand is cut at the next onset (single
+  voice per staff); polyphony within one hand is not notated.
+- Tests: `quantize.test.ts`, 13 cases (all three demos bar by bar where it matters, Für Elise
+  pickup with/without fragments, fragment → bar mapping, ±30 ms jitter, no tempo, 30 random
+  off-grid lessons in 3/4 and 6/8 never throw and fill every bar exactly, ties across a bar line,
+  splitting, key estimate, spelling).
+
+### D3 · Rendering (`render.ts`)
+- One `Voice` per staff per bar with `numBeats = bar length in 16ths, beatValue 16` and
+  `VoiceMode.SOFT`; one `Formatter` per bar over both voices (columns align across staves);
+  `Accidental.applyAccidentals` per staff voice (read `accidental.js`: it tracks by letter+octave
+  across all voices it is given, so the two staves are passed separately).
+- Dead end → fix: in bar 8 of Für Elise the two bass sixteenths came out with flags, no beam
+  (`document.querySelectorAll('.vf-flag')` listed `b8-0`, `b8-1`). Cause in
+  `node_modules/vexflow/build/esm/src/beam.js` `sanitizeGroups`: `parseInt(note.getDuration()) < 8`
+  is NaN for `'q'`, so the quarter stays in the 3/8 group and the whole group is dropped as
+  unbeamable. Passing numeric durations (`'4'`, `'2'`, `'1'`) fixes it — confirmed in the browser.
+- Note names: placed below each staff, one row per chord tone, **below the measured extent** of
+  stems and beams. Dead end: `getBBox()` of the note group is useless — the Bravura `<text>`
+  glyphs report the font's whole ascent (161 px tall boxes, measured via `javascript_tool`).
+  VexFlow draws an invisible `<rect>` with its own bounding box per note; that plus the beam
+  groups' boxes is what is measured.
+- Zoom: the largest of 1.6 … 0.6 (step 0.05) where the bars fit the width and the estimated
+  system heights fit the stage height; systems are stacked by their measured height. If one bar
+  is wider than the screen even at 0.6 it is squeezed (never horizontal scroll).
+- Theming: `ctx.setFillStyle/StrokeStyle('currentColor')` + `.ps-svg { color: var(--strong) }`,
+  staff lines `var(--mut)`, ledger lines (`stroke="#444"` attribute) overridden by CSS; hand
+  colours / highlights are CSS classes on VexFlow's `vf-stavenote` / `vf-notehead` groups.
+- `ASSUMPTION:` bars are drawn whole; notes of the shown bars that fall outside the fragment
+  (a fragment that does not start/end on a bar line) are drawn faded for context.
+
+### D4 · Sync, taps, step mode, progress (`index.tsx`)
+- Redraw only on fragment / size / names toggle / note-name system; one rAF loop reads
+  `player.time` and toggles classes + updates key highlights only when a signature changes.
+- Steps come from core `groupSteps(notesInRange(…))` (same chord grouping as the other variants);
+  each step maps to its drawn note heads through the lesson-note index the quantiser keeps.
+- Found a data issue, worked around locally: demo fragment bounds are rounded to 1 ms
+  (`beats()` in `demo.ts`) but note onsets to 0.1 ms (`parseVoice`), so Für Elise's bar-6 downbeat
+  A4 (6.6667 s) is *before* "Bars 6–8" (6.667 s): core `notesInRange` puts it in "Bars 4–5" and
+  `player.play({from: 6.667})` skips it. Seen in the browser as a faded first note. The variant
+  now uses a 5 ms tolerance for membership and plays `[start − 5 ms, end − 5 ms)`. Not fixed in
+  core (shared file; other variants are affected the same way) → reported as a follow-up.
+- During playback the lit notes/keys are what sounds **plus** the step under the cursor, so a key
+  does not blink off in the 5 % release gap (sampled every 40 ms for 4 s at 25 %: 95 samples,
+  0 frames with the cursor on and no key or head lit).
+- Space / → = Next, ← = Back in step mode; Space = play/stop in listen mode. Space is
+  `preventDefault`ed on keydown and keyup so a focused button is not also clicked (verified: three
+  Space presses with the "Steps" button focused → Step 4 / 12).
+- `ASSUMPTION:` Next plays the chord it arrives on (see it, hear it, play it on the real piano).
+- `ASSUMPTION:` "✓ Got it" records `mastered` and moves on to the next fragment.
+- `ASSUMPTION:` a completed run = the player's `end` or `loop` event of a fragment run started
+  here, or stepping past the last step; a manual Stop is not a run.
+- `ASSUMPTION:` toggles (names, hand colours, mode, loop) persist in `localStorage`
+  `piano-steps-sheet`; note names default on (the owner does not read notes yet).
+- Test fixture: a synthetic, unquantised lesson `sheet-test-unquantised` (random notes, no tempo,
+  RH dyads, stray hand-less notes) was created in this worktree's local dev DB
+  (`apps/server/.data`, gitignored) through `POST /api/lessons?upsert=true`; generator kept in my
+  scratchpad, not in git.
