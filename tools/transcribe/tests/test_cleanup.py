@@ -83,3 +83,8 @@ def test_quantize_snaps_near_onsets_and_leaves_far_ones():
 def test_group_steps_uses_the_app_chord_window():
     steps = group_steps([Note(60, 0.0, 1), Note(64, 0.04, 1), Note(67, 0.1, 1)])
     assert [[n.pitch for n in s] for s in steps] == [[60, 64], [67]]
+
+
+def test_retrigger_zero_still_merges_same_onset_duplicates():
+    out = merge_retriggers([Note(60, 0.0, 0.5), Note(60, 0.0, 0.5)], window=0.0)
+    assert [(n.pitch, n.start, n.duration) for n in out] == [(60, 0.0, 0.5)]

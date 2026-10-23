@@ -14,7 +14,14 @@ def read_midi(path: Path) -> tuple[list[Note], bool]:
     with one track hands are left for `assign_hands`."""
     import pretty_midi
 
-    pm = pretty_midi.PrettyMIDI(str(path))
+    from .audio import InputError
+
+    if not path.is_file():
+        raise InputError(f"no such file: {path.resolve()}")
+    try:
+        pm = pretty_midi.PrettyMIDI(str(path))
+    except Exception as e:  # mido raises OSError, ValueError, EOFError, KeyError… on a broken file
+        raise InputError(f"cannot read {path.name} as MIDI: {e}") from None
     tracks = [i for i in pm.instruments if not i.is_drum and i.notes]
     if not tracks:
         return [], False

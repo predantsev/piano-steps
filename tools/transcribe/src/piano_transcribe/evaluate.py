@@ -34,7 +34,7 @@ import numpy as np
 
 from . import engines
 from .api import Api
-from .audio import crop, fetch_youtube, load_local, youtube_id
+from .audio import fetch_youtube, load_local, youtube_id
 from .cleanup import CleanupOptions, clean
 from .hands import assign_hands, split_fixed
 from .lesson import from_lesson_notes
@@ -300,8 +300,8 @@ def main(a) -> int:
     api = Api(a.base, a.token)
     ref_lesson = api.get_lesson(a.reference)
     ref = from_lesson_notes(ref_lesson["notes"])
-    src = fetch_youtube(a.recording) if youtube_id(a.recording) else load_local(Path(a.recording))
-    clip = crop(src.wav, 0.0, a.search_sec, src.cache_dir / f"eval-0-{a.search_sec:g}.wav")
+    src = fetch_youtube(a.recording, 0.0, a.search_sec) if youtube_id(a.recording) else load_local(Path(a.recording))
+    clip = src.crop(0.0, a.search_sec, src.cache_dir / f"eval-0-{a.search_sec:g}.wav")
 
     al = align(ref, clip)
     ref_aligned = sort_notes(n.copy(start=float(al.map(n.start))) for n in ref)

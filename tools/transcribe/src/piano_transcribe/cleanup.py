@@ -55,7 +55,8 @@ def merge_retriggers(notes: Sequence[Note], window: float) -> list[Note]:
         merged: list[Note] = []
         for n in seq:
             prev = merged[-1] if merged else None
-            if prev and n.start - prev.start < window:
+            # same onset is always one key press, even with window 0
+            if prev and (n.start - prev.start < window or n.start == prev.start):
                 end = max(prev.end, n.end)
                 prev.duration = end - prev.start
                 prev.velocity = max(prev.velocity, n.velocity)
