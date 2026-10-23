@@ -44,7 +44,7 @@ f54121a docs(transcribe): #4 README with measured accuracy + agent skill for the
 d42fdfc feat(transcribe): #4 transcriber CLI — engines, cleanup, hand split, API upload, fix, eval
 b73a143 chore(transcribe): #4 uv project for the transcriber (python 3.11, both engines)
 ```
-(+ two report commits, `ea4161d` and `53916c8` before the rebase; the fix round's commits are in
+(hashes before the rebases on main; + two report commits, `ea4161d` and `53916c8`; the fix round's commits are in
 `04-transcriber.fix-report.md`)
 
 ## Accuracy (runs I did)

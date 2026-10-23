@@ -200,3 +200,12 @@ brief was silent.
   empty fix (rc 1, unchanged, feedback open), bad index (rc 2, feedback untouched), error codes 2/3/4.
   Section-only cache gave the same `fix --dry-run` before/after as the full cache. Test lesson deleted
   (204), dev server stopped.
+- ASSUMPTION: brief 11 says steps 2 and 4 of fix-round.md do not apply but is silent on step 6 (browser
+  check at two sizes). Took brief 11's gate 4 — one real `fix` run against the local app — as this
+  package's live check; no browser run (the transcriber has no UI of its own).
+- origin/main moved mid-session (#14, `b386332`, falling variant only). Rebased again: no conflicts;
+  gates re-run (pytest 50; root typecheck 0, test 0 with 73 tests, build 0). Scope check: no file
+  outside tools/transcribe, the skill, docs/briefs and docker-compose.yml differs from origin/main.
+- Live `--source-file`: `audio …/audio.wav --end 60 --slug sf-check` (no URL) → `fix sf-check 2 --dry-run`
+  → rc 4 with the `--source-file` hint; with `--source-file` → rc 0, same 22-note fragment as the
+  YouTube-sourced lesson. Lesson deleted (204), server stopped.
