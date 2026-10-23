@@ -35,8 +35,9 @@ class Api:
     # ── plumbing ──────────────────────────────────────────────────────────
     def _request(self, method: str, path: str, body: Any = None, query: dict | None = None) -> Any:
         url = self.base + path
-        if query:
-            url += "?" + urllib.parse.urlencode({k: v for k, v in query.items() if v is not None})
+        params = {k: v for k, v in (query or {}).items() if v is not None}
+        if params:
+            url += "?" + urllib.parse.urlencode(params)
         data = None
         headers = {"accept": "application/json"}
         if body is not None:
