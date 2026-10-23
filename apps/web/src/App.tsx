@@ -44,6 +44,11 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [health, setHealth] = useState<api.Health | null>(null);
   const [tokenInvalid, setTokenInvalid] = useState(false);
+  // Decided when Settings opens, so clearing the field never unmounts it under the finger.
+  const [showToken, setShowToken] = useState(false);
+  useEffect(() => {
+    if (dialog === 'settings') setShowToken(!!health?.auth || api.getApiToken() !== null);
+  }, [dialog, health]);
   const fileRef = useRef<HTMLInputElement>(null);
 
   // iOS/iPadOS only allow audio after a user gesture: unlock on the first touch anywhere.
@@ -341,7 +346,7 @@ export default function App() {
                 </button>
               </div>
               {/* Also shown when a token is stored, so it stays reachable even if /api/health failed. */}
-              {(health?.auth || api.getApiToken() !== null || tokenInvalid) && (
+              {(showToken || tokenInvalid) && (
                 <>
                   <span>{t(lang, 'apiToken')}</span>
                   <div>
