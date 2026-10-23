@@ -123,7 +123,16 @@ export default function SheetVariant({
     for (let p = lo; p <= hi; p++) if (!isBlackKey(p)) k++;
     return k;
   };
-  const range = size && size.w / whiteKeys(lessonRange) < MIN_KEY_PX && fragNotes.length ? fragRange : lessonRange;
+  // a wide fragment: trim the C…B padding down to its lowest and highest note (white-key edges)
+  const tightRange = useMemo((): [number, number] => {
+    const ps = fragNotes.map((n) => n.pitch);
+    if (!ps.length) return fragRange;
+    const lo = Math.min(...ps);
+    const hi = Math.max(...ps);
+    return [isBlackKey(lo) ? lo - 1 : lo, isBlackKey(hi) ? hi + 1 : hi];
+  }, [fragNotes, fragRange]);
+  const fits = (r: [number, number]) => !size || size.w / whiteKeys(r) >= MIN_KEY_PX;
+  const range = fits(lessonRange) || !fragNotes.length ? lessonRange : fits(fragRange) ? fragRange : tightRange;
   const isLast = measures.length > 0 && measures[measures.length - 1].index === score.measures.length - 1;
 
   // ── wiring to the shell ──────────────────────────────────────────────────
@@ -525,14 +534,6 @@ export default function SheetVariant({
         {drawError && <p className="sv-msg sv-err">{drawError}</p>}
         {fontReady && !fragNotes.length && <p className="muted sv-msg">{s(lang, 'noNotes')}</p>}
         <div className="sv-overlay">
-          {!prefs.hintSeen && fontReady && fragNotes.length > 0 && (
-            <span className="sv-pill sv-hint" onPointerDown={(e) => e.stopPropagation()}>
-              {s(lang, 'tapHint')}
-              <button className="sv-hint-x" aria-label={s(lang, 'dismiss')} onClick={() => savePrefs({ hintSeen: true })}>
-                ✕
-              </button>
-            </span>
-          )}
           {probeMissing !== null && (
             <span className="sv-pill">
               {pitchName(probeMissing, settings.noteNames)} — {s(lang, 'notHere')}
@@ -547,6 +548,14 @@ export default function SheetVariant({
         </div>
       </div>
 
+      {!prefs.hintSeen && fontReady && fragNotes.length > 0 && (
+        <div className="sv-hint">
+          {s(lang, 'tapHint')}
+          <button className="sv-hint-x" aria-label={s(lang, 'dismiss')} onClick={() => savePrefs({ hintSeen: true })}>
+            ✕
+          </button>
+        </div>
+      )}
       <div className="sv-controls">
         <div className="seg" role="radiogroup">
           <button aria-pressed={prefs.mode === 'listen'} onClick={() => setMode('listen')}>
@@ -585,8 +594,8 @@ export default function SheetVariant({
                 ⟲ {s(lang, 'again')}
               </button>
             )}
-            <span className="sv-count mono">
-              {done ? s(lang, 'done') : `${s(lang, 'stepOf')} ${Math.min(stepIdx + 1, steps.length)} / ${steps.length}`}
+            <span className="sv-count mono" aria-label={done ? s(lang, 'done') : `${s(lang, 'stepOf')} ${Math.min(stepIdx + 1, steps.length)} / ${steps.length}`}>
+              {done ? `✓ ${s(lang, 'doneShort')}` : `${Math.min(stepIdx + 1, steps.length)} / ${steps.length}`}
             </span>
           </>
         )}

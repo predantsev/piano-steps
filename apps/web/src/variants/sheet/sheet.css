@@ -3,7 +3,7 @@
 .sv {
   height: 100%;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  grid-template-rows: auto minmax(0, 1fr) auto auto auto;
   min-height: 0;
 }
 
@@ -109,14 +109,17 @@
   color: var(--mut);
 }
 .sv-hint {
-  pointer-events: auto;
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 4px;
-  padding-right: 0;
-  max-width: min(46rem, calc(100vw - 40px));
+  padding: 0 0 0 12px;
+  border-top: 1px solid var(--bd);
+  background: var(--panel-2);
+  color: var(--strong);
+  font-size: 0.85rem;
 }
 .sv-hint-x {
+  margin-left: auto;
   min-width: var(--tap);
   min-height: var(--tap);
   border: 0;
@@ -255,6 +258,10 @@
 .sv-controls .btn[data-on='false'] {
   color: var(--mut);
 }
+.sv-got {
+  flex: none;
+  white-space: nowrap;
+}
 .sv-got.on {
   color: var(--ok);
   border-color: var(--ok);
@@ -269,7 +276,7 @@
 .sv-count {
   font-size: 0.8rem;
   color: var(--mut);
-  min-width: 6.5rem;
+  white-space: nowrap;
 }
 .sv-dot {
   display: inline-block;

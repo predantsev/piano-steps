@@ -21,6 +21,7 @@ const S = {
   fragments: { uk: 'Фрагменти', en: 'Fragments' },
   stepOf: { uk: 'Крок', en: 'Step' },
   done: { uk: 'Фрагмент пройдено', en: 'Fragment done' },
+  doneShort: { uk: 'пройдено', en: 'done' },
   spaceHint: { uk: 'Пробіл', en: 'Space' },
   notHere: { uk: 'немає в цьому фрагменті', en: 'not in this fragment' },
   approx: {
