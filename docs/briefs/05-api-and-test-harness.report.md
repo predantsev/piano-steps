@@ -58,7 +58,9 @@ d739589 test(api): #5 type the upload helper without DOM lib
 c9f5da2 feat(web): #5 dev automation API (window.pianoSteps) + WebMCP tools, dev builds only
 1605580 feat(api): #5 MusicXML import, MIDI export, consistent errors and a complete OpenAPI spec
 8f8c1d1 feat(core): #5 MusicXML import (musicxmlToLesson, .mxl) and MIDI export (lessonToMidi)
-(+ the commit adding this report and the final log: docs(briefs): #5 …)
+021be55 docs(briefs): #5 decision log and report for the API + test-harness package
+273e8bb test(api): #5 every example body in the spec is accepted by the API as-is
+(+ the commit updating this report)
 ```
 
 ## How it was verified
@@ -66,7 +68,7 @@ c9f5da2 feat(web): #5 dev automation API (window.pianoSteps) + WebMCP tools, dev
 | Check | Command | Result |
 |---|---|---|
 | Types | `npm run typecheck` (workspaces + `e2e/tsconfig.json`) | exit 0 |
-| Unit | `npm test` | `Test Files 3 passed, Tests 32 passed`, 1.19 s (was 16 tests) |
+| Unit | `npm test` | `Test Files 3 passed, Tests 33 passed`, 1.35 s (was 16 tests) |
 | Build | `npm run build` | `index-BklhQyMe.js 605.41 kB` (baseline 603.57 kB) |
 | No devtools in prod | `npm run check:bundle` | `ok — 6 files in apps/web/dist, none contains pianoSteps, modelContext, registerTool, installDevtools, press_keys, devtools` |
 | E2E | `npx playwright test` | `21 passed, 1 skipped` (the skip = WebMCP test on WebKit, by design) |
@@ -74,6 +76,10 @@ c9f5da2 feat(web): #5 dev automation API (window.pianoSteps) + WebMCP tools, dev
 | E2E as CI | `CI=1 npx playwright test` | `21 passed, 1 skipped` |
 
 E2E per project (last full run): **ipad-webkit 10 passed, 1 skipped**; **desktop-chromium 11 passed**.
+
+Example bodies: test `has example bodies that the API accepts as they are` takes each example out of
+`/api/openapi.json` and sends it (lesson create/replace, fragments, fragment notes, progress, feedback +
+patch, and the literal MusicXML example → 201 with notes `48L, 64R, 67R`).
 
 Mutation checks (each reverted):
 - removing one route description + one request example → the OpenAPI completeness test failed with exactly
@@ -128,6 +134,12 @@ renders `v0.2.0 · OpenAPI 3.1.0` with the examples. Screenshots at both sizes s
 | `packages/core/package.json` | `8f8c1d1` | deps `fast-xml-parser`, `fflate` |
 | `AGENTS.md`, `README.md` | `c3d2553` | one line each: `npm run e2e`, pointer to `docs/testing-api.md` |
 | `.github/workflows/ci.yml` | `36ff4e7` | `check:bundle` step; new `e2e` job |
+| `scripts/check-prod-bundle.mjs` (new) | `36ff4e7` | fails if the dev automation API is in `apps/web/dist`; run by `npm run check:bundle` |
+
+**Note for the transcriber (04) and any API client**: since `1605580` the error body's `error` is a
+stable **code** (`validation`, `not-found`, `conflict`, …) and the human sentence is in `details[0]`; status
+codes are unchanged, and imports with `?upsert=true` that replace a lesson now answer **200** (201 only when
+created). `scripts/lesson-add.ts` was checked: it tests `res.ok` and prints the whole body, so it is unaffected.
 
 **Note for the variant branches when merging**: the e2e suite runs against whatever is in
 `apps/web/src/variants/` — on this branch that is still the placeholder. The tests only rely on shell DOM
@@ -142,4 +154,5 @@ default variant (`falling`) shows the shared `PianoKeyboard` and highlights held
 - A body-size limit on the import routes (`hono/body-limit`) — a large `.mxl` is fully read into memory today.
 - `midiToLesson` could honour track names ("Right hand"/"Left hand") so an exported file round-trips its hands
   even when the left hand plays higher.
+- `scripts/lesson-add.ts` could accept `.musicxml` / `.mxl` too (it knows `.mid` and `.json` only).
 - Try the MusicXML importer on a few real exports (MuseScore, Finale) and expand repeats if needed.

@@ -196,3 +196,12 @@ the brief was silent and I chose.
 - Decision: don't fake it; report it. `getState().display.framesRunning` (no frame for 250 ms → `false`). Verified
   in that tab: `{ framesRunning: false }`; the e2e asserts `true` in Playwright. I did not bring my tab to the front
   (that would have frozen another agent's tab).
+
+## Final review fixes
+
+- ASSUMPTION: `scripts/check-prod-bundle.mjs` is a new file in the shared `scripts/` folder (outside the listed
+  scope) — a script is the simplest thing CI can run after `npm run build`; listed under shared-file changes.
+- `scripts/lesson-add.ts` (an existing API client) checked after the error-shape / 200-on-upsert change: it uses
+  `res.ok` and prints the whole JSON body on failure → unaffected.
+- The literal MusicXML example in the spec had never been sent; new test `has example bodies that the API accepts
+  as they are` POSTs every spec example as-is (MusicXML → 201, notes `48L, 64R, 67R`). `npm test` → 33 passed.
