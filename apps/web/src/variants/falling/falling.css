@@ -1,0 +1,146 @@
+/* Variant A — falling notes. Colours only through the shell's CSS variables (light/dark themes). */
+.fl {
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  gap: 8px;
+  padding: 10px 12px 12px;
+  min-height: 0;
+}
+
+/* Fragment chips — one row, scrolls sideways; the right end stays clear of the shell's floating
+   buttons (🎧 / ⚑, absolutely positioned at the top-right of the stage). */
+.fl-frags {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  padding-right: var(--fl-fab-clear, 16rem);
+  -webkit-overflow-scrolling: touch;
+}
+.fl-chip {
+  flex: none;
+  white-space: nowrap;
+}
+.fl-chip.fl-mastered:not(.primary) {
+  border-color: var(--ok);
+  color: var(--ok);
+}
+.fl-chip.fl-mastered.primary {
+  box-shadow: inset 0 0 0 2px var(--ok);
+}
+.fl-count {
+  font: 600 0.68rem/1 var(--mono);
+  opacity: 0.75;
+}
+
+.fl-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.fl-primary {
+  min-width: 9.5rem;
+}
+.fl-sep {
+  width: 1px;
+  align-self: stretch;
+  background: var(--bd);
+  margin: 4px 2px;
+}
+.fl-spacer {
+  flex: 1;
+}
+.fl-toggle[aria-pressed='true'] {
+  background: var(--panel-2);
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.fl-gotit[aria-pressed='true'] {
+  background: var(--ok);
+  border-color: var(--ok);
+  color: var(--accent-fg);
+  box-shadow: none;
+  font-weight: 600;
+}
+.fl-controls .seg button {
+  min-width: var(--tap);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.fl-seg-label {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 0.2rem 0 0.6rem;
+}
+.fl-dot {
+  width: 0.62rem;
+  height: 0.62rem;
+  border-radius: 999px;
+  display: inline-block;
+  box-shadow: 0 0 0 1.5px var(--panel);
+}
+.fl-dot-r {
+  background: var(--hand-r);
+}
+.fl-dot-l {
+  background: var(--hand-l);
+}
+.fl-dot + .fl-dot {
+  margin-left: -0.35rem;
+}
+
+/* The lane and the keyboard share one column: same left edge, same width. */
+.fl-lane {
+  position: relative;
+  min-height: 0;
+  border-radius: 10px 10px 0 0;
+  overflow: hidden;
+  background: var(--panel-2);
+}
+.fl-lane canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: manipulation;
+}
+.fl-pill {
+  position: absolute;
+  left: 50%;
+  top: 12px;
+  transform: translateX(-50%);
+  max-width: calc(100% - 24px);
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: var(--panel);
+  border: 1px solid var(--bd);
+  box-shadow: var(--shadow);
+  color: var(--fg);
+  font-size: 0.95rem;
+  text-align: center;
+  pointer-events: none;
+}
+.fl-pill b {
+  color: var(--strong);
+  font-size: 1.1rem;
+}
+.fl-keys {
+  min-height: 140px;
+}
+
+/* Narrow / short windows: smaller keyboard so the lane keeps room. */
+@media (max-height: 640px) {
+  .fl-keys {
+    min-height: 110px;
+  }
+}
+@media (max-width: 900px) {
+  .fl-frags {
+    padding-right: var(--fl-fab-clear-narrow, 0);
+  }
+}
