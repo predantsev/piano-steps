@@ -6,6 +6,7 @@ import {
   isActive,
   nextOnsetBars,
   playerHands,
+  snapSpan,
   soundingBars,
   stepAtOrAfter,
   visibleBars,
@@ -50,6 +51,21 @@ describe('windowNotes', () => {
     expect(w.map((x) => x.pitch)).toEqual([60, 62, 43, 64]);
     expect(w.find((x) => x.pitch === 43)!.duration).toBeCloseTo(0.25);
     expect(w.find((x) => x.pitch === 60)!.duration).toBe(0.5);
+  });
+});
+
+describe('snapSpan', () => {
+  // the demo Für Elise case: bounds rounded to ms, onsets to 0.1 ms
+  const fe = [n(76, 1.4583, 0.2, 'R'), n(45, 1.6667, 0.2, 'L'), n(69, 1.6667, 0.4, 'R'), n(71, 4.1667, 0.4, 'R')];
+  it('a chord a hair before the start belongs to the fragment that starts there', () => {
+    expect(snapSpan(fe, { start: 1.667, end: 4.167 })).toEqual({ start: 1.6667, end: 4.1667 });
+    expect(windowNotes(fe, snapSpan(fe, { start: 1.667, end: 4.167 })).map((x) => x.pitch)).toEqual([45, 69]);
+  });
+  it('and not to the one that ends there', () => {
+    expect(windowNotes(fe, snapSpan(fe, { start: 0, end: 1.667 })).map((x) => x.pitch)).toEqual([76]);
+  });
+  it('leaves bounds alone when no onset is close', () => {
+    expect(snapSpan(fe, { start: 0, end: 1.6 })).toEqual({ start: 0, end: 1.6 });
   });
 });
 

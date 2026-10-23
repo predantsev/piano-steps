@@ -4,6 +4,7 @@ import {
   covers,
   period,
   playerHands,
+  snapSpan,
   stepAtOrAfter,
   waitSteps,
   windowNotes,
@@ -118,7 +119,7 @@ export class PracticeEngine {
   setSpan(span: Span) {
     this.halt();
     const end = Math.min(span.end, this.lessonEnd);
-    this.span = { start: span.start, end: end > span.start ? end : span.end };
+    this.span = snapSpan(this.lessonNotes, { start: span.start, end: end > span.start ? end : span.end });
     this.notes = windowNotes(this.lessonNotes, this.span);
     this.steps = waitSteps(this.notes, this.opts.hands);
     this.cursor = this.span.start;

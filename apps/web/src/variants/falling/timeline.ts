@@ -45,6 +45,22 @@ export function windowNotes(notes: readonly LessonNote[], span: Span): LessonNot
     .sort((a, b) => a.start - b.start || a.pitch - b.pitch);
 }
 
+/**
+ * Snap the window bounds to onsets lying within `tol` seconds of them. Fragment bounds are often
+ * rounded to the millisecond while onsets are not (demo Für Elise: "Bars 2–3" starts at 1.667, its
+ * first chord at 1.6667), and without this the boundary chord falls out of the fragment that starts
+ * there — neither drawn nor played (the player skips onsets before `from − 0.1 ms`) — and leaks into
+ * the fragment that ends there as an invisible 0.3 ms sliver.
+ */
+export function snapSpan(notes: readonly LessonNote[], span: Span, tol = 0.01): Span {
+  let { start, end } = span;
+  for (const n of notes) {
+    if (Math.abs(n.start - span.start) <= tol) start = Math.min(start, n.start);
+    if (Math.abs(n.start - span.end) <= tol) end = Math.min(end, n.start);
+  }
+  return end > start ? { start, end } : span;
+}
+
 export function period(span: Span): number {
   return span.end - span.start;
 }
