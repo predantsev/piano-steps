@@ -1,6 +1,7 @@
 import { XMLParser, XMLValidator } from 'fast-xml-parser';
 import { strFromU8, unzipSync } from 'fflate';
 import type { Fragment, Hand, LessonInput, LessonNote, Tempo } from './lesson.ts';
+import { notesInRange, snapFragments } from './steps.ts';
 
 /**
  * MusicXML (`.musicxml` / `.xml`, or compressed `.mxl`) → LessonInput.
@@ -382,18 +383,17 @@ function measureFragments(bounds: number[], notes: LessonNote[], targetSec: numb
   cuts.push(Math.max(bounds[bounds.length - 1], lastNoteEnd));
   const out: Fragment[] = [];
   for (let k = 0; k < cuts.length - 1; k++) {
-    const start = r3(cuts[k]);
-    const end = r3(cuts[k + 1]);
-    if (end > start && notes.some((n) => n.start >= start - EPS && n.start < end - EPS)) out.push({ start, end });
+    // The same 4-decimal grid as note onsets, then snapped onto them: a downbeat is never filed
+    // under the previous fragment (e.g. a bar ending at 6.6667 s at 72 bpm).
+    const start = r(cuts[k]);
+    const end = r(cuts[k + 1]);
+    if (end > start && notesInRange(notes, start, end).length) out.push({ start, end });
   }
-  return out;
+  return snapFragments(out, notes);
 }
 
 function r(x: number): number {
   return Math.round(x * 10000) / 10000;
-}
-function r3(x: number): number {
-  return Math.round(x * 1000) / 1000;
 }
 function round(x: number, f: number): number {
   return Math.round(x * f) / f;

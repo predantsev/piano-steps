@@ -1,5 +1,6 @@
 import {
   demoLessons,
+  notesInRange,
   prepareLesson,
   validateLessonInput,
   type Feedback,
@@ -177,7 +178,9 @@ export async function replaceFragmentNotes(
   const lesson = await getLesson(db, idOrSlug);
   const fr = lesson.fragments[position];
   if (!fr) throw new NotFound(`Fragment ${position} not found in "${idOrSlug}"`);
-  const kept = lesson.notes.filter((n) => n.start < fr.start - 1e-6 || n.start >= fr.end - 1e-6);
+  // The same membership rule as the player and the views (notesInRange, TIME_EPS).
+  const inside = new Set(notesInRange(lesson.notes, fr.start, fr.end));
+  const kept = lesson.notes.filter((n) => !inside.has(n));
   const v = validateLessonInput({ ...lesson, slug: lesson.slug, notes: [...kept, ...notes] });
   if (!v.ok) throw new Invalid(v.errors);
   return replaceLesson(db, lesson.id, prepareLesson(v.value));

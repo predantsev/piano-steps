@@ -214,3 +214,16 @@ the brief was silent and I chose.
   After `npm install`: typecheck exit 0, `npm test` → 4 files, 41 tests passed.
 - Variant branches at start: feat/1 335fbc2, feat/2 81fe150, feat/3 1cf9d89 (all 0 behind main; still moving).
 - ASSUMPTION: e2e ports for this package are 9352/9353 (`E2E_WEB_PORT`/`E2E_API_PORT`), scratch combined tree 9354/9355 — the brief says "935x" without exact numbers.
+
+### Blocker #18 — e2e variant-agnostic (commits 4b56dda, next)
+- devtools.spec: the press/release test now loops over every variant tab; asserts `heldKeys` exactly,
+  `litKeys ⊇ pressed`, release via `heldKeys` + `recentInput`. WebMCP test: `arrayContaining`. app.spec: regex
+  gains `hold`; release checked through `heldKeys` (sheet keeps a probe `hint` 2.5 s — finding 20).
+- litKeys: marks come from a `Record<KeyMark, true>` (a new KeyMark fails to compile until listed) — adds `hold`;
+  a `.pk-ring` on a filled key is reported as `next: true`.
+- First combined-tree run (main + feat/1 335fbc2 + feat/2 81fe150 + feat/3 1cf9d89 + feat/5) → 22 passed,
+  1 failed: "imports a MusicXML score" — console 404 on `GET /api/lessons/e2e-import-…/progress` (read from the
+  trace's network log). Cause: `openApp(page)` without `?lesson=` let the app pick the JSON-import test's lesson,
+  which that test deletes in parallel (shared in-memory DB). Not variant-specific. Fix: `openApp` always adds
+  `lesson=ode-to-joy` when the query names none.
+- Re-run combined tree `--repeat-each 3` → `69 passed, 3 skipped` (skips = WebMCP on WebKit). Branch alone → 23 passed, 1 skipped.

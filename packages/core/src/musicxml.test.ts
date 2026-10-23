@@ -1,7 +1,15 @@
 import { strToU8, zipSync } from 'fflate';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { lessonToMidi, midiToLesson, MusicXmlError, musicxmlToLesson, prepareLesson, validateLessonInput } from './index.ts';
+import {
+  lessonToMidi,
+  midiToLesson,
+  MusicXmlError,
+  musicxmlToLesson,
+  notesInRange,
+  prepareLesson,
+  validateLessonInput,
+} from './index.ts';
 import { demoLessons } from './demo.ts';
 
 const fixture = readFileSync(new URL('./fixtures/two-hands.musicxml', import.meta.url), 'utf8');
@@ -108,6 +116,43 @@ describe('musicxmlToLesson', () => {
       /no pitched notes/,
     );
     expect(() => musicxmlToLesson(new Uint8Array([0x50, 0x4b, 0x03, 0x04, 1, 2, 3]))).toThrow(MusicXmlError);
+  });
+});
+
+/** A one-part score: `bars` measures of 4/4, each four quarter notes C5 D5 E5 F5; optional extra XML per part. */
+function scale(opts: { bpm?: number; bars?: number; attrs?: string; step?: string; octave?: number } = {}): string {
+  const { bars = 8, attrs = '', step, octave } = opts;
+  const note = (s: string, o: number) =>
+    `<note><pitch><step>${s}</step><octave>${o}</octave></pitch><duration>1</duration><voice>1</voice></note>`;
+  const measures = Array.from({ length: bars }, (_, i) => {
+    const head =
+      i === 0
+        ? `<attributes><divisions>1</divisions><time><beats>4</beats><beat-type>4</beat-type></time>${attrs}</attributes>` +
+          (opts.bpm ? `<sound tempo="${opts.bpm}"/>` : '')
+        : '';
+    const body = step ? note(step, octave ?? 4).repeat(4) : ['C', 'D', 'E', 'F'].map((s) => note(s, 5)).join('');
+    return `<measure number="${i + 1}">${head}${body}</measure>`;
+  }).join('');
+  return `<?xml version="1.0"?><score-partwise version="4.0"><part-list><score-part id="P1"><part-name>X</part-name></score-part></part-list><part id="P1">${measures}</part></score-partwise>`;
+}
+
+describe('musicxmlToLesson fragment edges', () => {
+  // At these tempos a bar ends on a time that rounds differently at 3 and 4 decimals (e.g. 6.6667 s).
+  it.each([66, 72, 90])('puts every downbeat in its own fragment at %i bpm (as imported and as stored)', (bpm) => {
+    const imported = musicxmlToLesson(scale({ bpm }));
+    const v = validateLessonInput(imported);
+    if (!v.ok) throw new Error(v.errors.join('; '));
+    const stored = prepareLesson(v.value);
+    for (const l of [imported, stored]) {
+      const frs = l.fragments!;
+      expect(frs.length).toBeGreaterThan(1);
+      for (const f of frs) {
+        const inside = notesInRange(l.notes, f.start, f.end);
+        expect(inside[0].start).toBe(f.start); // starts on its downbeat…
+        expect(inside[0].pitch).toBe(72); // …which is the bar's C5
+        expect(inside.length % 4).toBe(0); // whole bars only
+      }
+    }
   });
 });
 
