@@ -20,13 +20,10 @@
 }
 .fl-frags {
   display: flex;
+  flex-wrap: wrap; /* a narrow window wraps the chips instead of hiding the last ones */
   gap: 8px;
   flex: 0 1 auto;
   min-width: 0;
-  overflow-x: auto;
-  overscroll-behavior-x: contain;
-  scrollbar-width: thin;
-  -webkit-overflow-scrolling: touch;
 }
 .fl-gotit {
   flex: none;
@@ -56,14 +53,51 @@
 .fl-controls > .btn:not(.big) {
   padding: 0 0.7rem;
 }
-.fl-primary {
-  min-width: 7.5rem;
+/* Bottom bar under the keyboard — the edge nearest the hands on a music stand. */
+.fl-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-top: 10px;
+  min-height: 72px;
 }
-.fl-sep {
-  width: 1px;
-  align-self: stretch;
-  background: var(--bd);
-  margin: 4px 2px;
+.fl-status {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 1.25rem;
+  line-height: 1.25;
+}
+.fl-step b {
+  color: var(--strong);
+  font-size: 1.55rem;
+  letter-spacing: 0.01em;
+}
+.fl-kbd {
+  font-size: 0.95rem;
+}
+.fl-done {
+  color: var(--ok);
+  font-weight: 700;
+}
+.fl-hear {
+  flex: none;
+  border-radius: 999px;
+}
+.fl-nextfrag,
+.fl-again {
+  flex: none;
+  min-height: 56px;
+  white-space: nowrap;
+}
+.fl-primary {
+  flex: none;
+  min-height: 64px;
+  min-width: 15rem;
+  font-size: 1.3rem;
+  white-space: nowrap;
 }
 .fl-toggle[aria-pressed='true'] {
   background: var(--panel-2);
@@ -105,7 +139,7 @@
    the now-line is the keyboard's top edge. */
 .fl-stage {
   display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-rows: minmax(0, 1fr) auto auto;
   min-height: 0;
 }
 .fl-lane {
@@ -126,49 +160,58 @@
 .fl-pill {
   position: absolute;
   left: 50%;
-  top: 12px;
-  transform: translateX(-50%);
+  top: 40%;
+  transform: translate(-50%, -50%);
   max-width: calc(100% - 24px);
-  padding: 8px 16px;
+  padding: 10px 18px;
   border-radius: 999px;
   background: var(--panel);
   border: 1px solid var(--bd);
   box-shadow: var(--shadow);
   color: var(--fg);
-  font-size: 0.95rem;
+  font-size: 1.05rem;
   text-align: center;
   pointer-events: none;
 }
-.fl-pill-wait {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 4px 16px 4px 4px;
-  text-align: left;
-}
-.fl-hear {
-  pointer-events: auto;
-  border-radius: 999px;
-  flex: none;
-}
-.fl-pill b {
-  color: var(--strong);
-  font-size: 1.1rem;
-}
-.fl-lookahead {
-  position: absolute;
-  right: 10px;
-  top: 10px;
-  background: color-mix(in srgb, var(--panel) 85%, transparent);
-  box-shadow: var(--shadow);
-}
 .fl-keys {
   min-height: 140px;
+}
+/* Note names on the keys: readable from the bench, and middle C marked. Overrides the shell's
+   11 px .pk-name for this variant only. */
+.fl-keys .pk-name {
+  font-size: 0.85rem;
+}
+.fl-keys [data-pitch='60'] .pk-name {
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 /* Narrow / short windows: smaller keyboard so the lane keeps room. */
 @media (max-height: 640px) {
   .fl-keys {
     min-height: 110px;
+  }
+  .fl-bar {
+    min-height: 60px;
+  }
+  .fl-primary {
+    min-height: 56px;
+  }
+}
+/* Narrow (portrait): the step text gets its own line above the buttons. */
+@media (max-width: 900px) {
+  .fl-bar {
+    flex-wrap: wrap;
+  }
+  .fl-status {
+    flex-basis: 100%;
+  }
+  .fl-primary {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .fl-hear-label {
+    display: none;
   }
 }

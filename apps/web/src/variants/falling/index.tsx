@@ -1,12 +1,12 @@
 // Variant A — "Falling notes" (Synthesia-style): coloured bars fall onto the keys; loop, slow-down,
 // hands, and a wait mode that stops at every step until the user has played it on the real piano.
-import { keyboardRange, pitchName, type Fragment, type FragmentProgress } from '@piano-steps/core';
-import { useEffect, useMemo, useReducer, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { notesInRange, pitchName, type Fragment, type FragmentProgress } from '@piano-steps/core';
+import { useEffect, useMemo, useReducer, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import * as Tone from 'tone';
 import { PianoKeyboard, type KeyHighlight } from '../../ui/PianoKeyboard.tsx';
 import type { VariantProps } from '../../variant.ts';
 import { PracticeEngine, type PracticeOptions } from './engine.ts';
-import { keyGeometry } from './geometry.ts';
+import { fitRange, keyGeometry } from './geometry.ts';
 import { barRect, drawLane, readColors, type LaneColors } from './lane.ts';
 import { keyMarks, marksSignature } from './marks.ts';
 import { s } from './strings.ts';
@@ -94,7 +94,20 @@ export default function FallingNotes({
   const [, rerender] = useReducer((x: number) => x + 1, 0);
   const [highlights, setHighlights] = useState<Map<number, KeyHighlight>>(() => new Map());
 
-  const range = useMemo(() => keyboardRange(lesson.notes.map((n) => n.pitch)), [lesson]);
+  // Keys sized to the fragment's notes (white keys ≥ 44 px on an iPad for the demo lessons).
+  const range = useMemo(() => {
+    const f = fragIdx === null ? undefined : lesson.fragments[fragIdx];
+    const inFrag = f ? notesInRange(lesson.notes, f.start, f.end) : lesson.notes;
+    return fitRange((inFrag.length ? inFrag : lesson.notes).map((n) => n.pitch));
+  }, [lesson, fragIdx]);
+  // A mouse/trackpad (and so, likely, a keyboard): only then is the Space hint worth showing.
+  const [finePointer] = useState(() => {
+    try {
+      return matchMedia('(hover: hover) and (pointer: fine)').matches;
+    } catch {
+      return false;
+    }
+  });
   const keys = useMemo(() => keyGeometry(range), [range]);
   const lessonEnd = useMemo(() => lesson.notes.reduce((m, n) => Math.max(m, n.start + n.duration), 0), [lesson]);
 
@@ -148,8 +161,9 @@ export default function FallingNotes({
     [input, player, engine],
   );
 
-  // Space = the big button (play/pause, or Next in wait mode); ← / → = previous / next fragment.
+  // Space = the big button (play/pause, Next in wait mode, Next fragment at the end); ← / → = fragments.
   const fragCount = lesson.fragments.length;
+  const mainActionRef = useRef<() => void>(() => {});
   useEffect(() => {
     const typing = (ev: KeyboardEvent) => {
       const el = ev.target as HTMLElement | null;
@@ -161,7 +175,7 @@ export default function FallingNotes({
         ev.preventDefault();
         if (!ev.repeat) {
           void player.unlock();
-          engine.primary();
+          mainActionRef.current();
         }
       } else if (ev.key === 'ArrowRight' || ev.key === 'ArrowLeft') {
         ev.preventDefault();
@@ -325,22 +339,39 @@ export default function FallingNotes({
   const mastered = fragIdx !== null && progressOf(fragIdx)?.status === 'mastered';
   const phase = engine.phase;
   const waitingStep = engine.waitingStep;
-  const noNotes = engine.steps.length === 0;
+  const noSteps = engine.steps.length === 0;
+  const empty = engine.notes.length === 0;
+  const canPlay = prefs.wait ? !noSteps : !empty;
+
+  // After the last fragment comes the whole lesson; after the whole lesson, nothing.
+  const nextFrag: number | null | undefined =
+    fragIdx === null ? undefined : fragIdx + 1 < fragCount ? fragIdx + 1 : null;
+  const nextFragTitle =
+    nextFrag === undefined ? '' : nextFrag === null ? s(lang, 'wholeLesson') : (lesson.fragments[nextFrag].title ?? `#${nextFrag + 1}`);
+  const goNextFrag = () => {
+    if (nextFrag !== undefined) setFragIdx(nextFrag);
+  };
+  const done = phase === 'done';
+  const nextIsMain = done && nextFrag !== undefined;
+  mainActionRef.current = () => (nextIsMain ? goNextFrag() : engine.primary());
 
   let primaryLabel: string;
   let primaryIcon: string;
-  if (prefs.wait) {
-    primaryIcon = phase === 'done' ? '↻' : '▶';
-    primaryLabel = phase === 'done' ? s(lang, 'again') : s(lang, 'next');
+  if (nextIsMain) {
+    primaryIcon = '›';
+    primaryLabel = `${s(lang, 'nextFragment')}: ${nextFragTitle}`;
+  } else if (done) {
+    primaryIcon = '↻';
+    primaryLabel = s(lang, 'again');
+  } else if (prefs.wait) {
+    primaryIcon = '›';
+    primaryLabel = s(lang, 'next');
   } else if (phase === 'playing' || phase === 'preroll') {
     primaryIcon = '❚❚';
     primaryLabel = s(lang, 'pause');
   } else if (phase === 'paused') {
     primaryIcon = '▶';
     primaryLabel = s(lang, 'resume');
-  } else if (phase === 'done') {
-    primaryIcon = '↻';
-    primaryLabel = s(lang, 'again');
   } else {
     primaryIcon = '▶';
     primaryLabel = s(lang, 'play');
@@ -348,15 +379,15 @@ export default function FallingNotes({
 
   const chip = (label: string, i: number | null) => {
     const pr = i === null ? undefined : progressOf(i);
-    const done = pr?.status === 'mastered';
+    const isDone = pr?.status === 'mastered';
     return (
       <button
         key={i ?? 'all'}
-        className={`btn fl-chip ${i === fragIdx ? 'primary' : ''} ${done ? 'fl-mastered' : ''}`}
+        className={`btn fl-chip ${i === fragIdx ? 'primary' : ''} ${isDone ? 'fl-mastered' : ''}`}
         aria-pressed={i === fragIdx}
         onClick={() => setFragIdx(i)}
       >
-        {done && <span aria-hidden>✓</span>}
+        {isDone && <span aria-hidden>✓</span>}
         <span>{label}</span>
         {pr && pr.attempts > 0 && (
           <span className="fl-count" title={`${pr.attempts} ${s(lang, 'runs')}`}>
@@ -366,6 +397,24 @@ export default function FallingNotes({
       </button>
     );
   };
+
+  // What the bottom bar says: the step to play (wait mode), the lead-in, the end of the fragment.
+  let status: ReactNode = null;
+  if (done) status = <span className="fl-done">✓ {s(lang, 'fragmentDone')}</span>;
+  else if (phase === 'preroll') status = <span>{s(lang, 'getReady')}</span>;
+  else if (prefs.wait && waitingStep)
+    status = (
+      <>
+        <button className="btn fl-hear" onClick={() => engine.hearStep()} title={s(lang, 'hearStep')}>
+          🔊 <span className="fl-hear-label">{s(lang, 'hearStep')}</span>
+        </button>
+        <span className="fl-step" aria-live="polite">
+          {s(lang, 'playThese')}{' '}
+          <b>{waitingStep.pitches.map((p) => pitchName(p, settings.noteNames)).join(' + ')}</b>
+          {finePointer && <span className="muted fl-kbd"> {s(lang, 'spaceHint')}</span>}
+        </span>
+      </>
+    );
 
   return (
     <div className="fl">
@@ -386,20 +435,9 @@ export default function FallingNotes({
       </div>
 
       <div className="fl-controls">
-        <button
-          className="btn big primary fl-primary"
-          onClick={() => engine.primary()}
-          disabled={prefs.wait && noNotes}
-          aria-keyshortcuts="Space"
-        >
-          <span aria-hidden>{primaryIcon}</span> {primaryLabel}
+        <button className="btn" onClick={() => engine.restart()}>
+          ⏮ {s(lang, 'restart')}
         </button>
-        <button className="btn" onClick={() => engine.restart()} title={s(lang, 'restart')} aria-label={s(lang, 'restart')}>
-          ⏮
-        </button>
-
-        <span className="fl-sep" />
-
         <button className="btn fl-toggle" aria-pressed={prefs.loop} onClick={() => set({ loop: !prefs.loop })}>
           🔁 {s(lang, 'loop')}
         </button>
@@ -433,38 +471,25 @@ export default function FallingNotes({
             </button>
           ))}
         </div>
+
+        <button
+          className="btn"
+          onClick={() => set({ lookAhead: nextLookAhead(prefs.lookAhead) })}
+          title={s(lang, 'lookAhead')}
+          aria-label={`${s(lang, 'lookAhead')}: ${prefs.lookAhead}s`}
+        >
+          👁 {s(lang, 'ahead')} {prefs.lookAhead} {s(lang, 'sec')}
+        </button>
       </div>
 
       <div className="fl-stage">
         <div className="fl-lane" ref={laneRef}>
           <canvas ref={canvasRef} onPointerDown={onLanePointerDown} aria-label={s(lang, 'tapBar')} role="img" />
-          <button
-            className="btn fl-lookahead"
-            onClick={() => set({ lookAhead: nextLookAhead(prefs.lookAhead) })}
-            title={s(lang, 'lookAhead')}
-            aria-label={`${s(lang, 'lookAhead')}: ${prefs.lookAhead}s`}
-          >
-            👁 {prefs.lookAhead}s
-          </button>
-          {prefs.wait && noNotes && <div className="fl-pill">{s(lang, 'noNotes')}</div>}
-          {prefs.wait && waitingStep && (
-            <div className="fl-pill fl-pill-wait" aria-live="polite">
-              <button
-                className="btn fl-hear"
-                onClick={() => engine.hearStep()}
-                title={s(lang, 'hearStep')}
-                aria-label={s(lang, 'hearStep')}
-              >
-                🔊
-              </button>
-              <span>
-                {s(lang, 'playThese')}{' '}
-                <b>{waitingStep.pitches.map((p) => pitchName(p, settings.noteNames)).join(' + ')}</b>{' '}
-                <span className="muted">{s(lang, 'thenNext')}</span>
-              </span>
-            </div>
+          {empty ? (
+            <div className="fl-pill">{s(lang, 'emptyFragment')}</div>
+          ) : (
+            prefs.wait && noSteps && <div className="fl-pill">{s(lang, 'noNotes')}</div>
           )}
-          {phase === 'preroll' && <div className="fl-pill">{s(lang, 'getReady')}</div>}
         </div>
 
         <PianoKeyboard
@@ -472,7 +497,7 @@ export default function FallingNotes({
           highlights={highlights}
           labels={settings.keyLabels}
           noteNames={settings.noteNames}
-          height="26vh"
+          height="24vh"
           className="fl-keys"
           onNoteOn={(p) => {
             player.noteOn(p);
@@ -483,6 +508,37 @@ export default function FallingNotes({
             input.emit('off', p, 'screen');
           }}
         />
+
+        {/* The bar at the bottom edge, nearest the hands: what to play now and the one big button. */}
+        <div className="fl-bar">
+          <div className="fl-status">{status}</div>
+          {done && nextIsMain && (
+            <button className="btn fl-again" onClick={() => engine.primary()}>
+              ↻ {s(lang, 'again')}
+            </button>
+          )}
+          {!done && nextFrag !== undefined && (
+            <button className="btn fl-nextfrag" onClick={goNextFrag} title={`${s(lang, 'nextFragment')}: ${nextFragTitle}`}>
+              {nextFragTitle} ›
+            </button>
+          )}
+          <button
+            className="btn big primary fl-primary"
+            onClick={() => mainActionRef.current()}
+            disabled={!nextIsMain && !canPlay}
+            aria-keyshortcuts="Space"
+          >
+            {primaryIcon === '›' ? (
+              <>
+                {primaryLabel} <span aria-hidden>›</span>
+              </>
+            ) : (
+              <>
+                <span aria-hidden>{primaryIcon}</span> {primaryLabel}
+              </>
+            )}
+          </button>
+        </div>
       </div>
     </div>
   );

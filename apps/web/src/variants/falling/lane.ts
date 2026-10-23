@@ -150,7 +150,7 @@ function drawLabel(
   r: { x: number; w: number; bottom: number },
   h: number,
 ) {
-  const fs = Math.round(Math.max(10, Math.min(15, r.w * 0.36)));
+  const fs = Math.round(Math.max(12, Math.min(20, r.w * 0.42))); // as big as the bar's width allows
   if (h < fs + 6) return;
   ctx.font = `700 ${fs}px system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif`;
   let name = pitchName(b.note.pitch, f.noteNames);
