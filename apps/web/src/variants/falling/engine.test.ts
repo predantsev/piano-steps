@@ -252,6 +252,19 @@ describe('wait mode', () => {
     expect(player.chords).toEqual([[48]]);
   });
 
+  it('turning wait mode off during the fall into the next pass starts over cleanly', () => {
+    const e = make({ wait: true });
+    e.setSpan({ start: 0.25, end: 2.25 }); // steps 0.5 · 1 · 1.5 · 2 — the first one is after the start
+    for (let i = 0; i < 3; i++) e.next(), e.next();
+    e.next(); // last step → falls from 2.0 towards 0.5 + period = 2.5, past span.end
+    advance(e, 350);
+    expect(e.visualTime()).toBeCloseTo(2.35);
+    e.setOptions({ wait: false });
+    expect(e.phase).toBe('idle');
+    expect(e.visualTime()).toBe(0.25);
+    expect(attempts).toBe(0);
+  });
+
   it('turning wait mode off resumes continuous mode from where it stood', () => {
     const e = make({ wait: true });
     e.next();

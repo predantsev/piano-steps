@@ -122,3 +122,10 @@ browser: Motif = 8 steps (Space ×16 → back to "Мі5", attempts 4 → 5), "Ba
 - Screenshots while the pane is hidden lag the DOM (canvas repainted at capture, React keyboard state
   one commit behind). Behaviour was therefore checked from the DOM (`.pk-key` classes, pill text,
   button `aria-pressed`) and the API, screenshots only for layout.
+
+### D12 · Wait mode off during the fall into the next pass
+Found in review: after the last step the wait-mode fall runs past `span.end` (towards step 0 of the
+next pass); switching wait mode off there left the engine `paused` at `span.end`, and the next Play
+would start a run that ends at once → one spurious attempt. Now any visual time at/after the end
+counts as "start from the top" (`idle`). New engine test fails on the old code
+(`1 failed | 14 passed`) and passes on the new (`15 passed`).

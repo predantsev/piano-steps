@@ -17,7 +17,7 @@ All under `apps/web/src/variants/falling/` (no shared-file changes):
 | `lane.ts` | Canvas painting (key columns, loop seam, bars with names, now-line), theme colours from CSS vars |
 | `marks.ts` | Keyboard highlights per frame (`R`/`L` sounding, `next`, `ok`/`bad`, `hint`) + change signature |
 | `strings.ts`, `falling.css` | uk/en strings; styles through the shell's CSS variables only |
-| `*.test.ts` (3) | 37 unit tests: geometry vs the keyboard formula, timeline, marks, engine with a fake player |
+| `*.test.ts` (3) | 38 unit tests: geometry vs the keyboard formula, timeline, marks, engine with a fake player |
 
 Behaviour:
 - **Lane**: bars fall onto the keys, aligned with `PianoKeyboard` (same range from `keyboardRange()`,
@@ -59,13 +59,13 @@ Behaviour:
 c0b1078 feat(falling): #1 two-row controls, wait-mode pill with hear-it, look-ahead in the lane, instant repaint
 717688a feat(falling): #1 falling-notes lane, practice engine, wait mode
 ```
-plus the commit that adds this report and the log.
+plus `docs(falling): #1 decision log and report…` and `fix(falling): #1 turning wait mode off during the fall into the next pass…` (see `git log main..HEAD`).
 
 ## How it was verified
 
 Commands (worktree root, final state):
 - `npm run typecheck` → `tsc --noEmit` for core, server and web; `grep -ci error` on the output → `0`.
-- `npm test` → `Test Files 5 passed (5) · Tests 53 passed (53)` (16 existing + 37 new).
+- `npm test` → `Test Files 5 passed (5) · Tests 54 passed (54)` (16 existing + 38 new).
 - `npm run build` → `✓ built in 204ms`; `dist/assets/falling-*.js 21.83 kB`, `falling-*.css 2.40 kB`.
 
 Browser (built-in browser, own tab `tab-3`, `PORT=9311 API_PORT=9311 WEB_PORT=9310 npm run dev`,

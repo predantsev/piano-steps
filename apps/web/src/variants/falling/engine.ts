@@ -137,7 +137,8 @@ export class PracticeEngine {
     if (changed('hands')) this.steps = waitSteps(this.notes, next.hands);
 
     if (changed('wait')) {
-      const wasFresh = this.phase === 'idle' || this.phase === 'done';
+      // at rest, or already past the end (wait mode's fall into the next pass): start from the top
+      const wasFresh = this.phase === 'idle' || this.phase === 'done' || v >= this.span.end - EPS;
       this.halt();
       if (next.wait) this.waitAt(wasFresh ? 0 : stepAtOrAfter(this.steps, this.clampToSpan(v)));
       else {
