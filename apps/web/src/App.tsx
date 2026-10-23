@@ -43,6 +43,7 @@ export default function App() {
   const [dialog, setDialog] = useState<null | 'feedback' | 'original' | 'settings'>(null);
   const [error, setError] = useState<string | null>(null);
   const [health, setHealth] = useState<api.Health | null>(null);
+  const [tokenInvalid, setTokenInvalid] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   // iOS/iPadOS only allow audio after a user gesture: unlock on the first touch anywhere.
@@ -331,7 +332,8 @@ export default function App() {
                   {t(lang, theme === 'system' ? 'themeSystem' : theme === 'light' ? 'themeLight' : 'themeDark')}
                 </button>
               </div>
-              {health?.auth && (
+              {/* Also shown when a token is stored, so it stays reachable even if /api/health failed. */}
+              {(health?.auth || api.getApiToken() !== null || tokenInvalid) && (
                 <>
                   <span>{t(lang, 'apiToken')}</span>
                   <div>
@@ -340,9 +342,13 @@ export default function App() {
                       autoComplete="off"
                       aria-label={t(lang, 'apiToken')}
                       defaultValue={api.getApiToken() ?? ''}
-                      onChange={(e) => api.setApiToken(e.target.value.trim() || null)}
+                      aria-invalid={tokenInvalid}
+                      onChange={(e) => setTokenInvalid(!api.setApiToken(e.target.value))}
                       style={{ width: '100%', minHeight: 'var(--tap)', padding: '0 12px', borderRadius: 'var(--radius)', border: '1px solid var(--bd)', background: 'var(--bg)' }}
                     />
+                    {tokenInvalid && (
+                      <p role="alert" style={{ margin: '4px 0 0', color: 'var(--bad)' }}>{t(lang, 'apiTokenInvalid')}</p>
+                    )}
                     <p className="muted" style={{ margin: '4px 0 0' }}>{t(lang, 'apiTokenHint')}</p>
                   </div>
                 </>

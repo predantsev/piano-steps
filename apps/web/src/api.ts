@@ -17,9 +17,20 @@ import {
 
 const TOKEN_KEY = 'piano-steps-api-token';
 
+/**
+ * An HTTP header carries only Latin-1, and a token is printable ASCII. Invisible characters a paste
+ * brings along (spaces, zero-width spaces, BOM) are dropped; anything else outside ASCII (a token typed
+ * on a Cyrillic layout) makes the token invalid — never sent, so it cannot break every request.
+ */
+export function cleanApiToken(raw: string): { token: string; ok: boolean } {
+  const token = raw.replace(/[\s\u00ad\u180e\u200b-\u200f\u2028-\u202f\u2060-\u206f\ufeff]/g, '');
+  return { token, ok: /^[\x21-\x7e]*$/.test(token) };
+}
+
 function token(): string | null {
   try {
-    return localStorage.getItem(TOKEN_KEY);
+    const { token: t, ok } = cleanApiToken(localStorage.getItem(TOKEN_KEY) ?? '');
+    return ok && t ? t : null;
   } catch {
     return null;
   }
@@ -28,13 +39,16 @@ function token(): string | null {
 /** The API token stored on this device (Settings → API token), or null. */
 export const getApiToken = token;
 
-export function setApiToken(t: string | null) {
+/** Store the token typed in Settings. Returns false (and stores nothing) when it cannot be sent. */
+export function setApiToken(raw: string | null): boolean {
+  const { token: t, ok } = cleanApiToken(raw ?? '');
   try {
-    if (t) localStorage.setItem(TOKEN_KEY, t);
+    if (ok && t) localStorage.setItem(TOKEN_KEY, t);
     else localStorage.removeItem(TOKEN_KEY);
   } catch {
     /* storage blocked */
   }
+  return ok;
 }
 
 export class ApiError extends Error {
@@ -46,7 +60,8 @@ export class ApiError extends Error {
 async function call<T>(method: string, path: string, body?: unknown, raw?: BodyInit): Promise<T> {
   const headers: Record<string, string> = {};
   const t = token();
-  if (t) headers.authorization = `Bearer ${t}`;
+  // The server checks the token on writes only; reads never carry it, so a bad token cannot break loading.
+  if (t && method !== 'GET') headers.authorization = `Bearer ${t}`;
   if (body !== undefined) headers['content-type'] = 'application/json';
   if (raw !== undefined) headers['content-type'] = 'application/octet-stream';
   const r = await fetch(path, { method, headers, body: raw ?? (body !== undefined ? JSON.stringify(body) : undefined) });

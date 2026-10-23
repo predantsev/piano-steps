@@ -143,3 +143,41 @@ test('asks for the API token when the server requires one, and sends it', async 
   expect((await sent).headers()['authorization']).toBe('Bearer e2e-secret');
   expect(await page.evaluate(() => localStorage.getItem('piano-steps-api-token'))).toBe('e2e-secret');
 });
+
+test('a token with invisible or non-Latin characters never breaks the app', async ({ page, hasTouch }) => {
+  // A token saved earlier with a Cyrillic letter (it cannot go into an HTTP header): the app still loads
+  // from the API — not offline — and the field stays reachable in Settings.
+  await page.addInitScript(() => {
+    if (!sessionStorage.getItem('seeded')) {
+      localStorage.setItem('piano-steps-api-token', 'токен');
+      sessionStorage.setItem('seeded', '1');
+    }
+  });
+  const s = await openApp(page, '?lesson=twinkle-twinkle');
+  expect(s.offline).toBe(false);
+  await tapOrClick(page.getByRole('button', { name: 'Settings' }), hasTouch);
+  const field = page.getByLabel('API token');
+  // No server token here and the stored one is unusable → no field; typing a bad one is refused visibly.
+  await expect(field).toHaveCount(0);
+  await tapOrClick(page.getByRole('button', { name: 'Close' }), hasTouch);
+
+  await page.route('**/api/health', (r) => r.fulfill({ json: { ok: true, db: 'pglite', auth: true } }));
+  await page.reload();
+  await page.waitForFunction(() => window.pianoSteps?.getState().ready === true);
+  await tapOrClick(page.getByRole('button', { name: 'Settings' }), hasTouch);
+  await page.getByLabel('API token').fill('токен');
+  await expect(page.getByRole('alert')).toContainText('Latin letters');
+  // A pasted zero-width space is dropped, the rest is sent.
+  await page.getByLabel('API token').fill('e2e-secret\u200b ');
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  await tapOrClick(page.getByRole('button', { name: 'Close' }), hasTouch);
+  const sent = page.waitForRequest((r) => r.method() === 'POST' && r.url().includes('/feedback'));
+  await tapOrClick(page.getByRole('button', { name: /Sounds wrong/ }), hasTouch);
+  await page.getByRole('textbox').fill('token check');
+  await tapOrClick(page.getByRole('button', { name: 'Send', exact: true }), hasTouch);
+  expect((await sent).headers()['authorization']).toBe('Bearer e2e-secret');
+  // Reads never carry the token.
+  const get = page.waitForRequest((r) => r.method() === 'GET' && r.url().includes('/api/lessons'));
+  await page.evaluate(() => window.pianoSteps!.listLessons());
+  expect((await get).headers()['authorization']).toBeUndefined();
+});

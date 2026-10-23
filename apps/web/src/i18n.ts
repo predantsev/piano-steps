@@ -31,6 +31,10 @@ const STRINGS = {
     uk: 'Сервер приймає зміни лише з токеном. Зберігається тільки на цьому пристрої.',
     en: 'The server accepts changes only with this token. Stored on this device only.',
   },
+  apiTokenInvalid: {
+    uk: 'Токен може містити лише латинські літери, цифри та символи — перевірте розкладку клавіатури',
+    en: 'A token has only Latin letters, digits and symbols — check the keyboard layout',
+  },
   needToken: {
     uk: 'Потрібен API-токен: додайте його в Налаштуваннях (⚙)',
     en: 'An API token is needed: add it in Settings (⚙)',

@@ -259,3 +259,15 @@ the brief was silent and I chose.
 - #17 decision: 120 bpm before the first mark (MusicXML default) unless the mark is before the start of bar 3
   (a pickup or a mark a beat into bar 1 still covers the opening). ASSUMPTION: "first two bars" is the cut-off —
   the finding left the heuristic open; this keeps pickup scores right and late marks honest.
+
+### Major #10, nit #16 — 1c37b52
+- Decision: make the claim true rather than narrow it. `midiToLesson`: when every track with notes is named
+  "Right hand"/"Left hand" → hands by name, no leading-silence trim, time signature kept. Foreign files keep the
+  old behaviour (trim, rank by mean pitch / split at C4) — test "still trims leading silence…".
+- Imported bpm rounded to 3 dp: 90 bpm read back as 90.0001 (whole µs per quarter) — seen in the first test run.
+- `lessonToMidi` clamps bpm ≥ 60e6/0xFFFFFF (~3.58). Test bpm 2: note at 3 s comes back at 3.0059 (one tick ≈ 35 ms at
+  that tempo); the finding measured 1.3223 s before.
+- Not representable, documented as the one exception: two overlapping same-pitch notes in one hand. Also documented:
+  fragments are not in MIDI (re-cut on import).
+- Tests: core (3/4, leading rest, R below C4; L-only), HTTP (the finding's rv-melody: 67@0.5, 62@1, 57@1.5, 55@2,
+  4/4) → notes deep-equal, tempo `{bpm:120,timeSignature:[4,4]}`.
