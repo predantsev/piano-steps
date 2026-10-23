@@ -43,7 +43,7 @@ services:
     environment:
       PIANO_STEPS_URL: http://app:9300
       PIANO_STEPS_API_TOKEN: ${PIANO_STEPS_API_TOKEN:-}
-      PIANO_STEPS_WEB_URL: http://piano-steps.localhost:${PIANO_STEPS_PORT:-9300}
+      PIANO_STEPS_WEB_URL: ${PIANO_STEPS_WEB_URL:-http://piano-steps.localhost:${PIANO_STEPS_PORT:-9300}}
     volumes:
       - transcriber-models:/models
       - transcriber-work:/work

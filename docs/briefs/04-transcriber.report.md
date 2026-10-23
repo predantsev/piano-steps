@@ -44,7 +44,8 @@ f54121a docs(transcribe): #4 README with measured accuracy + agent skill for the
 d42fdfc feat(transcribe): #4 transcriber CLI — engines, cleanup, hand split, API upload, fix, eval
 b73a143 chore(transcribe): #4 uv project for the transcriber (python 3.11, both engines)
 ```
-(+ this report's commit)
+(+ two report commits, `ea4161d` and `53916c8` before the rebase; the fix round's commits are in
+`04-transcriber.fix-report.md`)
 
 ## Accuracy (runs I did)
 
@@ -60,10 +61,12 @@ b73a143 chore(transcribe): #4 uv project for the transcriber (python 3.11, both 
 
 Sweep (`scripts/sweep_thresholds.py` over the first three; output `.work/eval/sweep*.txt`): basic-pitch
 onset 0.4/0.5/0.6/0.7/0.8/0.9 → mean F1@50 0.628/0.730/0.794/**0.841**/0.827/0.699; bytedance
-0.2…0.5 → 0.917…0.923. Cleanup thresholds changed the mean by ≤ 0.007.
+0.2…0.5 → 0.917…0.923. Cleanup thresholds changed the mean by ≤ 0.011 (`min_velocity` 0.3 costs
+bytedance 0.011, 0.923 → 0.912; every other cleanup setting ≤ 0.007) — corrected in the fix round.
 Hands on matched notes: beam search 1.000 on the first three for both engines; on Brooklyn 0.962
 (bd) / 0.925 (bp) where a plain C4 split scored 1.000.
-Speed (clean run, M4 Pro CPU): bytedance 11.0 s, basic-pitch 2.2 s per 60 s clip; full 3:54 video
+Speed (clean run, M4 Pro CPU): bytedance 11.0 s, basic-pitch 2.2 s per 60 s clip (the review's
+re-run: 12.2 / 3.1 s; the 20–40 s in `final-*.json` ran during a Docker build); full 3:54 video
 end to end 42 s (audio and checkpoint already cached from the eval run; a cold run adds the
 yt-dlp download and the 165 MB checkpoint).
 

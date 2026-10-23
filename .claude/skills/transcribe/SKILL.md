@@ -33,8 +33,11 @@ uv run transcribe youtube "<url>" --title "<Song> — <performer>" [--composer �
   takes ~45 s on the Mac CPU. Use `--start/--end` when the video has a long intro or the owner
   wants only one part.
 - The last printed line is the lesson URL. Exit code 2 = the slug exists → `--replace` only if the
-  owner wants the old one overwritten (it keeps no history), else `--slug <new>`.
-- In Docker: `docker compose run --rm transcriber youtube "<url>" --title "…"`.
+  owner wants the old one overwritten (it keeps no history), else `--slug <new>`. Other codes:
+  1 nothing transcribed · 3 API · 4 input (bad URL/file, video over 20 min → pass `--start/--end`)
+  · 5 yt-dlp/ffmpeg/engine (README → Usage).
+- In Docker: `docker compose run --rm transcriber youtube "<url>" --title "…"`. Local files need a
+  mount: `docker compose run --rm -v "$PWD:/in:ro" transcriber audio /in/<file>`.
 
 ## 2 · Sanity checks (do them, don't skip)
 
@@ -58,7 +61,9 @@ uv run transcribe fix <slug> <fragment> --dry-run   # before/after, writes nothi
 ```
 
 Pick the change by the complaint, compare before/after, then apply with `--feedback <id>` (marks it
-`in-progress`, then `resolved` with a resolution text):
+`in-progress`, then `resolved` with a resolution text). If `fix` finds nothing, or less than half
+the old notes, it writes nothing, exits 1 and puts the item back to `open` with the reason — try
+another setting (or `--force` if the fragment really has fewer notes); a failure also reopens it:
 
 | Complaint | Try |
 |---|---|
@@ -71,8 +76,12 @@ Pick the change by the complaint, compare before/after, then apply with `--feedb
 uv run transcribe fix <slug> <fragment> [options] --feedback <id> --resolution "bar 6: G4 → A4"
 ```
 
-- `fix` only replaces notes whose onsets lie in that fragment; all other fragments stay
-  untouched. It reuses the downloaded audio (`.work/<video-id>/`).
+- `fix` only replaces notes whose onsets lie in that fragment (the app's rule, 2 ms tolerance); it
+  never moves a note into the neighbouring fragment. It reuses the downloaded audio
+  (`.work/<video-id>/`), or downloads just the fragment's window.
+- A lesson made by `audio` (no YouTube URL) or `midi` has no recording to re-transcribe: `fix` exits
+  4 and says so. Ask the owner for the file and pass `--source-file <file>` (+ `--source-offset S`
+  if lesson time 0 is not at `source.offsetSec` in it).
 - If no engine setting helps (e.g. a pedal blur), say so: set the feedback to `wont-fix` with a
   reason via `PATCH /api/feedback/{id}` rather than guessing notes.
 - A whole-lesson complaint (no fragment) usually means the wrong recording or a non-piano mix —
@@ -84,6 +93,8 @@ uv run transcribe fix <slug> <fragment> [options] --feedback <id> --resolution "
 uv run transcribe audio file.m4a --source-url "<youtube url if any>"   # local recording
 uv run transcribe midi song.mid --title "…" [--source-url … --offset S] # MIDI: no transcription
 ```
+
+MIDI notes outside the piano (MIDI 21–108) are dropped and counted, like the app's own import.
 
 ## 5 · Measuring (when changing engines or thresholds)
 
