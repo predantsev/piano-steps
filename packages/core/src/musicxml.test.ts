@@ -4,7 +4,9 @@ import { describe, expect, it } from 'vitest';
 import {
   lessonToMidi,
   midiToLesson,
+  MAX_SCORE_BYTES,
   MusicXmlError,
+  MusicXmlTooLarge,
   musicxmlToLesson,
   notesInRange,
   prepareLesson,
@@ -82,6 +84,38 @@ describe('musicxmlToLesson', () => {
       utf16[3 + i * 2] = fixture.charCodeAt(i) >> 8;
     }
     expect(musicxmlToLesson(utf16).notes).toHaveLength(12);
+  });
+
+  it('reads a UTF-16 score inside .mxl, a "./" or %20 rootfile path, and a Latin-1 declaration', () => {
+    const utf16 = new Uint8Array(2 + fixture.length * 2);
+    utf16.set([0xff, 0xfe]);
+    for (let i = 0; i < fixture.length; i++) {
+      utf16[2 + i * 2] = fixture.charCodeAt(i) & 0xff;
+      utf16[3 + i * 2] = fixture.charCodeAt(i) >> 8;
+    }
+    const container = (path: string) =>
+      strToU8(`<container><rootfiles><rootfile full-path="${path}"/></rootfiles></container>`);
+    expect(musicxmlToLesson(zipSync({ 'META-INF/container.xml': container('s.musicxml'), 's.musicxml': utf16 })).notes).toHaveLength(12);
+    const pdfFirst = { 'a.xml': strToU8('<not-a-score/>'), 'META-INF/container.xml': container('./my%20score.musicxml') };
+    expect(musicxmlToLesson(zipSync({ ...pdfFirst, 'my score.musicxml': strToU8(fixture) })).notes).toHaveLength(12);
+
+    const latin1 = fixture
+      .replace('<?xml version="1.0" encoding="UTF-8"', '<?xml version="1.0" encoding="ISO-8859-1"')
+      .replace('Test Piece', 'F\u00fcr Elise');
+    expect(latin1).toContain('ISO-8859-1');
+    expect(musicxmlToLesson(Uint8Array.from(latin1, (ch) => ch.charCodeAt(0))).title).toBe('Für Elise');
+  });
+
+  it('refuses a zip bomb before unpacking it', () => {
+    // ~25 MB of zeros packs into ~25 KB; container + score name it as the score.
+    const bomb = zipSync({ 'score.xml': new Uint8Array(MAX_SCORE_BYTES + 5_000_000), 'junk.bin': new Uint8Array(30_000_000) }, { level: 9 });
+    expect(bomb.length).toBeLessThan(200_000);
+    const before = process.memoryUsage().arrayBuffers;
+    expect(() => musicxmlToLesson(bomb)).toThrow(MusicXmlTooLarge);
+    expect(() => musicxmlToLesson(bomb)).toThrow(/score\.xml" in the \.mxl is 24\.8 MB unpacked; the limit is 20 MB/);
+    expect(process.memoryUsage().arrayBuffers - before).toBeLessThan(5_000_000); // nothing was inflated
+    // A plain (unzipped) file over the limit too.
+    expect(() => musicxmlToLesson(new Uint8Array(MAX_SCORE_BYTES + 1))).toThrow(MusicXmlTooLarge);
   });
 
   it('assigns hands across two single-staff parts by pitch, and can pick parts', () => {

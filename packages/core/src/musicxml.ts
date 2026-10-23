@@ -1,5 +1,5 @@
 import { XMLParser, XMLValidator } from 'fast-xml-parser';
-import { strFromU8, unzipSync } from 'fflate';
+import { unzipSync } from 'fflate';
 import type { Fragment, Hand, LessonInput, LessonNote, Tempo } from './lesson.ts';
 import { notesInRange, snapFragments } from './steps.ts';
 
@@ -31,6 +31,12 @@ export interface MusicXmlImportOptions {
 }
 
 export class MusicXmlError extends Error {}
+/** The score (or a `.mxl` entry) is bigger than `MAX_SCORE_BYTES` unpacked. */
+export class MusicXmlTooLarge extends MusicXmlError {}
+
+/** Largest MusicXML text we parse (unpacked). A big piano score is a few MB. */
+export const MAX_SCORE_BYTES = 20 * 1024 * 1024;
+const MAX_CONTAINER_BYTES = 64 * 1024;
 
 interface El {
   name: string;
@@ -45,41 +51,90 @@ const STEP_PC: Record<string, number> = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B:
 const DEFAULT_BPM = 120;
 const EPS = 1e-6;
 
-/** Decode MusicXML bytes: unzip `.mxl` (zip), honour a UTF-16/UTF-8 byte-order mark. */
+const tooLarge = (what: string, bytes: number) =>
+  new MusicXmlTooLarge(
+    `${what} is ${(bytes / 1048576).toFixed(1)} MB unpacked; the limit is ${MAX_SCORE_BYTES / 1048576} MB`,
+  );
+
+/** Decode MusicXML bytes: unzip `.mxl` (zip), honour a byte-order mark or the XML encoding declaration. */
 export function readMusicXml(data: string | Uint8Array | ArrayBuffer): string {
-  if (typeof data === 'string') return data;
+  if (typeof data === 'string') {
+    if (data.length > MAX_SCORE_BYTES) throw tooLarge('The score', data.length);
+    return data;
+  }
   const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
   if (bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 0x03 && bytes[3] === 0x04) return readMxl(bytes);
+  if (bytes.length > MAX_SCORE_BYTES) throw tooLarge('The score', bytes.length);
   return decodeText(bytes);
 }
 
 function decodeText(bytes: Uint8Array): string {
   if (bytes[0] === 0xff && bytes[1] === 0xfe) return new TextDecoder('utf-16le').decode(bytes.subarray(2));
   if (bytes[0] === 0xfe && bytes[1] === 0xff) return new TextDecoder('utf-16be').decode(bytes.subarray(2));
-  const s = new TextDecoder('utf-8').decode(bytes);
+  const s = new TextDecoder(declaredEncoding(bytes)).decode(bytes);
   return s.charCodeAt(0) === 0xfeff ? s.slice(1) : s;
 }
 
-function readMxl(bytes: Uint8Array): string {
-  let files: Record<string, Uint8Array>;
+/** `<?xml … encoding="ISO-8859-1"?>` → a TextDecoder label; UTF-8 when absent or unknown. */
+function declaredEncoding(bytes: Uint8Array): string {
+  const head = String.fromCharCode(...bytes.subarray(0, 200));
+  const label = /^\s*<\?xml[^>]*\bencoding\s*=\s*["']([A-Za-z0-9._-]+)["']/.exec(head)?.[1];
+  if (!label || /^utf-?16/i.test(label)) return 'utf-8'; // UTF-16 without a BOM is not something exporters write
   try {
-    files = unzipSync(bytes);
-  } catch (e) {
-    throw new MusicXmlError(`Not a readable .mxl (zip) file: ${e instanceof Error ? e.message : String(e)}`);
+    return new TextDecoder(label).encoding;
+  } catch {
+    return 'utf-8';
   }
+}
+
+/** A `.mxl` rootfile path as written in container.xml → the zip entry name. */
+function normalisePath(p: string): string {
+  let out = p.trim().replace(/\\/g, '/');
+  try {
+    out = decodeURIComponent(out);
+  } catch {
+    /* not percent-encoded */
+  }
+  return out.replace(/^(\.\/|\/)+/, '');
+}
+
+/**
+ * Unzip only what is needed — container.xml, then the one score — and refuse an entry over
+ * MAX_SCORE_BYTES before inflating it (a zip bomb unpacks ~1000× its size). fflate allocates exactly
+ * the declared `originalSize` and stops there, so a lying header cannot exceed the cap either.
+ */
+function readMxl(bytes: Uint8Array): string {
+  const entries = new Map<string, number>(); // name → unpacked size
+  const unzip = (want: (name: string) => boolean) => {
+    try {
+      return unzipSync(bytes, {
+        filter: (f) => {
+          entries.set(f.name, f.originalSize);
+          return want(f.name);
+        },
+      });
+    } catch (e) {
+      throw new MusicXmlError(`Not a readable .mxl (zip) file: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  };
+  const meta = unzip((n) => n === 'META-INF/container.xml' && (entries.get(n) ?? 0) <= MAX_CONTAINER_BYTES);
   let path: string | undefined;
-  const container = files['META-INF/container.xml'];
+  const container = meta['META-INF/container.xml'];
   if (container) {
     const root = parseXml(decodeText(container));
     const rootfiles = findAll(root, 'rootfile');
     const score =
       rootfiles.find((r) => !r.attrs['media-type'] || r.attrs['media-type'].includes('musicxml')) ?? rootfiles[0];
-    path = score?.attrs['full-path'];
+    const declared = score?.attrs['full-path'];
+    if (declared) path = [...entries.keys()].find((n) => n === normalisePath(declared));
   }
-  path ??= Object.keys(files).find((f) => !f.startsWith('META-INF/') && /\.(musicxml|xml)$/i.test(f));
-  const file = path ? files[path] : undefined;
+  path ??= [...entries.keys()].find((f) => !f.startsWith('META-INF/') && /\.(musicxml|xml)$/i.test(f));
+  if (!path) throw new MusicXmlError('The .mxl archive contains no MusicXML score');
+  const size = entries.get(path) ?? 0;
+  if (size > MAX_SCORE_BYTES) throw tooLarge(`"${path}" in the .mxl`, size);
+  const file = unzip((n) => n === path)[path];
   if (!file) throw new MusicXmlError('The .mxl archive contains no MusicXML score');
-  return strFromU8(file).replace(/^﻿/, '');
+  return decodeText(file);
 }
 
 function parseXml(xml: string): El {

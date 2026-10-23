@@ -85,4 +85,6 @@ export const errors = {
   unauthorized: { error: 'unauthorized', details: ['Send "Authorization: Bearer <API_TOKEN>" on every non-GET request'] },
   invalidMidi: { error: 'invalid-midi', details: ['MIDI file has no (non-drum) notes'] },
   invalidMusicXml: { error: 'invalid-musicxml', details: ['Not valid XML: Expected closing tag \'part\' (line 12)'] },
+  tooLarge: { error: 'too-large', details: ['"score.xml" in the .mxl is 512.0 MB unpacked; the limit is 20 MB'] },
+  unsupportedMediaType: { error: 'bad-request', details: ['Unsupported Media Type'] },
 };

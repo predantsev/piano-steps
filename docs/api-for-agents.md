@@ -25,11 +25,12 @@ Switch on `error`, show `details` to a human:
 | `error` | Status | When |
 |---|---|---|
 | `validation` | 400 | body / query does not match the schema, or the result is not a valid lesson (`details` = `path: message`) |
-| `bad-request` | 400 | malformed JSON, empty upload, multipart without `file` |
+| `bad-request` | 400 / 415 | malformed JSON, empty upload, multipart without `file`; **415** = a JSON route got no `content-type: application/json` |
 | `invalid-midi` / `invalid-musicxml` | 400 | the import could not read the file (`details[0]` says why) |
 | `unauthorized` | 401 | the server has `API_TOKEN` set and the bearer token is missing/wrong |
 | `not-found` | 404 | unknown lesson / fragment / feedback id, or no such route |
 | `conflict` | 409 | the slug already exists — retry with `?upsert=true` or another `slug` |
+| `too-large` | 413 | the body is over 20 MB, or a `.mxl` holds a score over 20 MB unpacked |
 | `internal` | 500 | a bug — report it |
 
 ## Create a lesson from a MIDI file

@@ -227,3 +227,11 @@ the brief was silent and I chose.
   which that test deletes in parallel (shared in-memory DB). Not variant-specific. Fix: `openApp` always adds
   `lesson=ode-to-joy` when the query names none.
 - Re-run combined tree `--repeat-each 3` → `69 passed, 3 skipped` (skips = WebMCP on WebKit). Branch alone → 23 passed, 1 skipped.
+
+### Major #8 — MusicXML fragment edges
+- Probe (scratchpad edge.mts, 8 bars C5 D5 E5 F5 at 66/72/90 bpm): `musicxmlToLesson` cuts were 7.273 / 6.667 / 5.333
+  vs onsets 7.2727 / 6.6667 / 5.3333; after `prepareLesson` (main's #8 `snapFragments`) the stored bounds were
+  already on the onsets. So the API path was fixed by #8 on main; the core function's own output was not.
+- Decision: `measureFragments` rounds with `r` (4 dp) and runs `snapFragments`; membership via `notesInRange`.
+- `repo.replaceFragmentNotes` used its own `1e-6` rule; now `notesInRange` (TIME_EPS) like the player/views.
+- Test `musicxmlToLesson fragment edges` (66/72/90, imported and stored): fails before (7.2727 vs 7.273), passes after.

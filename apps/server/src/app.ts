@@ -8,6 +8,8 @@ import {
   ProgressStatus,
   lessonToMidi,
   midiToLesson,
+  MAX_SCORE_BYTES,
+  MusicXmlTooLarge,
   musicxmlToLesson,
   prepareLesson,
   validateLessonInput,
@@ -15,6 +17,7 @@ import {
 } from '@piano-steps/core';
 import { Scalar } from '@scalar/hono-api-reference';
 import type { Context } from 'hono';
+import { bodyLimit } from 'hono/body-limit';
 import { HTTPException } from 'hono/http-exception';
 import type { Db } from './db/client.ts';
 import * as ex from './examples.ts';
@@ -37,6 +40,9 @@ export class HttpError extends Error {
     super(details[0] ?? code);
   }
 }
+
+/** Cap on any request body (uploads included). */
+export const MAX_BODY_BYTES = 20 * 1024 * 1024;
 
 const Ref = z.string().min(1).openapi({ description: 'Lesson id (uuid) or slug', example: 'twinkle-bar-1' });
 
@@ -116,9 +122,12 @@ const body = <T extends z.ZodType>(schema: T, example: unknown) => ({
 });
 const err = (description: string, example: unknown) => json(ErrorOut, description, example);
 const read = { 404: err('Lesson not found', ex.errors.notFound) };
+/** Responses of every route with a JSON body. */
 const write = {
   400: err('Invalid input', ex.errors.validation),
   401: err('Missing or wrong bearer token (only when the server has API_TOKEN set)', ex.errors.unauthorized),
+  413: err(`The body is over ${MAX_BODY_BYTES / 1048576} MB`, ex.errors.tooLarge),
+  415: err('The body is not sent as `content-type: application/json`', ex.errors.unsupportedMediaType),
 };
 
 export interface AppOptions {
@@ -157,6 +166,17 @@ export function createApp({ db, dbKind, apiToken }: AppOptions) {
   });
 
   app.notFound((c) => c.json({ error: 'not-found', details: [`No route for ${c.req.method} ${c.req.path}`] }, 404));
+
+  // Every upload/body is capped (a .mid or a MusicXML file is far smaller); checked while streaming.
+  app.use(
+    '/api/*',
+    bodyLimit({
+      maxSize: MAX_BODY_BYTES,
+      onError: () => {
+        throw new HttpError(413, 'too-large', [`The request body is over ${MAX_BODY_BYTES / 1048576} MB`]);
+      },
+    }),
+  );
 
   if (apiToken) {
     app.use('/api/*', async (c, next) => {
@@ -382,6 +402,7 @@ export function createApp({ db, dbKind, apiToken }: AppOptions) {
       400: err('Not a usable MIDI file, or the result is not a valid lesson', ex.errors.invalidMidi),
       401: write[401],
       409: err('Slug already exists', ex.errors.conflict),
+      413: err(`The body is over ${MAX_BODY_BYTES / 1048576} MB`, ex.errors.tooLarge),
     },
   });
 
@@ -398,6 +419,7 @@ export function createApp({ db, dbKind, apiToken }: AppOptions) {
         ...(q.part ? { parts: q.part.split(',').map((s) => s.trim()).filter(Boolean) } : {}),
       });
     } catch (e) {
+      if (e instanceof MusicXmlTooLarge) throw new HttpError(413, 'too-large', [e.message]);
       throw new HttpError(400, 'invalid-musicxml', [e instanceof Error ? e.message : String(e)]);
     }
     if (q.sourceUrl) input.source = { kind: 'musicxml', url: q.sourceUrl };
@@ -434,6 +456,10 @@ export function createApp({ db, dbKind, apiToken }: AppOptions) {
       400: err('Not readable MusicXML, or the result is not a valid lesson', ex.errors.invalidMusicXml),
       401: write[401],
       409: err('Slug already exists', ex.errors.conflict),
+      413: err(
+        `The body is over ${MAX_BODY_BYTES / 1048576} MB, or the score is over ${MAX_SCORE_BYTES / 1048576} MB unpacked (.mxl)`,
+        ex.errors.tooLarge,
+      ),
     },
   });
 

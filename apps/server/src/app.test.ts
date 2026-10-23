@@ -2,7 +2,7 @@ import ToneMidi from '@tonejs/midi';
 import { strToU8, zipSync } from 'fflate';
 import { readFileSync } from 'node:fs';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { createApp } from './app.ts';
+import { createApp, MAX_BODY_BYTES } from './app.ts';
 import { openDb, type DbHandle } from './db/client.ts';
 import { seedDemoLessons } from './repo.ts';
 
@@ -199,6 +199,38 @@ describe('MusicXML import', () => {
     const badSlug = await upload('/api/lessons/import/musicxml?slug=Not%20A%20Slug', fixtureXml);
     expect(badSlug.status).toBe(400);
     expect((await badSlug.json()) as ErrJson).toMatchObject({ error: 'validation' });
+  });
+
+  it('answers 413 too-large for an oversized body or a .mxl that unpacks too big (zip bomb)', async () => {
+    const bomb = zipSync({ 'score.xml': new Uint8Array(25_000_000) }, { level: 9 });
+    const r = await upload('/api/lessons/import/musicxml', bomb);
+    expect(r.status).toBe(413);
+    expect((await r.json()) as ErrJson).toMatchObject({ error: 'too-large', details: [expect.stringMatching(/limit is 20 MB/)] });
+
+    for (const path of ['/api/lessons/import/musicxml', '/api/lessons/import/midi', '/api/lessons']) {
+      const big = await app.request(path, {
+        method: 'POST',
+        body: new Uint8Array(MAX_BODY_BYTES + 1),
+        headers: { 'content-type': 'application/octet-stream' },
+      });
+      expect(big.status, path).toBe(413);
+      expect((await big.json()) as ErrJson, path).toEqual({ error: 'too-large', details: ['The request body is over 20 MB'] });
+    }
+    // Chunked (no content-length): counted while streaming.
+    const chunk = new Uint8Array(1024 * 1024);
+    const stream = new ReadableStream({
+      start(c) {
+        for (let i = 0; i < 21; i++) c.enqueue(chunk);
+        c.close();
+      },
+    });
+    const chunked = await app.request('/api/lessons/import/midi', {
+      method: 'POST',
+      body: stream,
+      headers: { 'content-type': 'application/octet-stream', 'transfer-encoding': 'chunked' },
+      duplex: 'half', // Node's fetch needs it for a stream body
+    });
+    expect(chunked.status).toBe(413);
   });
 });
 
