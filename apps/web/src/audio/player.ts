@@ -84,10 +84,10 @@ export class LessonPlayer {
     this.notes = [...notes].sort((a, b) => a.start - b.start);
   }
 
-  /** Current lesson time in seconds. */
+  /** Current lesson time in seconds, as heard (look-ahead and output latency already accounted for). */
   get time(): number {
     if (this.state === 'playing') {
-      const t = this.startLesson + (Tone.now() - this.startedAt) * this.opts.rate;
+      const t = this.startLesson + (this.audibleNow() - this.startedAt) * this.opts.rate;
       return Math.max(this.startLesson, t);
     }
     if (this.state === 'paused') return this.pausedAt;
@@ -171,6 +171,18 @@ export class LessonPlayer {
     return this.samplesLoaded ? this.sampler : this.synth;
   }
 
+  /**
+   * Two clocks, both in AudioContext seconds:
+   * - scheduling: `Tone.now()` = currentTime + Tone's look-ahead — when an attack handed over now plays;
+   * - audible: currentTime − output latency — what the listener hears right now.
+   * `time` (what the UI draws) follows the audible clock, so keys light up with the sound.
+   */
+  private audibleNow(): number {
+    const ctx = Tone.getContext();
+    const raw = ctx.rawContext as unknown as { outputLatency?: number; baseLatency?: number };
+    return ctx.immediate() - (raw.outputLatency || raw.baseLatency || 0);
+  }
+
   private run(fromLesson: number) {
     const lastEnd = this.notes.reduce((m, n) => Math.max(m, n.start + n.duration), 0);
     this.runEnd = Math.min(this.opts.to, lastEnd);
@@ -185,7 +197,8 @@ export class LessonPlayer {
 
   private tick() {
     const { rate, muted, hands, to } = this.opts;
-    const horizon = this.time + LOOKAHEAD * rate;
+    // schedule on the scheduling clock: everything that must be handed over before the next ticks
+    const horizon = this.startLesson + (Tone.now() + LOOKAHEAD - this.startedAt) * rate;
     const inst = muted ? null : this.instrument();
     while (this.nextIdx < this.notes.length) {
       const n = this.notes[this.nextIdx];
