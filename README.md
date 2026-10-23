@@ -31,6 +31,7 @@ Without Docker (development):
 npm install
 npm run dev     # web http://piano-steps.localhost:9300, API :9301, embedded Postgres (PGlite)
 npm test
+npm run e2e     # browser tests: iPad (WebKit) + desktop Chromium — see docs/testing-api.md
 ```
 
 ## Add a lesson

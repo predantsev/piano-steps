@@ -1,5 +1,8 @@
 import { z } from 'zod';
 
+/** Most notes one lesson may have (a long piano piece has a few thousand). */
+export const MAX_LESSON_NOTES = 20000;
+
 /**
  * The lesson format — the one contract shared by the web app, the server/DB and every
  * importer (MIDI, MusicXML, transcription, an agent writing JSON by hand).
@@ -74,7 +77,7 @@ export const LessonInput = z.object({
   source: LessonSource.optional(),
   license: z.string().max(200).optional(),
   tempo: Tempo.optional(),
-  notes: z.array(LessonNote).min(1).max(20000),
+  notes: z.array(LessonNote).min(1).max(MAX_LESSON_NOTES),
   fragments: z.array(Fragment).optional().describe('Practice chunks; generated automatically when omitted'),
 });
 export type LessonInput = z.input<typeof LessonInput>;

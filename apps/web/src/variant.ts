@@ -27,6 +27,17 @@ export interface VariantProps {
    * or null for "whole lesson". Drives the feedback button and "hear the original".
    */
   onFragmentChange(position: number | null): void;
+  /**
+   * Optional — publish this variant's own state for tests and agents. The latest object shows up
+   * as `variantState` in `window.pianoSteps.getState()` (dev builds; see docs/testing-api.md), so a
+   * test can assert "the cards view is on step 3, waiting for E4+G4" without reading pixels.
+   *
+   * Call it whenever that state changes, with plain JSON (no functions, no class instances), e.g.
+   * `reportState?.({ step: 3, stepCount: 12, expected: [64, 67], mode: 'wait' })`.
+   * The shell only stores the last object (no re-render), so calling it often is cheap; it is
+   * forgotten when the variant unmounts or the lesson changes. Variants that never call it are fine.
+   */
+  reportState?(state: Record<string, unknown>): void;
 }
 
 export interface VariantDef {

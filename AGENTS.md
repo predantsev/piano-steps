@@ -46,10 +46,12 @@ npm install
 npm run dev            # API http://127.0.0.1:9301 + web http://piano-steps.localhost:9300 (PGlite, no Docker)
 npm test               # vitest: core + API (in-memory PGlite)
 npm run typecheck
+npm run e2e            # Playwright: iPad (WebKit) + desktop Chromium; first time `npm run e2e:install`
 docker compose up -d --build   # app + Postgres → http://piano-steps.localhost:9300 (docs: /api/docs)
 ```
 
 Docker is the default way to *run* it; native `npm run dev` is the dev loop.
+Driving the UI as an agent (dev builds): `window.pianoSteps` / WebMCP tools — see `docs/testing-api.md`.
 
 ## Domain invariants
 

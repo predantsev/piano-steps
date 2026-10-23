@@ -23,8 +23,21 @@ const STRINGS = {
   themeDark: { uk: 'Темна', en: 'Dark' },
   importLesson: { uk: 'Імпорт', en: 'Import' },
   importHint: {
-    uk: 'Файл .mid або .json (формат уроку)',
-    en: 'A .mid file or a lesson .json',
+    uk: 'Файл .mid, .musicxml / .mxl або .json (формат уроку)',
+    en: 'A .mid, .musicxml / .mxl or lesson .json file',
+  },
+  apiToken: { uk: 'API-токен', en: 'API token' },
+  apiTokenHint: {
+    uk: 'Сервер приймає зміни лише з токеном. Зберігається тільки на цьому пристрої.',
+    en: 'The server accepts changes only with this token. Stored on this device only.',
+  },
+  apiTokenInvalid: {
+    uk: 'Токен може містити лише латинські літери, цифри та символи — перевірте розкладку клавіатури',
+    en: 'A token has only Latin letters, digits and symbols — check the keyboard layout',
+  },
+  needToken: {
+    uk: 'Потрібен API-токен: додайте його в Налаштуваннях (⚙)',
+    en: 'An API token is needed: add it in Settings (⚙)',
   },
   offline: { uk: 'Офлайн: сервер недоступний, показую демо-уроки', en: 'Offline: server unreachable, showing demo lessons' },
   tapForSound: { uk: 'Торкніться, щоб увімкнути звук', en: 'Tap to enable sound' },

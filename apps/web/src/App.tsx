@@ -2,6 +2,7 @@ import type { FragmentProgress, Lesson, LessonSummary, ProgressStatus } from '@p
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as api from './api.ts';
 import { LessonPlayer } from './audio/player.ts';
+import type { DevShell } from './devtools/shell.ts';
 import { t } from './i18n.ts';
 import { NoteInput } from './input/noteInput.ts';
 import { useSettings, useTheme } from './settings.ts';
@@ -41,6 +42,13 @@ export default function App() {
   const [fragmentPos, setFragmentPos] = useState<number | null>(null);
   const [dialog, setDialog] = useState<null | 'feedback' | 'original' | 'settings'>(null);
   const [error, setError] = useState<string | null>(null);
+  const [health, setHealth] = useState<api.Health | null>(null);
+  const [tokenInvalid, setTokenInvalid] = useState(false);
+  // Decided when Settings opens, so clearing the field never unmounts it under the finger.
+  const [showToken, setShowToken] = useState(false);
+  useEffect(() => {
+    if (dialog === 'settings') setShowToken(!!health?.auth || api.getApiToken() !== null);
+  }, [dialog, health]);
   const fileRef = useRef<HTMLInputElement>(null);
 
   // iOS/iPadOS only allow audio after a user gesture: unlock on the first touch anywhere.
@@ -55,6 +63,11 @@ export default function App() {
       detach();
     };
   }, [player, input]);
+
+  // `auth: true` → the server wants a token for writes; Settings then shows the token field.
+  useEffect(() => {
+    api.getHealth().then(setHealth, () => setHealth(null));
+  }, []);
 
   const refreshList = useCallback(async () => {
     const list = await api.listLessons();
@@ -115,13 +128,17 @@ export default function App() {
 
   const onImport = async (file: File) => {
     try {
-      const l = file.name.toLowerCase().endsWith('.json')
+      const name = file.name.toLowerCase();
+      const l = name.endsWith('.json')
         ? await api.createLesson(JSON.parse(await file.text()), { upsert: true })
-        : await api.importMidi(file, file.name.replace(/\.(mid|midi)$/i, ''));
+        : /\.(musicxml|xml|mxl)$/.test(name)
+          ? await api.importMusicXml(file)
+          : await api.importMidi(file, file.name.replace(/\.(mid|midi)$/i, ''));
       await refreshList();
       setLessonRef(l.slug);
     } catch (e) {
-      const details = e instanceof api.ApiError && e.details ? `\n${e.details.join('\n')}` : '';
+      if (e instanceof api.ApiError && e.status === 401) return setError(t(lang, 'needToken'));
+      const details = e instanceof api.ApiError && e.details && e.message === 'validation' ? `\n${e.details.join('\n')}` : '';
       setError(`${e instanceof Error ? e.message : String(e)}${details}`);
     }
   };
@@ -130,6 +147,63 @@ export default function App() {
   const Variant = variant.component;
   const frag = lesson && fragmentPos !== null ? lesson.fragments[fragmentPos] ?? null : null;
   const fragTitle = frag ? `${t(lang, 'fragment')} ${frag.title ?? `#${(fragmentPos ?? 0) + 1}`}` : t(lang, 'wholeLesson');
+  const variantKey = lesson ? `${variant.id}:${lesson.id}:${lesson.updatedAt}` : '';
+
+  // State a variant publishes for tests/agents (VariantProps.reportState), remembered per mounted variant.
+  const variantState = useRef<{ key: string; state: Record<string, unknown> } | null>(null);
+  // A new mount (another variant, lesson or edit) starts empty — also when coming back to the same key,
+  // so a remounted view never shows its previous mount's state. Reset in render: it is idempotent and
+  // runs before any of the new view's effects can report.
+  const lastVariantKey = useRef(variantKey);
+  if (lastVariantKey.current !== variantKey) {
+    lastVariantKey.current = variantKey;
+    variantState.current = null;
+  }
+  const reportState = useCallback(
+    (state: Record<string, unknown>) => {
+      variantState.current = { key: variantKey, state };
+    },
+    [variantKey],
+  );
+
+  // Dev automation API — window.pianoSteps + WebMCP tools (docs/testing-api.md). The dynamic import
+  // inside `import.meta.env.DEV` keeps it out of production builds entirely.
+  const devShell = useRef<DevShell | null>(null);
+  if (import.meta.env.DEV)
+    devShell.current = {
+      lessons,
+      lesson,
+      lessonRef,
+      variantId,
+      variantIds: VARIANTS.map((v) => v.id),
+      fragmentPos,
+      dialog,
+      error,
+      offline: api.isOffline(),
+      settings,
+      player,
+      input,
+      variantState: () => (variantState.current?.key === variantKey ? variantState.current.state : null),
+      selectLesson: setLessonRef,
+      setVariant: (id) => {
+        player.stop();
+        setVariantId(id);
+      },
+      refreshLessons: refreshList,
+    };
+  useEffect(() => {
+    if (import.meta.env.DEV) {
+      let off: (() => void) | undefined;
+      let live = true;
+      void import('./devtools/index.ts').then((m) => {
+        if (live) off = m.installDevtools(() => devShell.current!);
+      });
+      return () => {
+        live = false;
+        off?.();
+      };
+    }
+  }, []);
 
   return (
     <div className="app">
@@ -170,7 +244,7 @@ export default function App() {
         <input
           ref={fileRef}
           type="file"
-          accept=".mid,.midi,.json,audio/midi,application/json"
+          accept=".mid,.midi,.json,.musicxml,.xml,.mxl,audio/midi,application/json,application/vnd.recordare.musicxml+xml,application/vnd.recordare.musicxml"
           hidden
           onChange={(e) => {
             const f = e.target.files?.[0];
@@ -205,9 +279,9 @@ export default function App() {
           </div>
         )}
         {lesson ? (
-          <Suspense fallback={<p style={{ padding: 16 }}>{t(lang, 'loading')}</p>}>
+          <Suspense fallback={<p data-loading style={{ padding: 16 }}>{t(lang, 'loading')}</p>}>
             <Variant
-              key={`${variant.id}:${lesson.id}:${lesson.updatedAt}`}
+              key={variantKey}
               lesson={lesson}
               player={player}
               input={input}
@@ -216,10 +290,11 @@ export default function App() {
               progress={progress}
               recordProgress={recordProgress}
               onFragmentChange={onFragmentChange}
+              reportState={reportState}
             />
           </Suspense>
         ) : (
-          <p style={{ padding: 16 }} className="muted">
+          <p data-loading style={{ padding: 16 }} className="muted">
             {t(lang, 'loading')}
           </p>
         )}
@@ -270,6 +345,27 @@ export default function App() {
                   {t(lang, theme === 'system' ? 'themeSystem' : theme === 'light' ? 'themeLight' : 'themeDark')}
                 </button>
               </div>
+              {/* Also shown when a token is stored, so it stays reachable even if /api/health failed. */}
+              {(showToken || tokenInvalid) && (
+                <>
+                  <span>{t(lang, 'apiToken')}</span>
+                  <div>
+                    <input
+                      type="password"
+                      autoComplete="off"
+                      aria-label={t(lang, 'apiToken')}
+                      defaultValue={api.getApiToken() ?? ''}
+                      aria-invalid={tokenInvalid}
+                      onChange={(e) => setTokenInvalid(!api.setApiToken(e.target.value))}
+                      style={{ width: '100%', minHeight: 'var(--tap)', padding: '0 12px', borderRadius: 'var(--radius)', border: '1px solid var(--bd)', background: 'var(--bg)' }}
+                    />
+                    {tokenInvalid && (
+                      <p role="alert" style={{ margin: '4px 0 0', color: 'var(--bad)' }}>{t(lang, 'apiTokenInvalid')}</p>
+                    )}
+                    <p className="muted" style={{ margin: '4px 0 0' }}>{t(lang, 'apiTokenHint')}</p>
+                  </div>
+                </>
+              )}
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
               <button className="btn" onClick={() => setDialog(null)}>

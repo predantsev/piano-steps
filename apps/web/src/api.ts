@@ -17,21 +17,38 @@ import {
 
 const TOKEN_KEY = 'piano-steps-api-token';
 
+/**
+ * An HTTP header carries only Latin-1, and a token is printable ASCII. Invisible characters a paste
+ * brings along (spaces, zero-width spaces, BOM) are dropped; anything else outside ASCII (a token typed
+ * on a Cyrillic layout) makes the token invalid — never sent, so it cannot break every request.
+ */
+export function cleanApiToken(raw: string): { token: string; ok: boolean } {
+  const token = raw.replace(/[\s\u00ad\u180e\u200b-\u200f\u2028-\u202f\u2060-\u206f\ufeff]/g, '');
+  return { token, ok: /^[\x21-\x7e]*$/.test(token) };
+}
+
 function token(): string | null {
   try {
-    return localStorage.getItem(TOKEN_KEY);
+    const { token: t, ok } = cleanApiToken(localStorage.getItem(TOKEN_KEY) ?? '');
+    return ok && t ? t : null;
   } catch {
     return null;
   }
 }
 
-export function setApiToken(t: string | null) {
+/** The API token stored on this device (Settings → API token), or null. */
+export const getApiToken = token;
+
+/** Store the token typed in Settings. Returns false (and stores nothing) when it cannot be sent. */
+export function setApiToken(raw: string | null): boolean {
+  const { token: t, ok } = cleanApiToken(raw ?? '');
   try {
-    if (t) localStorage.setItem(TOKEN_KEY, t);
+    if (ok && t) localStorage.setItem(TOKEN_KEY, t);
     else localStorage.removeItem(TOKEN_KEY);
   } catch {
     /* storage blocked */
   }
+  return ok;
 }
 
 export class ApiError extends Error {
@@ -43,14 +60,31 @@ export class ApiError extends Error {
 async function call<T>(method: string, path: string, body?: unknown, raw?: BodyInit): Promise<T> {
   const headers: Record<string, string> = {};
   const t = token();
-  if (t) headers.authorization = `Bearer ${t}`;
+  // The server checks the token on writes only; reads never carry it, so a bad token cannot break loading.
+  if (t && method !== 'GET') headers.authorization = `Bearer ${t}`;
   if (body !== undefined) headers['content-type'] = 'application/json';
   if (raw !== undefined) headers['content-type'] = 'application/octet-stream';
   const r = await fetch(path, { method, headers, body: raw ?? (body !== undefined ? JSON.stringify(body) : undefined) });
   if (r.status === 204) return undefined as T;
   const data = await r.json().catch(() => ({}));
-  if (!r.ok) throw new ApiError((data as { error?: string }).error ?? r.statusText, r.status, (data as { details?: string[] }).details);
+  if (!r.ok) {
+    // Errors are { error: <code>, details?: string[] }; show the first detail unless the caller lists them all.
+    const { error, details } = data as { error?: string; details?: string[] };
+    const code = error ?? r.statusText;
+    throw new ApiError(code !== 'validation' && details?.length ? details[0] : code, r.status, details);
+  }
   return data as T;
+}
+
+export interface Health {
+  ok: boolean;
+  db: string;
+  /** The server has API_TOKEN set: writes need the token (Settings → API token). */
+  auth: boolean;
+}
+
+export async function getHealth(): Promise<Health> {
+  return call<Health>('GET', '/api/health');
 }
 
 let offline = false;
@@ -104,6 +138,13 @@ export async function importMidi(file: File, title?: string): Promise<Lesson> {
   const q = new URLSearchParams();
   if (title) q.set('title', title);
   return call<Lesson>('POST', `/api/lessons/import/midi?${q}`, undefined, await file.arrayBuffer());
+}
+
+/** MusicXML (.musicxml / .xml) or compressed .mxl; the title comes from the score unless given. */
+export async function importMusicXml(file: File, title?: string): Promise<Lesson> {
+  const q = new URLSearchParams();
+  if (title) q.set('title', title);
+  return call<Lesson>('POST', `/api/lessons/import/musicxml?${q}`, undefined, await file.arrayBuffer());
 }
 
 // progress falls back to localStorage when offline
