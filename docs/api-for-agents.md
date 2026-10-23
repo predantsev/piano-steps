@@ -56,8 +56,12 @@ What the importer does with it:
   single-staff parts → the higher one is the right hand. Anything else → split at C4.
 - **Fragments** are cut on real bar lines (groups of whole measures, about 6 s each), so a fragment
   never starts mid-bar, even after a pickup or a tempo change.
-- **Tempo** from `<sound tempo>` or a metronome mark; changes mid-piece are applied (default 120 bpm).
-- **Ties** are merged into one long note; chords, rests, `<backup>`/`<forward>` are honoured.
+- **Tempo** from `<sound tempo>` or a metronome mark; changes mid-piece are applied. Before the first
+  mark: 120 bpm (the MusicXML default) — unless that mark is in the first two bars, then it covers the opening.
+- **Transposing instruments** (`<transpose>`: Bb clarinet/trumpet, Eb sax, guitar…) import at the
+  **sounding** pitch — what a piano plays.
+- **Ties** are merged into one long note (per staff and voice); chords, rests, `<backup>`/`<forward>` are honoured.
+- **Limits**: 20 MB per upload and per unpacked score (`413 too-large`), 20 000 notes per lesson.
 - **Not read**: repeats (the score is read straight through, as written), grace notes, cue notes,
   dynamics, `score-timewise` files (export as the default "partwise").
 - `?part=P1` (or the part name, comma-separated for several) imports only those parts — e.g. only

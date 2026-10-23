@@ -1,6 +1,6 @@
 import { XMLParser, XMLValidator } from 'fast-xml-parser';
 import { unzipSync } from 'fflate';
-import type { Fragment, Hand, LessonInput, LessonNote, Tempo } from './lesson.ts';
+import { MAX_LESSON_NOTES, type Fragment, type Hand, type LessonInput, type LessonNote, type Tempo } from './lesson.ts';
 import { notesInRange, snapFragments } from './steps.ts';
 
 /**
@@ -9,8 +9,10 @@ import { notesInRange, snapFragments } from './steps.ts';
  * What is read:
  * - `score-partwise` (what MuseScore, Finale, Sibelius, Dorico export). `score-timewise` is rejected.
  * - notes, rests, chords (`<chord/>`), `<backup>` / `<forward>`, `<divisions>` (may change per measure)
- * - tempo from `<sound tempo>` (preferred) or a `<metronome>` mark; changes mid-piece are honoured
- * - ties (`<tie>` or `<notations><tied>`) are merged into one long note
+ * - tempo from `<sound tempo>` (preferred) or a `<metronome>` mark; changes mid-piece are honoured;
+ *   before the first mark 120 bpm (the MusicXML default), unless that mark is in the first two bars
+ * - ties (`<tie>` or `<notations><tied>`) are merged into one long note (per staff and voice)
+ * - `<transpose>` (transposing instruments: clarinet, sax, guitar…) → notes at the sounding pitch
  * - hands: a part with two staves → staff 1 = R, staff 2 = L; two single-staff parts → the higher
  *   one is R; otherwise split at `splitPitch`
  * - fingering (`<technical><fingering>`) → `finger`
@@ -238,8 +240,11 @@ export function musicxmlToLesson(
     let divisions = 1;
     let measureStart = 0;
     let barQ: number | undefined; // full-measure length from the time signature
-    const open = new Map<string, QNote>(); // tie chains: `${staff}:${pitch}` → note being extended
+    const open = new Map<string, QNote>(); // tie chains: `${staff}:${voice}:${pitch}` → note being extended
     const starts: number[] = [];
+    // <transpose>: written → sounding pitch, in semitones; per staff (`number`) or for every staff (key 0).
+    const transpose = new Map<number, number>();
+    const shiftOf = (staff: number) => transpose.get(staff) ?? transpose.get(0) ?? 0;
 
     for (const measure of kids(part, 'measure')) {
       starts.push(measureStart);
@@ -261,6 +266,19 @@ export function musicxmlToLesson(
             if (d && d > 0) divisions = d;
             const staves = numOf(el, 'staves');
             if (staves && staves > 1) multiStaff.add(partIdx);
+            for (const t of kids(el, 'transpose')) {
+              const dbl = child(t, 'double');
+              const semis =
+                (numOf(t, 'chromatic') ?? 0) +
+                12 * (numOf(t, 'octave-change') ?? 0) +
+                (dbl ? (dbl.attrs.above === 'yes' ? 12 : -12) : 0);
+              const n = Number(t.attrs.number);
+              if (Number.isInteger(n) && n > 0) transpose.set(n, semis);
+              else {
+                transpose.clear();
+                transpose.set(0, semis);
+              }
+            }
             const time = child(el, 'time');
             const beats = Number(textOf(time, 'beats'));
             const beatType = Number(textOf(time, 'beat-type'));
@@ -306,8 +324,8 @@ export function musicxmlToLesson(
             const step = STEP_PC[(textOf(pitchEl, 'step') ?? '').toUpperCase()];
             const octave = numOf(pitchEl, 'octave');
             if (step === undefined || octave === undefined) break;
-            const pitch = (octave + 1) * 12 + step + Math.round(numOf(pitchEl, 'alter') ?? 0);
             const staff = numOf(el, 'staff') ?? 1;
+            const pitch = (octave + 1) * 12 + step + Math.round(numOf(pitchEl, 'alter') ?? 0) + shiftOf(staff);
             if (staff > 1) multiStaff.add(partIdx);
             const startQ = measureStart + onset / divisions;
             const durQ = dur / divisions;
@@ -318,7 +336,8 @@ export function musicxmlToLesson(
             ];
             const tieStop = tieTypes.includes('stop') || tieTypes.includes('continue');
             const tieStart = tieTypes.includes('start') || tieTypes.includes('continue');
-            const key = `${staff}:${pitch}`;
+            // A same-pitch note in another voice must not break (or extend) this voice's tie.
+            const key = `${staff}:${textOf(el, 'voice') ?? '1'}:${pitch}`;
             const prev = tieStop ? open.get(key) : undefined;
             if (prev && Math.abs(prev.startQ + prev.durQ - startQ) < 1 / 64) {
               prev.durQ = startQ + durQ - prev.startQ;
@@ -336,6 +355,8 @@ export function musicxmlToLesson(
               ...(Number.isInteger(finger) && finger >= 1 && finger <= 5 ? { finger } : {}),
             };
             qnotes.push(q);
+            if (qnotes.length > MAX_LESSON_NOTES)
+              throw new MusicXmlError(`The score has more than ${MAX_LESSON_NOTES} notes — import fewer parts (?part=…)`);
             if (tieStart) open.set(key, q);
             else open.delete(key);
             break;
@@ -355,7 +376,11 @@ export function musicxmlToLesson(
 
   // ── tempo map: quarter position → seconds ────────────────────────────────
   const tempos = [...tempoAt.entries()].sort((a, b) => a[0] - b[0]);
-  if (!tempos.length || tempos[0][0] > EPS) tempos.unshift([0, tempos[0]?.[1] ?? DEFAULT_BPM]);
+  // Before the first mark: MusicXML's default of 120 — unless the mark sits in the first two bars (after a
+  // pickup, or a beat into bar 1), where it is meant for the opening too.
+  const earlyQ = measureStarts[Math.min(2, measureStarts.length - 1)] ?? 0;
+  if (!tempos.length) tempos.push([0, DEFAULT_BPM]);
+  else if (tempos[0][0] > EPS) tempos.unshift([0, tempos[0][0] < earlyQ - EPS ? tempos[0][1] : DEFAULT_BPM]);
   const segs: { q: number; sec: number; bpm: number }[] = [];
   for (const [q, bpm] of tempos) {
     const last = segs[segs.length - 1];
@@ -364,8 +389,15 @@ export function musicxmlToLesson(
     else segs.push({ q, sec, bpm });
   }
   const toSec = (q: number) => {
-    let s = segs[0];
-    for (const x of segs) if (x.q <= q + EPS) s = x;
+    // The last segment starting at or before q (binary search: a tempo mark in every bar is common).
+    let lo = 0;
+    let hi = segs.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1;
+      if (segs[mid].q <= q + EPS) lo = mid;
+      else hi = mid - 1;
+    }
+    const s = segs[lo];
     return s.sec + ((q - s.q) * 60) / s.bpm;
   };
 

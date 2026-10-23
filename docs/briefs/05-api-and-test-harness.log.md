@@ -235,3 +235,17 @@ the brief was silent and I chose.
 - Decision: `measureFragments` rounds with `r` (4 dp) and runs `snapFragments`; membership via `notesInRange`.
 - `repo.replaceFragmentNotes` used its own `1e-6` rule; now `notesInRange` (TIME_EPS) like the player/views.
 - Test `musicxmlToLesson fragment edges` (66/72/90, imported and stored): fails before (7.2727 vs 7.273), passes after.
+
+### Major #6 zip bomb (+ minor #13, nit #14, nit #2) — fa107aa
+- fflate check (scratchpad lie.mts): a 50 MB entry whose zip headers claim `originalSize` 100 → `unzipSync`
+  returned exactly 100 bytes. So the declared size is a hard bound: filtering on `originalSize` before
+  inflating is enough, a lying header cannot exceed the cap.
+- Decision: `readMxl` unzips in two filtered passes (container.xml ≤ 64 KB, then only the score), refuses an entry
+  over `MAX_SCORE_BYTES` (20 MB) with `MusicXmlTooLarge`; plain files/strings over 20 MB too. Server: `hono/body-limit`
+  20 MB on `/api/*` → `HttpError(413,'too-large')` (not the generic HTTPException → bad-request mapping);
+  `MusicXmlTooLarge` → 413. OpenAPI: 413 on both imports, 413 + 415 on every JSON-body route; error table updated.
+- Old code probe (old-probe-tmp, deleted): 25 MB+30 MB bomb → unpacked, rss +214 MB, then "Not valid XML";
+  `./my%20score.musicxml` → "contains no MusicXML score". New tests: core bomb (arrayBuffers grow < 5 MB),
+  server 413 for the bomb, for >20 MB bodies on 3 routes, and a chunked body without content-length.
+- ASSUMPTION: 20 MB for both the body and the unpacked score (the finding's example value); a 20k-note piano
+  score is a few MB of MusicXML.

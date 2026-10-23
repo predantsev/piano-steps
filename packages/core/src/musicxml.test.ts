@@ -190,6 +190,63 @@ describe('musicxmlToLesson fragment edges', () => {
   });
 });
 
+describe('musicxmlToLesson pitch, ties and size', () => {
+  const pitches = (xml: string) => musicxmlToLesson(xml).notes.map((n) => n.pitch);
+
+  it('applies <transpose>: notes come out at the sounding pitch', () => {
+    // Bb clarinet: written D5 sounds C5.
+    const clarinet = '<transpose><diatonic>-1</diatonic><chromatic>-2</chromatic></transpose>';
+    expect(pitches(scale({ bars: 1, attrs: clarinet, step: 'D', octave: 5 }))).toEqual([72, 72, 72, 72]);
+    // Guitar (MuseScore writes octave-change -1): written E4 sounds E3.
+    const guitar = '<transpose><diatonic>0</diatonic><chromatic>0</chromatic><octave-change>-1</octave-change></transpose>';
+    expect(pitches(scale({ bars: 1, attrs: guitar, step: 'E', octave: 4 }))).toEqual([52, 52, 52, 52]);
+    // Eb alto sax: written A4 sounds C4 (a major 6th lower = -9).
+    const sax = '<transpose><diatonic>-5</diatonic><chromatic>-9</chromatic></transpose>';
+    expect(pitches(scale({ bars: 1, attrs: sax, step: 'A', octave: 4 }))).toEqual([60, 60, 60, 60]);
+    // <double/> adds an octave down (above="yes": up).
+    const dbl = '<transpose><chromatic>0</chromatic><double/></transpose>';
+    expect(pitches(scale({ bars: 1, attrs: dbl, step: 'C', octave: 5 }))).toEqual([60, 60, 60, 60]);
+    const dblUp = '<transpose><chromatic>0</chromatic><double above="yes"/></transpose>';
+    expect(pitches(scale({ bars: 1, attrs: dblUp, step: 'C', octave: 4 }))).toEqual([72, 72, 72, 72]);
+  });
+
+  it('keeps a tie in its own voice when another voice repeats the pitch', () => {
+    // 2/4: voice 1 C5 then G4 tied over the bar; voice 2 an untied G4 half note under it.
+    const n = (step: string, oct: number, dur: number, voice: number, tie?: 'start' | 'stop') =>
+      `<note><pitch><step>${step}</step><octave>${oct}</octave></pitch><duration>${dur}</duration><voice>${voice}</voice>${tie ? `<tie type="${tie}"/>` : ''}</note>`;
+    const xml = `<score-partwise><part-list><score-part id="P1"/></part-list><part id="P1">
+      <measure><attributes><divisions>1</divisions><time><beats>2</beats><beat-type>4</beat-type></time></attributes>
+        ${n('C', 5, 1, 1)}${n('G', 4, 1, 1, 'start')}<backup><duration>2</duration></backup>${n('G', 4, 2, 2)}</measure>
+      <measure>${n('G', 4, 2, 1, 'stop')}</measure></part></score-partwise>`;
+    expect(brief(musicxmlToLesson(xml).notes)).toEqual([
+      [67, 0, 1, 'R'], // voice 2
+      [72, 0, 0.5, 'R'],
+      [67, 0.5, 1.5, 'R'], // voice 1: one G4 from beat 2 to the end of bar 2
+    ]);
+  });
+
+  it('plays the bars before a late first tempo mark at 120 bpm, but backdates a mark in the first two bars', () => {
+    const at = (bar: number, bpm: number) =>
+      scale({ bars: 4 }).replace(`<measure number="${bar}">`, `<measure number="${bar}"><sound tempo="${bpm}"/>`);
+    // Mark at bar 3: bars 1–2 at 120 (2 s each), then 60 (4 s per bar).
+    expect(musicxmlToLesson(at(3, 60)).notes.filter((n) => n.pitch === 72).map((n) => n.start)).toEqual([0, 2, 4, 8]);
+    // Mark at bar 2 (e.g. after a pickup): the opening uses it too.
+    expect(musicxmlToLesson(at(2, 60)).notes.filter((n) => n.pitch === 72).map((n) => n.start)).toEqual([0, 4, 8, 12]);
+  });
+
+  it('stays fast with a tempo mark in every bar, and stops at the note limit', () => {
+    const bar = (i: number) =>
+      `<measure>${i === 0 ? '<attributes><divisions>1</divisions><time><beats>1</beats><beat-type>4</beat-type></time></attributes>' : ''}` +
+      `<sound tempo="${60 + (i % 60)}"/><note><pitch><step>C</step><octave>5</octave></pitch><duration>1</duration></note></measure>`;
+    const score = (bars: number) =>
+      `<score-partwise><part-list><score-part id="P1"/></part-list><part id="P1">${Array.from({ length: bars }, (_, i) => bar(i)).join('')}</part></score-partwise>`;
+    const t0 = performance.now();
+    expect(musicxmlToLesson(score(19_000)).notes).toHaveLength(19_000);
+    expect(performance.now() - t0).toBeLessThan(3000); // was ~2 s for 20k bars, ~8 s for 40k (quadratic)
+    expect(() => musicxmlToLesson(score(20_001))).toThrow(/more than 20000 notes/);
+  });
+});
+
 describe('lessonToMidi', () => {
   it('round-trips a demo lesson through MIDI with two tracks by hand', () => {
     const v = validateLessonInput(demoLessons().find((d) => d.slug === 'ode-to-joy'));

@@ -433,7 +433,8 @@ export function createApp({ db, dbKind, apiToken }: AppOptions) {
     description:
       'Body: the file bytes (any content type; `.mxl` is recognised by its zip signature) or ' +
       '`multipart/form-data` with field `file`. Reads notes, rests, chords, ties (merged), backup/forward, ' +
-      'tempo (`<sound tempo>` / metronome, changes honoured). Hands: a two-staff part → staff 1 = right, ' +
+      'tempo (`<sound tempo>` / metronome, changes honoured; 120 bpm before a first mark that comes after bar 2), ' +
+      '`<transpose>` (transposing instruments import at the sounding pitch). Max 20 MB unpacked. Hands: a two-staff part → staff 1 = right, ' +
       'staff 2 = left; two single-staff parts → the higher is right. Fragments are cut on bar lines (~6 s). ' +
       'Not supported: score-timewise, repeats (read straight through), grace notes (skipped). ' +
       '`part` = comma-separated part ids or names to import (default: all). ' +
