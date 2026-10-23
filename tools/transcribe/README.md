@@ -109,7 +109,7 @@ bytedance, precision 0.68) — kept out of the mean.
   three recordings, and so did a plain C4 split — this passage never crosses C4, so it does not
   tell the two apart. On Brooklyn the beam search scored 0.96 / 0.93 vs 1.00 for the plain split.
   On the demo lessons with hands removed (`tests/test_hands.py`) it recovers 100 %.
-- **Speed** (M4 Pro, CPU): bytedance ~11 s per 60 s of audio (a 3:54 video end to end in 42 s),
+- **Speed** (M4 Pro, CPU): bytedance ~11 s per 60 s of audio (a 3:54 video end to end in 42 s with its audio and the checkpoint already cached),
   basic-pitch ~2 s.
 - Caveat: one piece, four performances. The numbers say "solo piano, classical, clean recording";
   they say nothing about other repertoire.

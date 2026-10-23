@@ -64,7 +64,8 @@ onset 0.4/0.5/0.6/0.7/0.8/0.9 → mean F1@50 0.628/0.730/0.794/**0.841**/0.827/0
 Hands on matched notes: beam search 1.000 on the first three for both engines; on Brooklyn 0.962
 (bd) / 0.925 (bp) where a plain C4 split scored 1.000.
 Speed (clean run, M4 Pro CPU): bytedance 11.0 s, basic-pitch 2.2 s per 60 s clip; full 3:54 video
-end to end 42 s.
+end to end 42 s (audio and checkpoint already cached from the eval run; a cold run adds the
+yt-dlp download and the 165 MB checkpoint).
 
 ## How it was verified
 
@@ -100,6 +101,15 @@ end to end 42 s.
 - Video spike: a finding, not a working prototype (see below).
 - The practice variants on this branch are still the shell's basic screen, so the lesson was not
   seen in the final UIs.
+
+## Housekeeping
+
+- Dev server on 9340/9341 stopped (`curl :9341/api/health` → no answer); browser tab closed.
+- Docker: the isolated check project was taken down with its volumes and its two images removed;
+  `piano-steps-transcriber:latest` (2.87 GB) is kept — it is the compose-profile build.
+- Local, gitignored disk use in the worktree: `tools/transcribe/.work/` 289 MB (audio/video of
+  the four recordings, the ByteDance checkpoint, eval outputs), `tools/transcribe/.venv/` 1.0 GB
+  (`du -sh`). Delete either freely; they are re-created on demand.
 
 ## Video spike — finding
 

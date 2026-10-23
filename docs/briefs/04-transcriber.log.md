@@ -92,7 +92,7 @@ brief was silent.
 ### End to end
 
 - `PIANO_STEPS_URL=http://127.0.0.1:9340 uv run transcribe youtube https://www.youtube.com/watch?v=wKvKiN1wYHw …`
-  → 1083 raw → 1077 notes (R 679, L 398), 200 s, 34 fragments, `offsetSec=11.108`, 42 s wall time.
+  → 1083 raw → 1077 notes (R 679, L 398), 200 s, 34 fragments, `offsetSec=11.108`, 42 s wall time (audio + checkpoint already cached by the eval run).
   Seen in the app (tab at 1180×820): 34 fragment chips, ▶ Fragment lit E5 first, 🎧 Original opened
   `youtube-nocookie.com/embed/wKvKiN1wYHw?…&start=11&end=17` (fragment 1 = [0, 4.87) + 11.108).
   The practice variants on this branch are still the shell's "Basic screen".
