@@ -12,7 +12,7 @@ All of it is inside `apps/web/src/variants/sheet/`, plus the `vexflow` dependenc
 | `quantize.test.ts` | 13 unit tests for the quantiser. |
 | `render.ts` | VexFlow 5 drawing of the bars of one fragment: grand staff, brace, clefs/key/time, beams, ties (also across lines), bar numbers, note names under each staff, hand colours. It fits the stage: largest zoom 1.6–0.6 where the bars fit the width and height, wrapping to more lines when needed. Returns the head positions for hit-testing and highlights. |
 | `index.tsx` | The practice screen: fragment chips with progress marks, Prev/Next, ✓ Got it; Listen mode (Play/Stop, Loop) and Step mode (big Next with Space, Back, step counter, "Again"); speed 25/50/75/100 %; Names and Hands toggles; `PianoKeyboard`. A single rAF loop keeps the staff and the keys in sync. |
-| `sheet.css` | Layout and all colours through the shell's CSS variables (`--strong`, `--mut`, `--hand-r`, `--hand-l`, `--hint`, `--accent`, …). |
+| `sheet.css` | Layout and colours through the shell's CSS variables (`--strong`, `--mut`, `--hand-r`, `--hand-l`, `--hint`, `--accent`, …). *(Fix round: the one literal colour, the Space keycap's `rgb(0 0 0 / 0.15)`, became `color-mix(… currentColor …)`.)* |
 | `strings.ts` | uk / en strings. |
 
 Why it is built this way (more detail in `03-variant-sheet.log.md`):
@@ -50,9 +50,9 @@ Commands, run in the worktree:
 - `npm test` printed `Test Files 3 passed (3)`, `Tests 29 passed (29)`. 13 of the 29 are new in
   `apps/web/src/variants/sheet/quantize.test.ts`.
 - `npm run build` printed `✓ built`. Chunks: `sheet-*.js 744.68 kB │ gzip: 398.32 kB` and
-  `index-*.js 603.65 kB`. The "> 500 kB" warning is triggered by the shell's `index` chunk
-  (603.65 kB in every build I ran). The sheet code is only in the lazily loaded `sheet-*.js`
-  chunk. I did not build `main` itself; my comparison build was on my own commit `6e603b2`.
+  `index-*.js 603.65 kB`. *(Corrected in the fix round:)* **both** chunks exceed 500 kB — the
+  shell's `index` (603.65 kB, already on `main`) and this branch's new, lazily loaded `sheet`
+  (744.68 kB, mostly the embedded Bravura font; see finding 2 below). I did not build `main` itself; my comparison build was on my own commit `6e603b2`.
 
 What the quantiser tests check (`quantize.test.ts`):
 - **Für Elise:** 3/8, pickup = 2 ticks (an eighth), bars numbered `0…8`, snap error < 0.01. Bar by
@@ -109,7 +109,8 @@ In the browser: built-in browser, my own tab, dev server `PORT=9331 API_PORT=933
 
 ## Findings for the orchestrator
 
-1. **Fragment bounds vs note onsets (core / demo data).** This affects every variant.
+1. **Fragment bounds vs note onsets (core / demo data).** *Fixed on `main` by #8 (8261619,
+   `snapFragments` + `TIME_EPS`); the variant's `BOUND_EPS` workaround was removed in the fix round.*
    - The cause: `demo.ts` `beats()` rounds fragment bounds to 1 ms, while `parseVoice` rounds note
      onsets to 0.1 ms. Für Elise's downbeats at 1.6667 s, 4.1667 s and 6.6667 s therefore start
      *before* their fragments (1.667 s, 4.167 s, 6.667 s).
