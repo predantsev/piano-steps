@@ -28,9 +28,37 @@ export function groupSteps(notes: readonly LessonNote[], toleranceSec = 0.045): 
   return steps;
 }
 
-/** Notes whose onset falls inside [start, end). */
+/**
+ * Tolerance for "is this onset on that boundary" (seconds). Times are stored with 4 decimals;
+ * anything within 2 ms of a fragment bound counts as being on it.
+ */
+export const TIME_EPS = 0.002;
+
+/** Notes whose onset falls inside [start, end) — an onset on `end` belongs to the next fragment. */
 export function notesInRange(notes: readonly LessonNote[], start: number, end: number): LessonNote[] {
-  return notes.filter((n) => n.start >= start - 1e-6 && n.start < end - 1e-6);
+  return notes.filter((n) => n.start >= start - TIME_EPS && n.start < end - TIME_EPS);
+}
+
+/**
+ * Move every fragment bound that is within `tolSec` of a note onset exactly onto that onset,
+ * so rounding never pushes a fragment's first note into the previous fragment.
+ */
+export function snapFragments(fragments: readonly Fragment[], notes: readonly LessonNote[], tolSec = 0.01): Fragment[] {
+  const onsets = [...new Set(notes.map((n) => n.start))].sort((a, b) => a - b);
+  const snap = (t: number) => {
+    let best = t;
+    let bestD = tolSec;
+    for (const o of onsets) {
+      const d = Math.abs(o - t);
+      if (d <= bestD) {
+        best = o;
+        bestD = d;
+      }
+      if (o > t + tolSec) break;
+    }
+    return best;
+  };
+  return fragments.map((f) => ({ ...f, start: snap(f.start), end: snap(f.end) }));
 }
 
 /** Notes sounding at time t (start <= t < start + duration). */
@@ -66,7 +94,7 @@ export function autoFragments(
       const e = Math.min(s + len, end);
       if (notesInRange(notes, s, e + (e >= end ? 1e-3 : 0)).length) out.push(round({ start: s, end: e }));
     }
-    return withTitles(out);
+    return withTitles(snapFragments(out, notes));
   }
 
   const cuts: number[] = [];
@@ -95,7 +123,7 @@ export function autoFragments(
 }
 
 function round(f: Fragment): Fragment {
-  return { ...f, start: Math.round(f.start * 1000) / 1000, end: Math.round(f.end * 1000) / 1000 };
+  return { ...f, start: Math.round(f.start * 10000) / 10000, end: Math.round(f.end * 10000) / 10000 };
 }
 
 function withTitles(fs: Fragment[]): Fragment[] {

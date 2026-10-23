@@ -1,5 +1,5 @@
 import { lessonDuration, slugify, sortNotes, type Fragment, type LessonInputParsed } from './lesson.ts';
-import { autoFragments } from './steps.ts';
+import { autoFragments, snapFragments } from './steps.ts';
 
 export interface PreparedLesson extends Omit<LessonInputParsed, 'slug' | 'fragments'> {
   slug: string;
@@ -12,7 +12,10 @@ export function prepareLesson(input: LessonInputParsed): PreparedLesson {
   const notes = sortNotes(input.notes);
   const fragments =
     input.fragments && input.fragments.length > 0
-      ? input.fragments.map((f, i) => ({ title: f.title ?? `#${i + 1}`, start: f.start, end: f.end }))
+      ? snapFragments(
+          input.fragments.map((f, i) => ({ title: f.title ?? `#${i + 1}`, start: f.start, end: f.end })),
+          notes,
+        )
       : autoFragments(notes, { tempo: input.tempo });
   return {
     ...input,
