@@ -10,10 +10,17 @@ export interface MidiImportOptions {
   splitPitch?: number;
 }
 
+/** Track names `lessonToMidi` writes; a file carrying them is one of ours and is read back as it was. */
+const HAND_TRACKS: Record<string, Hand> = { 'right hand': 'R', 'left hand': 'L' };
+const handOfName = (name: string | undefined): Hand | undefined => HAND_TRACKS[(name ?? '').trim().toLowerCase()];
+
 /**
  * Standard MIDI file → LessonInput.
- * Hands: two+ tracks with notes → the track with the higher mean pitch is R, the next is L
- * (piano MIDI files are usually exported that way); one track → split at `splitPitch`.
+ * Hands: tracks named "Right hand" / "Left hand" (what `lessonToMidi` writes) → by name; otherwise two+
+ * tracks with notes → the track with the higher mean pitch is R, the next is L (piano MIDI files are
+ * usually exported that way); one track → split at `splitPitch`.
+ * Leading silence is trimmed (a recording starts late) — except in a file with hand-named tracks,
+ * which keeps its timing and time signature so an exported lesson re-imports unchanged.
  */
 export function midiToLesson(data: ArrayBuffer | Uint8Array, opts: MidiImportOptions = {}): LessonInput {
   const midi = new Midi(data instanceof Uint8Array ? data : new Uint8Array(data));
@@ -21,8 +28,10 @@ export function midiToLesson(data: ArrayBuffer | Uint8Array, opts: MidiImportOpt
   const tracks = midi.tracks.filter((t) => t.notes.length > 0 && t.channel !== 9); // skip drums
   if (tracks.length === 0) throw new Error('MIDI file has no (non-drum) notes');
 
+  const named = tracks.every((t) => handOfName(t.name));
   const handOf = new Map<number, Hand | undefined>();
-  if (tracks.length >= 2) {
+  if (named) tracks.forEach((t, i) => handOf.set(i, handOfName(t.name)));
+  else if (tracks.length >= 2) {
     const ranked = tracks
       .map((t, i) => ({ i, mean: t.notes.reduce((s, n) => s + n.midi, 0) / t.notes.length }))
       .sort((a, b) => b.mean - a.mean);
@@ -46,16 +55,17 @@ export function midiToLesson(data: ArrayBuffer | Uint8Array, opts: MidiImportOpt
   });
   notes.sort((a, b) => a.start - b.start || a.pitch - b.pitch);
 
-  // Drop leading silence so the lesson starts on the first note.
-  const offset = notes[0]?.start ?? 0;
+  // Drop leading silence so the lesson starts on the first note (not in our own exports).
+  const offset = named ? 0 : (notes[0]?.start ?? 0);
   if (offset > 0.05) for (const n of notes) n.start = r(n.start - offset);
 
   let tempo: Tempo | undefined;
   const bpm = midi.header.tempos[0]?.bpm;
   if (bpm && bpm > 0) {
     const ts = midi.header.timeSignatures[0]?.timeSignature;
-    tempo = { bpm: r(bpm), ...(ts && ts.length === 2 ? { timeSignature: [ts[0], ts[1]] as [number, number] } : {}) };
-    // only keep the tempo if leading silence was not trimmed (bar grid would be off otherwise)
+    // 3 decimals: MIDI stores whole microseconds per quarter, so 90 bpm reads back as 90.00009.
+    tempo = { bpm: Math.round(bpm * 1000) / 1000, ...(ts && ts.length === 2 ? { timeSignature: [ts[0], ts[1]] as [number, number] } : {}) };
+    // only keep the time signature if leading silence was not trimmed (bar grid would be off otherwise)
     if (offset > 0.05) tempo = { bpm: tempo.bpm };
   }
 
@@ -78,16 +88,20 @@ export interface MidiExportInput {
   notes: readonly LessonNote[];
 }
 
+/** MIDI stores a tempo as microseconds per quarter in 24 bits: about 3.58…60 000 000 bpm. */
+const MIN_MIDI_BPM = 60_000_000 / 0xffffff;
+
 /**
  * Lesson → Standard MIDI file (format 1) with two tracks: "Right hand" then "Left hand".
- * Notes without a hand go by pitch (below C4 → left). The tempo (or 120 bpm) and time signature
- * are written to the header, so a DAW shows the right bars. Re-importing with `midiToLesson`
- * gives the same pitches and times (to the tick) and the same hands while the right hand sits higher.
+ * Notes without a hand go by pitch (below C4 → left). The tempo (or 120 bpm; clamped to what MIDI can
+ * store) and time signature are written to the header, so a DAW shows the right bars. Re-importing with
+ * `midiToLesson` gives the same pitches, hands and times (to the tick, leading rest included) and the same
+ * tempo — except two overlapping notes of the same pitch in one hand, which MIDI cannot tell apart.
  */
 export function lessonToMidi(lesson: MidiExportInput): Uint8Array {
   const midi = new Midi();
   midi.header.name = lesson.title ?? '';
-  midi.header.setTempo(lesson.tempo?.bpm ?? 120);
+  midi.header.setTempo(Math.max(lesson.tempo?.bpm ?? 120, MIN_MIDI_BPM));
   const ts = lesson.tempo?.timeSignature;
   if (ts) midi.header.timeSignatures.push({ ticks: 0, timeSignature: [ts[0], ts[1]] });
   midi.header.update();

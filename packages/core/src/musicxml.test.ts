@@ -1,3 +1,4 @@
+import ToneMidi from '@tonejs/midi';
 import { strToU8, zipSync } from 'fflate';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
@@ -260,5 +261,44 @@ describe('lessonToMidi', () => {
     expect(back.notes).toHaveLength(lesson.notes.length);
     const key = (n: { pitch: number; start: number; hand?: string }) => `${n.pitch}@${n.start.toFixed(2)}:${n.hand}`;
     expect(back.notes.map(key).sort()).toEqual(lesson.notes.map(key).sort());
+  });
+
+  it('gives an exported lesson back unchanged: one hand below C4, a leading rest, 3/4', () => {
+    const lesson = {
+      title: 'Melody',
+      tempo: { bpm: 90, timeSignature: [3, 4] as [number, number] },
+      notes: [
+        { pitch: 67, start: 0.5, duration: 0.5, hand: 'R' as const },
+        { pitch: 62, start: 1, duration: 0.5, hand: 'R' as const },
+        { pitch: 57, start: 1.5, duration: 0.5, hand: 'R' as const }, // below C4, still the right hand
+        { pitch: 55, start: 2, duration: 1, hand: 'R' as const },
+      ],
+    };
+    const back = midiToLesson(lessonToMidi(lesson));
+    expect(back.tempo).toEqual(lesson.tempo);
+    expect(back.notes.map(({ pitch, start, duration, hand }) => ({ pitch, start, duration, hand }))).toEqual(lesson.notes);
+    // A left-hand-only lesson too.
+    const left = { ...lesson, notes: lesson.notes.map((n) => ({ ...n, pitch: n.pitch + 12, hand: 'L' as const })) };
+    expect(midiToLesson(lessonToMidi(left)).notes.map((n) => n.hand)).toEqual(['L', 'L', 'L', 'L']);
+  });
+
+  it('still trims leading silence and ranks hands by pitch in a foreign MIDI file', () => {
+    const midi = new (ToneMidi as unknown as typeof import('@tonejs/midi')).Midi();
+    const t = midi.addTrack(); // unnamed, as a recorder writes it
+    t.addNote({ midi: 64, time: 1, duration: 0.5 });
+    t.addNote({ midi: 48, time: 1, duration: 0.5 });
+    expect(brief(midiToLesson(midi.toArray()).notes)).toEqual([
+      [48, 0, 0.5, 'L'],
+      [64, 0, 0.5, 'R'],
+    ]);
+  });
+
+  it('writes a tempo MIDI can store, so note times survive a nonsense tempo', () => {
+    const lesson = { tempo: { bpm: 2 }, notes: [{ pitch: 60, start: 3, duration: 1, hand: 'R' as const }] };
+    const back = midiToLesson(lessonToMidi(lesson));
+    // At ~3.6 bpm one tick is ~35 ms; before the clamp the note came back at 1.32 s.
+    expect(back.notes[0].start).toBeCloseTo(3, 1);
+    expect(back.notes[0].duration).toBeCloseTo(1, 1);
+    expect(back.tempo!.bpm).toBeCloseTo(3.58, 1);
   });
 });

@@ -383,7 +383,9 @@ export function createApp({ db, dbKind, apiToken }: AppOptions) {
     summary: 'Create a lesson from a Standard MIDI file',
     description:
       'Body: the raw `.mid` bytes (`application/octet-stream`) or `multipart/form-data` with field `file`. ' +
-      'Hands: two tracks → the higher one is the right hand; one track → split at C4. Leading silence is trimmed. ' +
+      'Hands: tracks named "Right hand" / "Left hand" (our export.mid) → by name; else two tracks → the higher one ' +
+      'is the right hand; one track → split at C4. Leading silence is trimmed, except in a file with those ' +
+      'track names, which keeps its timing and time signature. ' +
       'Example: `curl -X POST "$BASE/api/lessons/import/midi?title=My%20Song" ' +
       '-H "content-type: application/octet-stream" --data-binary @song.mid`',
     request: {
@@ -479,7 +481,9 @@ export function createApp({ db, dbKind, apiToken }: AppOptions) {
     description:
       'Format-1 MIDI with two tracks: "Right hand" then "Left hand" (notes without a hand: below C4 → left). ' +
       'Tempo and time signature go into the header. Re-importing it with /api/lessons/import/midi gives ' +
-      'the same notes back. Example: `curl -o song.mid "$BASE/api/lessons/twinkle-bar-1/export.mid"`',
+      'the same notes back (pitch, hand, start and duration to the MIDI tick, a leading rest included) and ' +
+      'the same tempo — except two overlapping notes of the same pitch in one hand, which MIDI cannot tell ' +
+      'apart (they come back re-cut). Fragments are not stored in MIDI: they are re-cut on import. Example: `curl -o song.mid "$BASE/api/lessons/twinkle-bar-1/export.mid"`',
     request: { params: z.object({ ref: Ref }) },
     responses: {
       200: {

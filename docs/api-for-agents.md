@@ -40,7 +40,9 @@ curl -sS -X POST "$BASE/api/lessons/import/midi?title=My%20Song&sourceUrl=https:
   -H 'content-type: application/octet-stream' --data-binary @song.mid
 ```
 
-Hands: two tracks → higher one is the right hand; one track → split at C4.
+Hands: tracks named "Right hand" / "Left hand" (what `export.mid` writes) → by name; otherwise two
+tracks → the higher one is the right hand; one track → split at C4. Leading silence is trimmed, except
+in a file with those track names.
 Or from the repo: `npm run lesson:add -- song.mid --title "My Song"`.
 
 ## Create a lesson from MusicXML (`.musicxml`, `.xml` or compressed `.mxl`)
@@ -75,6 +77,9 @@ curl -sS -o song.mid "$BASE/api/lessons/my-song/export.mid"
 
 Two tracks, "Right hand" and "Left hand", with the lesson's tempo and time signature — open it in
 any DAW / notation program, edit, and re-import with `/api/lessons/import/midi?upsert=true&slug=my-song`.
+Keep the track names: then the notes, hands, a leading rest and the time signature come back as they
+were. Not kept: the fragments (re-cut on import), titles of fragments, and two overlapping notes of the
+same pitch in one hand (MIDI cannot tell them apart).
 
 ## The feedback loop ("this fragment sounds wrong")
 

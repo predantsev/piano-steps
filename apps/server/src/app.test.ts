@@ -252,6 +252,27 @@ describe('MIDI export', () => {
     expect(b.notes.map((n) => `${n.pitch}${n.hand}`).sort()).toEqual(lesson.notes.map((n) => `${n.pitch}${n.hand}`).sort());
   });
 
+  it('round-trips a one-hand melody below C4 with a leading rest and its time signature', async () => {
+    const lesson = {
+      slug: 'rv-melody',
+      title: 'RV melody',
+      tempo: { bpm: 120, timeSignature: [4, 4] },
+      notes: [
+        { pitch: 67, start: 0.5, duration: 0.5, hand: 'R' },
+        { pitch: 62, start: 1, duration: 0.5, hand: 'R' },
+        { pitch: 57, start: 1.5, duration: 0.5, hand: 'R' },
+        { pitch: 55, start: 2, duration: 0.5, hand: 'R' },
+      ],
+    };
+    expect((await req('POST', '/api/lessons', lesson)).status).toBe(201);
+    const mid = new Uint8Array(await (await req('GET', '/api/lessons/rv-melody/export.mid')).arrayBuffer());
+    const back = await upload('/api/lessons/import/midi?slug=rv-melody-back', mid);
+    expect(back.status).toBe(201);
+    const b = (await back.json()) as { notes: { pitch: number; start: number; duration: number; hand: string }[]; tempo: unknown };
+    expect(b.notes.map(({ pitch, start, duration, hand }) => ({ pitch, start, duration, hand }))).toEqual(lesson.notes);
+    expect(b.tempo).toEqual(lesson.tempo);
+  });
+
   it('answers 404 not-found for an unknown lesson', async () => {
     const r = await req('GET', '/api/lessons/nope/export.mid');
     expect(r.status).toBe(404);

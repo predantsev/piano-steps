@@ -249,3 +249,13 @@ the brief was silent and I chose.
   server 413 for the bomb, for >20 MB bodies on 3 routes, and a chunked body without content-length.
 - ASSUMPTION: 20 MB for both the body and the unpacked score (the finding's example value); a 20k-note piano
   score is a few MB of MusicXML.
+
+### Major #7, minors #11 #12, nit #17 — a81aac7
+- `<transpose>`: chromatic + 12·octave-change, `<double/>` −12 (`above="yes"` +12); per `number` staff or all staves;
+  persists until the next `<transpose>`. Tests: clarinet written D5 → 72, guitar E4 → 52, alto sax A4 → 60, double ±12.
+- Ties keyed `${staff}:${voice}:${pitch}`; the finding's two-voice case now gives one G4 (0.5 → 2 s) in voice 1.
+- Tempo map: binary search; parsing stops once notes exceed MAX_LESSON_NOTES (20000, now a named export of lesson.ts).
+  Probe old vs new, 19 000 bars each with a `<sound tempo>`: old 1633 ms, new 479 ms; 20 001 notes → error.
+- #17 decision: 120 bpm before the first mark (MusicXML default) unless the mark is before the start of bar 3
+  (a pickup or a mark a beat into bar 1 still covers the opening). ASSUMPTION: "first two bars" is the cut-off —
+  the finding left the heuristic open; this keeps pickup scores right and late marks honest.
