@@ -105,9 +105,17 @@ def fetch_youtube(
         wav = d / f"{stem}.wav"
         if not wav.exists():
             print(f"downloading {s:g}–{e:g} s of {vid} …", file=sys.stderr)
-            _yt_dlp(vid, *common, "--download-sections", f"*{s:.3f}-{e:.3f}", "-o", str(d / f"{stem}.%(ext)s"))
+            # --force-keyframes-at-cuts makes the cut exact; without it the section began 4.2 s early
+            # (measured on wKvKiN1wYHw, *30-40 → audio from 25.8 s, 20 s long)
+            _yt_dlp(vid, *common, "--download-sections", f"*{s:.3f}-{e:.3f}", "--force-keyframes-at-cuts",
+                    "-o", str(d / f"{stem}.%(ext)s"))
         if not wav.exists():
             raise ToolError(f"yt-dlp produced no audio for {vid} (larger than {MAX_FILESIZE}?)")
+        want = (min(e, duration) if duration else e) - s
+        got = probe_duration(wav)
+        if abs(got - want) > 0.5:  # a cut that is not where we asked would shift every note
+            wav.unlink()
+            raise ToolError(f"yt-dlp cut {got:.1f} s instead of {want:.1f} s from {vid} — section not trusted")
         return Source(wav=wav, start_sec=s, **src)
     if info.get("is_live") or duration is None or duration > max_duration:
         length = "unknown (live?)" if duration is None else f"{duration / 60:.0f} min"

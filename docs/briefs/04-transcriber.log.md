@@ -168,3 +168,23 @@ brief was silent.
 - ASSUMPTION: the server's 1e-6 delete window is main's to change (scope: no `apps/server` edits);
   the client compensates (carry-back) and the report lists it as a main-side follow-up.
 - Times rounded to 4 decimals (`TIME_DECIMALS`), like core's `round()` / `beats()`.
+- `fix` flow. Order now: GET lesson → range check (exit 2) → resolve the source without downloading
+  (exit 4 if none) → only then PATCH in-progress → transcribe → PUT → PATCH resolved. Any failure
+  after the in-progress PATCH (incl. Ctrl-C) PATCHes the item back to `open` with a `resolution`
+  note (server accepts `resolution` with any status: `apps/server/src/app.ts:369`). Empty result →
+  nothing written, exit 1, feedback reopened with "found no notes … kept its N notes".
+- ASSUMPTION: the review's fix_hint also proposes refusing a shrink below half; the brief names only
+  "empty". Implemented both: < half of the old notes is refused unless `--force` (2 → 1 passes,
+  3 → 1 does not). Cheap insurance against a bad threshold wiping most of a fragment.
+- ASSUMPTION: `fix` on `audio`/`midi` lessons → `--source-file PATH` (+ `--source-offset S`), not a
+  local path stored in `source.url` (a host path means nothing in Docker or on another machine).
+- Exit codes: 0 ok · 1 nothing usable · 2 usage/conflict · 3 API · 4 input · 5 tool · 130 Ctrl-C.
+  Unclassified exceptions keep their traceback (a bug should look like one); `TRANSCRIBE_DEBUG=1`
+  re-raises everything.
+- yt-dlp. Metadata first (`--skip-download`), whole-track download only ≤ `--max-duration` (1200 s),
+  `--max-filesize 300M`; with `--start/--end` (and in `fix`, the padded fragment window) only that
+  section is downloaded unless the whole track is cached. Dead end: plain `--download-sections
+  "*30-40"` on wKvKiN1wYHw returned 20 s of audio starting at 25.796 s (cross-correlation against
+  the cached full `audio.wav`); with `--force-keyframes-at-cuts` → 10.0 s starting at 29.999 s.
+  Kept the flag and added a length check (|got − want| > 0.5 s → ToolError, file removed).
+  Live re-run after the change: `section-30000-40000.wav` 10.0 s; `225…end` 8.9 s (video 234 s).

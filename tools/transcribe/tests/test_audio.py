@@ -26,6 +26,7 @@ def ytdlp(monkeypatch, tmp_path):
         open(out, "wb").close()
 
     monkeypatch.setattr(audio, "_yt_dlp", fake)
+    monkeypatch.setattr(audio, "probe_duration", lambda wav: 30.0 if "section" in wav.name else meta["duration"])
     return calls, meta, tmp_path
 
 
@@ -41,7 +42,7 @@ def test_a_window_downloads_only_that_section(ytdlp):
     src = fetch_youtube(URL, 600.0, 630.0)
     args = calls[-1]
     assert args[args.index("--download-sections") + 1] == "*600.000-630.000"
-    assert "--max-filesize" in args
+    assert "--max-filesize" in args and "--force-keyframes-at-cuts" in args
     assert src.wav == tmp / VID / "section-600000-630000.wav" and src.start_sec == 600.0
     fetch_youtube(URL, 600.0, 630.0)
     assert len(calls) == 2  # cached: metadata once, section once
@@ -67,3 +68,9 @@ def test_source_crop_is_in_recording_time(monkeypatch, tmp_path):
     src = audio.Source(wav=tmp_path / "s.wav", url=None, title=None, duration=None, cache_dir=tmp_path, start_sec=600.0)
     src.crop(605.0, 610.0, tmp_path / "c.wav")
     assert seen == [(5.0, 10.0)]
+
+
+def test_a_section_of_the_wrong_length_is_not_trusted(ytdlp, monkeypatch):
+    monkeypatch.setattr(audio, "probe_duration", lambda wav: 20.0)  # yt-dlp cut at a keyframe
+    with pytest.raises(audio.ToolError, match="not trusted"):
+        fetch_youtube(URL, 600.0, 630.0)
