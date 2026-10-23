@@ -24,7 +24,7 @@ from .api import Api, ApiError
 from .audio import Source, crop, fetch_youtube, load_local, youtube_id
 from .cleanup import CleanupOptions
 from .hands import HandOptions, assign_hands
-from .lesson import build_lesson, from_lesson_notes, to_lesson_notes, zero_at_first_note
+from .lesson import build_lesson, fragment_replacement, from_lesson_notes, to_lesson_notes, zero_at_first_note
 from .midi_io import read_midi, write_midi
 from .notes import Note, group_steps, in_window, pitch_name, shift
 from .pipeline import PipelineOptions, postprocess, run, source_note
@@ -193,15 +193,16 @@ def cmd_fix(a: argparse.Namespace) -> int:
     fr = frags[a.fragment]
     offset = float((lesson.get("source") or {}).get("offsetSec") or 0.0)
     src = _source_audio(lesson)
-    # re-transcribe a padded window for context, keep only onsets inside the fragment: the API
-    # deletes exactly the notes whose onset is in [start, end) and inserts ours.
+    # re-transcribe a padded window for context; the API deletes exactly the notes whose onset is
+    # in [start, end) and inserts ours — `fragment_replacement` handles the boundary notes.
     v0 = max(offset + fr["start"] - a.pad, 0.0)
     v1 = offset + fr["end"] + a.pad
     clip = crop(src.wav, v0, v1, src.cache_dir / f"fix-{lesson['slug']}-{a.fragment}.wav")
     opts = _pipeline_options(a)
     notes = shift(run(clip, opts), v0 - offset)  # clip time → lesson time
-    new = in_window(notes, fr["start"], fr["end"])
-    old = in_window(from_lesson_notes(lesson["notes"]), fr["start"], fr["end"])
+    old_all = from_lesson_notes(lesson["notes"])
+    new = fragment_replacement(notes, old_all, fr["start"], fr["end"])
+    old = in_window(old_all, fr["start"], fr["end"])
     print(f"fragment {a.fragment} [{fr['start']:.2f}, {fr['end']:.2f}) s:", file=sys.stderr)
     print(f"  before ({len(old)}): {_steps_text(old)}", file=sys.stderr)
     print(f"  after  ({len(new)}): {_steps_text(new)}", file=sys.stderr)

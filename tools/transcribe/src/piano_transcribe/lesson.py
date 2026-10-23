@@ -61,3 +61,25 @@ def build_lesson(
         if v:
             lesson[k] = v
     return lesson
+
+
+def fragment_replacement(
+    new: Sequence[Note], old: Sequence[Note], start: float, end: float, tol: float = 0.05
+) -> list[Note]:
+    """Notes to PUT for a fragment [start, end) after re-transcribing a padded window.
+
+    The API deletes every old note with onset in [start, end) and inserts ours. Fragment bounds sit
+    exactly on note onsets (the app cuts at steps), and a second transcription moves onsets by a few
+    ms, so a plain [start, end) filter drops a boundary note on one run and keeps it on the next.
+    Instead: take new notes within `tol` of the window, skip those the neighbouring fragments
+    already have (same pitch within `tol`), and clamp the rest into the window."""
+    outside = [o for o in old if not (start - 1e-6 <= o.start < end - 1e-6)]
+    out = []
+    for n in sort_notes(new):
+        if not (start - tol <= n.start < end + tol):
+            continue
+        if any(o.pitch == n.pitch and abs(o.start - n.start) < tol for o in outside):
+            continue
+        t = min(max(n.start, start), end - 0.001)
+        out.append(n.copy(start=t, duration=max(n.end - t, 0.01)))
+    return out

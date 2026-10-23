@@ -3,7 +3,7 @@ from pathlib import Path
 
 from piano_transcribe.audio import youtube_id
 from piano_transcribe.evaluate import lcs_len, score
-from piano_transcribe.lesson import build_lesson, from_lesson_notes, to_lesson_notes, zero_at_first_note
+from piano_transcribe.lesson import build_lesson, fragment_replacement, from_lesson_notes, to_lesson_notes, zero_at_first_note
 from piano_transcribe.notes import Note, in_window
 
 FIXTURES = json.loads((Path(__file__).parent / "fixtures" / "demo-lessons.json").read_text())["lessons"]
@@ -74,3 +74,16 @@ def test_score_perfect_and_shifted():
     assert m["onset_50ms"]["f1"] == 0.0  # 80 ms late misses a 50 ms tolerance…
     assert m["onset_100ms"]["f1"] == 1.0  # …but not a 100 ms one
     assert m["sequence"]["f1"] == 1.0  # and the order of pitches is untouched
+
+
+def test_fragment_replacement_keeps_boundary_notes_once():
+    # fragment [1.0, 2.0); old lesson has a note exactly on each bound (fragments start on onsets)
+    old = [Note(60, 0.5, 0.3), Note(64, 1.0, 0.3), Note(65, 1.5, 0.3), Note(67, 2.0, 0.3)]
+    # the re-transcription moves onsets by a few ms: 64 lands just before the start, 67 (which
+    # belongs to the next fragment) just before the end, 66 is a new note
+    new = [Note(60, 0.51, 0.3), Note(64, 0.99, 0.3), Note(66, 1.5, 0.3), Note(67, 1.98, 0.3)]
+    got = fragment_replacement(new, old, 1.0, 2.0)
+    assert [(n.pitch, n.start) for n in got] == [(64, 1.0), (66, 1.5)]
+    # 64 was clamped into the window (else the API would delete it and nobody would re-add it);
+    # 67 is skipped (the next fragment keeps its own), 60 is outside the window
+    assert abs(got[0].end - 1.29) < 1e-9
