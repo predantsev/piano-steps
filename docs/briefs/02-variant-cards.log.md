@@ -16,7 +16,7 @@ Appended as the work goes. Evidence = the file or command the decision rests on.
   from the first attempt.
 - `.fab` (shell's "Original" / "Sounds wrong") is `position:absolute; top:12px; right:12px;
   z-index:20` in `.stage` (`apps/web/src/App.css`) — whatever the variant puts at its top-right is
-  covered. The fragment bar reserves that space (measured at runtime, fallback 13rem).
+  covered. The fragment bar reserves that space (measured at runtime; fallback 13rem only since the fix round — the not-found branch used to set 12 px).
 
 ## 2026-10-23 — design decisions (build)
 
@@ -180,3 +180,18 @@ Appended as the work goes. Evidence = the file or command the decision rests on.
   (the shell's dialogs have no `role="dialog"`) → shell request `dialogOpen`.
 - **Keyboard range** = `keyboardRange(current fragment's pitches)` (default `minKeys` 25). Trade-off:
   the keyboard range can change between fragments; within one fragment it is stable.
+- UI nits: `setReserve(null)` when `.fab` is missing (13rem CSS applies); chip row fades its
+  cut-off edge (`ov-l`/`ov-r` mask, measured on scroll + ResizeObserver); the current chip shows its
+  status word; ▶ Fragment / ■ Stop share one grid cell (both labels reserve width, any language);
+  done overlay adds a plain **Next fragment ›** (no mastered mark); middle C gets a dot + bold label
+  via variant CSS on `.cv-keys .pk-white[data-pitch='60']` (soft coupling, read-only);
+  LEFT lane collapses when the current fragment has no left-hand notes.
+- Dark-theme miss found in the screenshot: the C4 label used `--strong` (light in dark theme) on a
+  light key → switched to `--key-black`. Re-captured, readable.
+- Dead end: Claude in Chrome `resize_window` reported success but the viewport stayed 2029×1228
+  (twice). Used Playwright with the cached `chromium_headless_shell-1248` via `executablePath`
+  (no browser download) for the size/theme matrix.
+- ASSUMPTION: Space on a focused step card still means Next (the cards are buttons, and "tap a card,
+  then Space on" was the old flow); every other button keeps native Space.
+- ASSUMPTION: the next-card frame for a step with both hands uses neutral `--mut` (no single hand).
+- Dev server stopped by its own PIDs (concurrently 18949, npm 18904); ports 9320/9321 free.

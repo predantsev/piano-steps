@@ -232,7 +232,7 @@ describe('demo lessons', () => {
     expect(buildSteps(fe.notes, pb)[0].pitches).toEqual([45, 69]); // A2 + A4
   });
 
-  it('without a local edge shift: notes between non-contiguous fragments are dropped only where core drops them', () => {
+  it('a note 10 ms before the end of a fragment followed by a gap stays in that fragment (no local edge shift)', () => {
     const gap: LessonNote[] = [
       { pitch: 60, start: 1, duration: 1 },
       { pitch: 62, start: 9.99, duration: 0.2 }, // 10 ms before a fragment end that has a gap after it

@@ -14,7 +14,7 @@ All code is in `apps/web/src/variants/cards/` (no shared-file changes):
 | `StepStrip.tsx` | The step strip: one card per step, right hand top lane / left hand bottom lane, card width ∝ time to the next step, hold bars, swipe |
 | `FragmentBar.tsx` | Fragment overview: chips with new / learning / learned status, ‹ Fragment / Fragment ›, `✓ n/N` bar; keeps clear of the shell's floating buttons |
 | `model.ts` | Pure logic: steps split into hand lanes, strip layout (time → x), step semantics, held-over notes, progress helpers, fragment window, metronome grid |
-| `model.test.ts` | 22 unit tests for `model.ts` (picked up by the root `vitest` include `apps/**/src/**/*.test.ts`) |
+| `model.test.ts` | 22 unit tests for `model.ts` (picked up by the root `vitest` include `'apps/**/src/**/*.test.{ts,tsx}'`, quoted from `vitest.config.ts:5`) |
 | `strings.ts` | UK / EN strings of the variant |
 | `cards.css` | Styles; every colour through the shell's tokens (`--hand-r`, `--hand-l`, `--accent`, `--ok`, `--hint`, `--panel*`, `--bd`, `--mut`, `--accent-fg`) |
 
@@ -58,19 +58,21 @@ What the user gets (the owner's "press this, then these two together, I repeat, 
 
 ## Commits
 
-`git log --oneline main..HEAD` (before this report's commit):
+`git log --oneline origin/main..HEAD` after the rebase onto `origin/main` (hashes changed with the
+rebase; regenerated in the fix round, which adds its own commits on top — see
+`02-variant-cards.fix-report.md`):
 
 ```
-d4d02a9 fix(cards): #2 Next/Back use functional updates so fast taps are not lost
-853ca6d fix(cards): #2 size note names around finger badges; all-done text matches its buttons
-f2efc4e feat(cards): #2 play-along mode with count-in and metronome; controls fit one row on iPad
-01b0ed4 fix(cards): #2 no slide-in animation on first layout; compact learned summary
-615694d fix(cards): #2 boundary notes open the next fragment; on-screen check advances one step
-cfdee0b feat(cards): #2 held-note emphasis, fragment nav labels, unit tests for the model
-97ab041 feat(cards): #2 step strip, fragment bar, listen controls and progress
+8711eed docs(cards): #2 note the soft couplings to shell class names
+4b13548 docs(cards): #2 decision log and report
+c1a0f86 fix(cards): #2 Next/Back use functional updates so fast taps are not lost
+22290eb fix(cards): #2 size note names around finger badges; all-done text matches its buttons
+839d289 feat(cards): #2 play-along mode with count-in and metronome; controls fit one row on iPad
+83c75ff fix(cards): #2 no slide-in animation on first layout; compact learned summary
+d70a69c fix(cards): #2 boundary notes open the next fragment; on-screen check advances one step
+35dba7d feat(cards): #2 held-note emphasis, fragment nav labels, unit tests for the model
+db359a0 feat(cards): #2 step strip, fragment bar, listen controls and progress
 ```
-
-plus `docs(cards): #2 decision log and report` (log + this file).
 
 ## How it was verified
 
@@ -137,7 +139,7 @@ None. (`git diff --stat main..HEAD` touches only `apps/web/src/variants/cards/**
 4. Maybe: start the lesson at the first fragment that is not yet mastered, instead of the last one
    opened.
 5. **Two soft couplings to shell class names** (read-only, no shell edits): `FragmentBar` measures
-   `.stage .fab` to keep clear of the floating buttons (fallback: 13rem CSS padding), and the
+   `.stage .fab` to keep clear of the floating buttons (fallback: the 13rem CSS padding — true since the fix round; before it the not-found branch set 12 px), and the
    Space / ← / → handler ignores keys while a `.sheet-backdrop` dialog is open. If the shell renames
    these, the variant degrades gracefully (padding fallback; keys would also act behind a dialog).
    A cleaner path is a shell-provided "reserved top-right width" / "dialog open" in `VariantProps`.
