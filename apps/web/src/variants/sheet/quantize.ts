@@ -251,12 +251,18 @@ interface Snapped {
  * scored by how much "weight" lands on its downbeats — long notes and bass notes mark downbeats —
  * and boosted when fragment boundaries and the last note's end fall on its bar lines. A pickup must
  * beat "no pickup" by 25 %; most music starts on the downbeat.
+ *
+ * With an explicit time signature (`beatTicks` given) the lesson's own bar grid wins: a pickup is
+ * accepted only when on-grid fragment boundaries agree with it better than with "no pickup", or —
+ * when no boundary says anything — when it is at most one beat long (Für Elise's upbeat). A long
+ * note on beat 3 of a 4/4 melody no longer moves every bar line by half a bar.
  */
 export function detectPickup(
   snapped: readonly Snapped[],
   barTicks: number,
   boundaryTicks: readonly number[],
   endTick: number,
+  beatTicks?: number,
 ): number {
   if (barTicks <= 1 || snapped.length === 0) return 0;
   const byTick = new Map<number, { dur: number; bass: boolean; count: number }>();
@@ -269,17 +275,23 @@ export function detectPickup(
   }
   const mod = (x: number) => ((x % barTicks) + barTicks) % barTicks;
   const interior = boundaryTicks.filter((b) => b > 0.5 && b < endTick - 0.5);
+  const alignment = (o: number) => (interior.length ? interior.filter((b) => mod(b - o) === 0).length / interior.length : 0);
   const score = (o: number) => {
     let s = 0;
     for (const [t, w] of byTick) if (mod(t - o) === 0) s += w.dur + (w.bass ? 2 : 0) + (w.count - 1) * 0.5;
-    const aligned = interior.length ? interior.filter((b) => mod(b - o) === 0).length / interior.length : 0;
     const endAligned = mod(endTick - o) === 0 ? 0.15 : 0;
-    return s * (1 + 0.5 * aligned + endAligned);
+    return s * (1 + 0.5 * alignment(o) + endAligned);
+  };
+  const allowed = (o: number) => {
+    if (beatTicks === undefined) return true;
+    if (interior.length) return alignment(o) > alignment(0);
+    return o <= beatTicks;
   };
   const base = score(0);
   let best = 0;
   let bestScore = base;
   for (let o = 1; o < barTicks; o++) {
+    if (!allowed(o)) continue;
     const sc = score(o);
     if (sc > bestScore) {
       best = o;
@@ -332,7 +344,15 @@ export function buildScore(
   const boundaryTicks = (opts.fragments ?? []).map((f) => (f.start - originSec) / secPerTick).filter(
     (b) => Math.abs(b - Math.round(b)) < 0.1,
   ).map(Math.round);
-  const pickupTicks = detectPickup(snapped, barTicks, boundaryTicks, Math.round(rawEnd));
+  const given = opts.tempo?.timeSignature;
+  const explicitTs = !!given && given[0] === timeSignature[0] && given[1] === timeSignature[1];
+  const pickupTicks = detectPickup(
+    snapped,
+    barTicks,
+    boundaryTicks,
+    Math.round(rawEnd),
+    explicitTs ? (TPQ * 4) / timeSignature[1] : undefined,
+  );
   const barLineAtOrAfter = (t: number) => {
     if (pickupTicks > 0 && t <= pickupTicks) return t <= 0 ? 0 : pickupTicks;
     return pickupTicks + Math.ceil((t - pickupTicks - EPS) / barTicks) * barTicks;

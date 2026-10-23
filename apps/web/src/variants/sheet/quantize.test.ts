@@ -285,3 +285,47 @@ describe('sheet · fragment membership and the drawn bars', () => {
     expect(ids.has(noteLocations(score).get(0)!.id)).toBe(true);
   });
 });
+
+describe('sheet quantiser · an explicit time signature wins over the pickup guess', () => {
+  const onlyRight = (slug: string) => demo(slug).notes.filter((n) => n.hand === 'R');
+
+  it('Twinkle right hand, 4/4, one fragment: bar lines on the first note', () => {
+    const l = demo('twinkle-twinkle');
+    const notes = onlyRight('twinkle-twinkle');
+    const end = Math.max(...notes.map((n) => n.start + n.duration));
+    const score = buildScore(notes, { tempo: l.tempo, fragments: [{ start: 0, end }] });
+    expect(score.pickupTicks).toBe(0);
+    expect(bar(score.measures[0], 'treble')).toBe('C4:q C4:q G4:q G4:q');
+    expect(bar(score.measures[1], 'treble')).toBe('A4:q A4:q G4:h');
+  });
+
+  it('"q q h" every bar, right hand, 4/4, fragments off the grid: no pickup', () => {
+    const tempo: Tempo = { bpm: 90, timeSignature: [4, 4] };
+    const q = 60 / 90;
+    const notes: LessonNote[] = [];
+    for (let b = 0; b < 6; b++) {
+      notes.push({ pitch: 60 + b, start: b * 4 * q, duration: q * 0.95, hand: 'R' });
+      notes.push({ pitch: 62 + b, start: (b * 4 + 1) * q, duration: q * 0.95, hand: 'R' });
+      notes.push({ pitch: 64 + b, start: (b * 4 + 2) * q, duration: 2 * q * 0.95, hand: 'R' });
+    }
+    const score = buildScore(notes, { tempo, fragments: [{ start: 0, end: 5.123 }, { start: 5.123, end: 17 }] });
+    expect(score.pickupTicks).toBe(0);
+    expect(bar(score.measures[0], 'treble')).toBe('C4:q D4:q E4:h');
+  });
+
+  it('without a time signature the heuristic still runs as before', () => {
+    const l = demo('twinkle-twinkle');
+    const notes = onlyRight('twinkle-twinkle');
+    const end = Math.max(...notes.map((n) => n.start + n.duration));
+    // same melody, tempo without a signature: the guess still shifts the bar lines by half a bar —
+    // this is the case the explicit signature above now overrides
+    expect(buildScore(notes, { tempo: { bpm: l.tempo!.bpm }, fragments: [{ start: 0, end }] }).pickupTicks).toBe(8);
+  });
+
+  it('Für Elise keeps its one-eighth upbeat (≤ one beat) with and without fragments', () => {
+    const l = demo('fur-elise-opening');
+    expect(buildScore(l.notes, { tempo: l.tempo, fragments: l.fragments }).pickupTicks).toBe(2);
+    expect(buildScore(l.notes, { tempo: l.tempo }).pickupTicks).toBe(2);
+    expect(buildScore(l.notes, { tempo: l.tempo, fragments: [{ start: 0, end: l.durationSec }] }).pickupTicks).toBe(2);
+  });
+});

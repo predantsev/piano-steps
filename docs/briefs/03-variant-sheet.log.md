@@ -148,3 +148,12 @@ Appended as the work goes. Each entry: the decision, the evidence it rests on, d
   core on every fragment of the three demos (post-`prepareLesson`) → equal. New tests for the
   early-downbeat (p2) and only-note-before-end (p7) cases; `vitest run apps/web/src/variants/sheet`
   → 17 passed.
+
+### F2 · Explicit time signature wins over the pickup guess (finding 5)
+- `detectPickup(…, beatTicks)`: with an explicit `tempo.timeSignature`, a non-zero offset is allowed
+  only if on-grid interior fragment boundaries align with it better than with 0, or (no such
+  boundaries) it is ≤ one beat (`16/den` ticks). Without a signature the old heuristic is unchanged.
+- Evidence: probe (temporary test, deleted) on Twinkle RH, one fragment → `noTS=8 explicit=0`.
+  Tests: Twinkle RH 4/4 one fragment → pickup 0, bars `C4 C4 G4 G4 | A4 A4 G4:h`; "q q h" 4/4 with
+  off-grid fragments → 0; Für Elise → 2 with demo fragments, with none, and with one fragment.
+- `ASSUMPTION:` "one beat" = the denominator's note value (an eighth in 3/8, a quarter in 4/4).
