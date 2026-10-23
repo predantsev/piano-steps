@@ -290,3 +290,9 @@ the brief was silent and I chose.
 - Dev server 9350/9351 (API_TOKEN=devtoken): screenshots of Settings with a refused token at 1180×820 WebKit and
   1440×900 Chromium, light + dark — readable. `curl` 22 MB → 413 too-large; text/plain → 415. Both servers
   killed by PID (59051 vite, 59140 API); `lsof` shows no listener.
+- docs/briefs/README.md read at the end: no extra gates beyond typecheck/test/build + looking at it; it asks for
+  `shell:` commits on shared files — 6f5c7d7 follows it, two earlier `fix(web)` commits are noted in the report.
+- Token field latch (6f5c7d7): visibility decided when Settings opens, so clearing a stored token no longer
+  unmounts the field mid-edit. e2e 25 passed after it.
+- Final combined run: feat/1 a8fd0c6, feat/2 0f3c5eb (moved), feat/3 31d2c1f (moved), feat5 6f5c7d7 → typecheck 0,
+  153 unit tests passed, e2e ×3 → 75 passed, 3 skipped. Build `index-C_Z6RiGd.js 607.39 kB`, check:bundle ok.
