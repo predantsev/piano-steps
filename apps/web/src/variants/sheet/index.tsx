@@ -11,7 +11,7 @@ import {
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
 import { PianoKeyboard, type KeyHighlight } from '../../ui/PianoKeyboard.tsx';
 import type { VariantProps } from '../../variant.ts';
-import { buildScore, measuresInWindow, secToTick } from './quantize.ts';
+import { buildScore, measuresForFragment, noteLocations, secToTick } from './quantize.ts';
 import { drawFragment, musicFontReady, nearestHead, toLogical, type Drawn } from './render.ts';
 import { s } from './strings.ts';
 import './sheet.css';
@@ -19,13 +19,6 @@ import './sheet.css';
 const SPEEDS = [0.25, 0.5, 0.75, 1] as const;
 const PREFS_KEY = 'piano-steps-sheet';
 const PROBE_MS = 2500;
-/**
- * Fragment bounds and note onsets are rounded differently (demo fragments to 1 ms, notes to
- * 0.1 ms; auto fragments likewise), so a downbeat note can sit 0.3 ms *before* its fragment's
- * start and fall into the previous fragment. A note belongs to the fragment its onset is within
- * 5 ms of, and playback runs over the same shifted window.
- */
-const BOUND_EPS = 0.005;
 
 type Mode = 'listen' | 'step';
 interface Prefs {
@@ -88,14 +81,16 @@ export default function SheetVariant({
     () => buildScore(lesson.notes, { tempo: lesson.tempo, fragments: lesson.fragments }),
     [lesson],
   );
-  const measures = useMemo(() => measuresInWindow(score, f.start, f.end), [score, f.start, f.end]);
-  const fragNotes = useMemo(
-    () => notesInRange(lesson.notes, Math.max(0, f.start - BOUND_EPS), f.end - BOUND_EPS),
-    [lesson, f.start, f.end],
-  );
+  // membership: core's window in seconds — exactly what the player plays; the bars follow it
+  const fragNotes = useMemo(() => notesInRange(lesson.notes, f.start, f.end), [lesson, f.start, f.end]);
   const steps = useMemo(() => groupSteps(fragNotes), [fragNotes]);
   const indexOf = useMemo(() => new Map(lesson.notes.map((n, i) => [n, i])), [lesson]);
   const inside = useMemo(() => new Set(fragNotes.map((n) => indexOf.get(n)!)), [fragNotes, indexOf]);
+  const locations = useMemo(() => noteLocations(score), [score]);
+  const measures = useMemo(
+    () => measuresForFragment(score, f.start, f.end, inside, locations),
+    [score, f.start, f.end, inside, locations],
+  );
   const range = useMemo(() => keyboardRange(lesson.notes.map((n) => n.pitch)), [lesson]);
   const isLast = measures.length > 0 && measures[measures.length - 1].index === score.measures.length - 1;
 
@@ -252,7 +247,7 @@ export default function SheetVariant({
   const playFragment = useCallback(
     (loop = prefs.loop) => {
       runRef.current = frag;
-      player.play({ from: Math.max(0, f.start - BOUND_EPS), to: f.end - BOUND_EPS, rate: speed, loop });
+      player.play({ from: f.start, to: f.end, rate: speed, loop });
     },
     [player, f.start, f.end, speed, prefs.loop, frag],
   );

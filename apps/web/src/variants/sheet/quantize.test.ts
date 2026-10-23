@@ -1,9 +1,18 @@
-import { demoLessons, prepareLesson, validateLessonInput, type LessonNote, type Tempo } from '@piano-steps/core';
+import {
+  demoLessons,
+  groupSteps,
+  notesInRange,
+  prepareLesson,
+  validateLessonInput,
+  type LessonNote,
+  type Tempo,
+} from '@piano-steps/core';
 import { describe, expect, it } from 'vitest';
 import {
   buildScore,
   estimateKeyFifths,
   estimateTempo,
+  measuresForFragment,
   measuresInWindow,
   noteLocations,
   spell,
@@ -209,5 +218,70 @@ describe('sheet quantiser · helpers', () => {
     expect(spell(63, -3)).toEqual({ letter: 'E', alter: -1, octave: 4 });
     expect(spelledName(spell(63, -3), 'letter')).toBe('Eb');
     expect(spelledName(spell(67, 0), 'solfege')).toBe('Соль');
+  });
+});
+
+describe('sheet · fragment membership and the drawn bars', () => {
+  it('BOUND_EPS is redundant: the old ±5 ms shifted window picks the same notes as core on every demo fragment', () => {
+    for (const l of demoLessons().map((d) => demo(d.slug!))) {
+      for (const f of l.fragments) {
+        const shifted = notesInRange(l.notes, Math.max(0, f.start - 0.005), f.end - 0.005);
+        const core = notesInRange(l.notes, f.start, f.end);
+        expect(core, `${l.slug} ${f.title}`).toEqual(shifted);
+        expect(core.length).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it('every member note of every demo fragment is drawn in that fragment', () => {
+    for (const l of demoLessons().map((d) => demo(d.slug!))) {
+      const score = buildScore(l.notes, { tempo: l.tempo, fragments: l.fragments });
+      const loc = noteLocations(score);
+      for (const f of l.fragments) {
+        const members = notesInRange(l.notes, f.start, f.end).map((n) => l.notes.indexOf(n));
+        const drawn = measuresForFragment(score, f.start, f.end, members, loc);
+        // nothing beyond the bar-aligned window is added on the demos
+        expect(drawn.map((m) => m.index)).toEqual(measuresInWindow(score, f.start, f.end).map((m) => m.index));
+      }
+    }
+  });
+
+  it('a downbeat played early is a step of the fragment that plays it, and its bar is drawn there', () => {
+    // 120 bpm 4/4, quarters; the downbeat of bar 4 (6.0 s) played 50 ms early
+    const tempo: Tempo = { bpm: 120, timeSignature: [4, 4] };
+    const notes: LessonNote[] = Array.from({ length: 24 }, (_, i) => ({
+      pitch: 60 + (i % 8),
+      start: i === 12 ? 5.95 : i * 0.5,
+      duration: 0.45,
+      hand: 'R' as const,
+    }));
+    const fragments = [
+      { start: 0, end: 6 },
+      { start: 6, end: 11.95 },
+    ];
+    const score = buildScore(notes, { tempo, fragments });
+    const loc = noteLocations(score);
+    for (const f of fragments) {
+      const members = notesInRange(notes, f.start, f.end).map((n) => notes.indexOf(n));
+      const drawn = measuresForFragment(score, f.start, f.end, members, loc);
+      const drawnIds = new Set(drawn.flatMap((m) => [...m.treble, ...m.bass]).map((e) => e.id));
+      for (const i of members) expect(drawnIds.has(loc.get(i)!.id), `note ${i} in [${f.start}, ${f.end})`).toBe(true);
+      // the cursor of the last step has a head to sit on
+      const steps = groupSteps(members.map((i) => notes[i]));
+      expect(drawnIds.has(loc.get(notes.indexOf(steps[steps.length - 1].notes[0]))!.id)).toBe(true);
+    }
+    // the early note belongs to fragment 1 (seconds) and bar 4 is drawn there as well
+    const first = measuresForFragment(score, 0, 6, notesInRange(notes, 0, 6).map((n) => notes.indexOf(n)), loc);
+    expect(first.map((m) => m.number)).toEqual([1, 2, 3, 4]);
+  });
+
+  it("a fragment's only note just before its end is drawn", () => {
+    const tempo: Tempo = { bpm: 90, timeSignature: [4, 4] };
+    const notes: LessonNote[] = [{ pitch: 64, start: 7.3, duration: 0.5, hand: 'R' }];
+    const f = { start: 5.333, end: 7.31 };
+    const score = buildScore(notes, { tempo, fragments: [f] });
+    const drawn = measuresForFragment(score, f.start, f.end, [0]);
+    const ids = new Set(drawn.flatMap((m) => m.treble).map((e) => e.id));
+    expect(ids.has(noteLocations(score).get(0)!.id)).toBe(true);
   });
 });

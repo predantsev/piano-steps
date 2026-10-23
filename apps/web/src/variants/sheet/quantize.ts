@@ -434,6 +434,29 @@ export function measuresInWindow(score: Score, startSec: number, endSec: number)
   return m ? [m] : score.measures.slice(-1);
 }
 
+/**
+ * The bars to draw for a fragment. Membership is decided once, in seconds (core `notesInRange`,
+ * the same window the player plays); the drawing follows it: the bars the window overlaps plus the
+ * bar of every member's attack. A downbeat played a little early belongs to the fragment that
+ * plays it, so its bar is drawn there too (even though its snapped tick is past the window).
+ */
+export function measuresForFragment(
+  score: Score,
+  startSec: number,
+  endSec: number,
+  members: Iterable<number>,
+  locations: ReadonlyMap<number, ScoreEvent> = noteLocations(score),
+): Measure[] {
+  const out = new Set(measuresInWindow(score, startSec, endSec).map((m) => m.index));
+  for (const i of members) {
+    const ev = locations.get(i);
+    if (!ev) continue;
+    const m = score.measures.find((x) => ev.start >= x.start && ev.start < x.start + x.length);
+    if (m) out.add(m.index);
+  }
+  return [...out].sort((a, b) => a - b).map((i) => score.measures[i]);
+}
+
 /** Where each lesson note is first drawn: lesson-note index → event id (the attack, not a tie). */
 export function noteLocations(score: Score): Map<number, ScoreEvent> {
   const out = new Map<number, ScoreEvent>();

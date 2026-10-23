@@ -130,3 +130,21 @@ Appended as the work goes. Each entry: the decision, the evidence it rests on, d
   `pointerdown` 30 CSS px below the E5 head at 1180×820 → `.ps-probe` count 1, E5 key lit.
 - Names toggle (the only toggle that redraws): off → 0 `.ps-name`, viewBox height 241 → 214;
   on again → 8 names, height 241.
+
+## Fix round (brief 09, 2026-10-23)
+
+### F0 · Rebase
+- `git rebase origin/main` (cfc4381) applied all 5 commits cleanly, no lockfile conflict; `npm install` ran.
+
+### F1 · BOUND_EPS removed; membership decided in one place (findings 1, 4)
+- Membership stays core `notesInRange(lesson.notes, f.start, f.end)` — the same window
+  `player.play({from: f.start, to: f.end})` plays (player applies `TIME_EPS` on both ends,
+  `player.ts` `firstNoteFrom` / `tick`). The drawing follows it: new `measuresForFragment()` =
+  bars the window overlaps ∪ the bar of every member's attack event.
+- Why not tick-based membership (the finding's other option): Listen plays by seconds through the
+  shell player; tick membership would make Step and Listen disagree, and re-create a per-variant
+  window. Advisor concurred.
+- Evidence the removal is safe: test `BOUND_EPS is redundant…` compares `notesInRange(±5 ms)` vs
+  core on every fragment of the three demos (post-`prepareLesson`) → equal. New tests for the
+  early-downbeat (p2) and only-note-before-end (p7) cases; `vitest run apps/web/src/variants/sheet`
+  → 17 passed.
