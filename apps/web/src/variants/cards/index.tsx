@@ -449,7 +449,8 @@ export default function CardsVariant({
 function spaceIsNext(el: HTMLElement | null, root: HTMLElement | null): boolean {
   if (!el || el === document.body || el === document.documentElement) return true;
   if (!root?.contains(el)) return false;
-  if (el.closest('.cv-viewport')) return true; // a step card: Space moves on, as before the tap
+  if (el.closest('.cv-card')) return true; // a step card: Space moves on, as before the tap
+  // (the end-of-fragment overlay also lives in .cv-viewport — its buttons keep Space as "press")
   return !el.closest('button, a[href], [role="button"], [role="tab"]');
 }
 
