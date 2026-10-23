@@ -40,9 +40,15 @@ export const test = base.extend<{ consoleErrors: string[] }>({
 
 export { expect };
 
-/** Open the app (optionally with `?lesson=…&ui=…`) and wait until a lesson is on screen. */
+/**
+ * Open the app (optionally with `?lesson=…&ui=…`) and wait until a lesson is on screen.
+ * Without `lesson=` it opens a demo lesson: parallel tests share one DB and create/delete their own
+ * lessons, so a lesson the app picked on its own could be deleted under it (a 404 console error).
+ */
 export async function openApp(page: Page, query = ''): Promise<DevState> {
-  await page.goto(`/${query}`);
+  const params = new URLSearchParams(query);
+  if (!params.has('lesson')) params.set('lesson', 'ode-to-joy');
+  await page.goto(`/?${params}`);
   await page.waitForFunction(() => window.pianoSteps?.getState().ready === true);
   return state(page);
 }
