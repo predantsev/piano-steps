@@ -7,6 +7,7 @@ import { FragmentBar } from './FragmentBar.tsx';
 import { NoteName, StepStrip } from './StepStrip.tsx';
 import {
   buildSteps,
+  fragmentWindow,
   handOf,
   heldOver,
   isStepPlayed,
@@ -88,7 +89,7 @@ export default function CardsVariant({
         if (e.type === 'end') {
           const c = ctx.current;
           // our own loop (not the player's): a loop toggled mid-play takes effect at the end
-          if (c.mode === 'fragment' && c.loop && c.f) player.play({ from: c.f.start, to: c.f.end, rate: c.speed });
+          if (c.mode === 'fragment' && c.loop && c.f) player.play({ ...fragmentWindow(c.f), rate: c.speed });
           else setMode(null);
         }
       }),
@@ -132,7 +133,7 @@ export default function CardsVariant({
     if (!f) return;
     setPlay({ step: -1, sounding: [] });
     setMode('fragment');
-    player.play({ from: f.start, to: f.end, rate: speed });
+    player.play({ ...fragmentWindow(f), rate: speed });
   };
 
   const changeSpeed = (v: number) => {
@@ -222,9 +223,10 @@ export default function CardsVariant({
           pressed.current.add(e.pitch);
         } else marks.current.set(e.pitch, 'bad');
         if (isStepPlayed(pressed.current, s)) {
+          const to = c.step + 1;
           pressed.current.clear();
-          ctx.current.step = c.step + 1; // guard against a second event before re-render
-          setStep(c.step + 1);
+          c.step = to; // guard against a second event before re-render (c is ctx.current)
+          setStep(to);
         }
         bump((x) => x + 1);
       }),

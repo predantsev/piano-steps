@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildSteps,
   fragmentStatus,
+  fragmentWindow,
   heldOver,
   isStepPlayed,
   layoutStrip,
@@ -154,11 +155,30 @@ describe('progress helpers', () => {
 });
 
 describe('demo lessons', () => {
-  it('every fragment of every demo lesson has steps', () => {
+  it('every fragment has steps and every note lands in exactly one fragment', () => {
     for (const l of demoLessons()) {
       const fragments = l.fragments ?? autoFragments(l.notes, { tempo: l.tempo });
       expect(fragments.length).toBeGreaterThan(0);
-      for (const f of fragments) expect(buildSteps(l.notes, f).length).toBeGreaterThan(0);
+      let count = 0;
+      for (const f of fragments) {
+        const steps = buildSteps(l.notes, f);
+        expect(steps.length).toBeGreaterThan(0);
+        count += steps.reduce((a, s) => a + s.notes.length, 0);
+      }
+      expect(count).toBe(l.notes.length);
     }
+  });
+
+  it('a note a hair before a rounded fragment end opens the next fragment (Für Elise)', () => {
+    const fe = demoLessons().find((l) => l.slug === 'fur-elise-opening')!;
+    const [motif, bars23] = fe.fragments!;
+    expect(motif.end).toBe(1.667); // rounded bound…
+    const a4 = fe.notes.find((n) => n.pitch === 69)!;
+    expect(a4.start).toBeCloseTo(1.6667, 4); // …the phrase starts a hair earlier
+    const m = buildSteps(fe.notes, motif);
+    expect(m.length).toBe(8);
+    expect(m.at(-1)!.slotSec).toBeGreaterThan(0.1);
+    expect(buildSteps(fe.notes, bars23)[0].pitches).toEqual([45, 69]); // A2 + A4
+    expect(fragmentWindow(motif)).toEqual({ from: 0, to: 1.647 });
   });
 });

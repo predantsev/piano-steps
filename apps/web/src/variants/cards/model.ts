@@ -38,8 +38,21 @@ export interface CardStep {
   lanes: Partial<Record<Hand, LaneChip>>;
 }
 
+/**
+ * A note whose onset is a hair before a fragment boundary belongs to the NEXT fragment: bounds are
+ * often rounded (the Für Elise demo has `end: 1.667` while the next phrase starts at 1.6667 s), and
+ * a "first note" squeezed onto the end of the previous fragment is useless for practice. Steps and
+ * playback both use this shifted window, so what is shown is exactly what is heard.
+ */
+export const EDGE_SEC = 0.02;
+
+export function fragmentWindow(f: Fragment): { from: number; to: number } {
+  return { from: Math.max(0, f.start - EDGE_SEC), to: f.end - EDGE_SEC };
+}
+
 export function buildSteps(notes: readonly LessonNote[], fragment: Fragment): CardStep[] {
-  const steps = groupSteps(notesInRange(notes, fragment.start, fragment.end));
+  const w = fragmentWindow(fragment);
+  const steps = groupSteps(notesInRange(notes, w.from, w.to));
   return steps.map((s, i) => {
     const next = steps[i + 1];
     const end = next ? next.time : Math.max(fragment.end, s.time + 0.05);
