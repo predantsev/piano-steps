@@ -140,16 +140,7 @@ export function estimateTempo(notes: readonly LessonNote[]): { bpm: number; orig
   }
   if (gaps.length < 2) return { bpm: 100, originSec };
 
-  // most common gap: histogram on a log scale (bins ±4 %)
-  let best = gaps[0];
-  let bestCount = 0;
-  for (const g of gaps) {
-    const c = gaps.filter((x) => Math.abs(Math.log(x / g)) < 0.04).length;
-    if (c > bestCount || (c === bestCount && g < best)) {
-      best = g;
-      bestCount = c;
-    }
-  }
+  const best = commonestGap(gaps);
   let bpm = 60 / best; // the commonest gap as a quarter
   while (bpm < 60) bpm *= 2;
   while (bpm >= 140) bpm /= 2;
@@ -172,6 +163,30 @@ export function estimateTempo(notes: readonly LessonNote[]): { bpm: number; orig
     }
   }
   return { bpm: Math.round(tuned * 10) / 10, originSec };
+}
+
+/**
+ * The most common gap: the one with the most neighbours within ±4 % on a log scale (ties → the
+ * shortest). Sorted once + a sliding window: O(n log n), so a 20 000-note transcription stays fast.
+ */
+export function commonestGap(gaps: readonly number[]): number {
+  const sorted = [...gaps].sort((a, b) => a - b);
+  const logs = sorted.map(Math.log);
+  let best = sorted[0];
+  let bestCount = 0;
+  let lo = 0;
+  let hi = 0;
+  for (let i = 0; i < logs.length; i++) {
+    while (logs[i] - logs[lo] >= 0.04) lo++;
+    if (hi < i) hi = i;
+    while (hi + 1 < logs.length && logs[hi + 1] - logs[i] < 0.04) hi++;
+    const c = hi - lo + 1;
+    if (c > bestCount) {
+      best = sorted[i];
+      bestCount = c;
+    }
+  }
+  return best;
 }
 
 function uniqueOnsets(notes: readonly LessonNote[]): number[] {

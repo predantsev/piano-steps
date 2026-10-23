@@ -10,6 +10,7 @@ import {
 import { describe, expect, it } from 'vitest';
 import {
   buildScore,
+  commonestGap,
   estimateKeyFifths,
   estimateTempo,
   measuresForFragment,
@@ -327,5 +328,57 @@ describe('sheet quantiser · an explicit time signature wins over the pickup gue
     expect(buildScore(l.notes, { tempo: l.tempo, fragments: l.fragments }).pickupTicks).toBe(2);
     expect(buildScore(l.notes, { tempo: l.tempo }).pickupTicks).toBe(2);
     expect(buildScore(l.notes, { tempo: l.tempo, fragments: [{ start: 0, end: l.durationSec }] }).pickupTicks).toBe(2);
+  });
+});
+
+describe('sheet quantiser · estimateTempo is fast and unchanged', () => {
+  /** The previous O(n²) search, kept as the oracle. */
+  function bruteGap(gaps: readonly number[]): number {
+    let best = gaps[0];
+    let bestCount = 0;
+    for (const g of gaps) {
+      const c = gaps.filter((x) => Math.abs(Math.log(x / g)) < 0.04).length;
+      if (c > bestCount || (c === bestCount && g < best)) {
+        best = g;
+        bestCount = c;
+      }
+    }
+    return best;
+  }
+  /** Gaps between a lesson's onsets, as estimateTempo takes them. */
+  function gapsOf(notes: readonly LessonNote[]): number[] {
+    const starts = [...notes].map((n) => n.start).sort((a, b) => a - b);
+    const on: number[] = [];
+    for (const t of starts) if (!on.length || t - on[on.length - 1] > 0.045) on.push(t);
+    return on.slice(1).map((t, i) => t - on[i]).filter((g) => g >= 0.08 && g <= 2.5);
+  }
+  /** Deterministic lessons whose gaps come from a few musical lengths, with ±10 ms timing noise. */
+  function lesson(seed: number, n: number, beat: number): LessonNote[] {
+    let x = seed;
+    const rnd = () => (x = (x * 16807) % 2147483647) / 2147483647;
+    const lens = [0.5, 1, 1, 1, 2, 0.75];
+    let t = 0;
+    return Array.from({ length: n }, () => {
+      const note = { pitch: 60 + Math.floor(rnd() * 12), start: Math.round((t + (rnd() - 0.5) * 0.02) * 10000) / 10000, duration: beat * 0.9 };
+      t += beat * lens[Math.floor(rnd() * lens.length)];
+      return note;
+    });
+  }
+
+  it('commonestGap picks exactly the gap the brute-force search picked', () => {
+    const cases = [...demoLessons().map((d) => demo(d.slug!).notes), lesson(1, 300, 0.6), lesson(2, 500, 0.45), lesson(3, 800, 0.8)];
+    for (const notes of cases) {
+      const gaps = gapsOf(notes);
+      expect(commonestGap(gaps)).toBe(bruteGap(gaps));
+    }
+  });
+
+  it('20 000 tempo-less notes build a score in well under a second', () => {
+    let x = 9;
+    const rnd = () => (x = (x * 16807) % 2147483647) / 2147483647;
+    const notes: LessonNote[] = Array.from({ length: 20000 }, () => ({ pitch: 36 + Math.floor(rnd() * 50), start: rnd() * 2400, duration: 0.05 + rnd() }));
+    const t0 = performance.now();
+    buildScore(notes, {});
+    expect(performance.now() - t0).toBeLessThan(1500);
   });
 });
