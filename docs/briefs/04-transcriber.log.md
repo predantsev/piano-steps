@@ -188,3 +188,15 @@ brief was silent.
   the cached full `audio.wav`); with `--force-keyframes-at-cuts` → 10.0 s starting at 29.999 s.
   Kept the flag and added a length check (|got − want| > 0.5 s → ToolError, file removed).
   Live re-run after the change: `section-30000-40000.wav` 10.0 s; `225…end` 8.9 s (video 234 s).
+- Fixture: regenerated from core via `scripts/export_demo_fixture.ts` (tsx, prepareLesson). Diff vs the
+  old copy: notes equal, fragment bounds 3 → 4 decimals (Für Elise 4, Twinkle 6). `test_fixture.py`
+  guards drift; skipped only without the repo's node_modules.
+- Docker: documented a `-v "$PWD:/in:ro"` mount instead of adding a bind to the service (a default
+  bind would create a host folder for everyone). `PIANO_STEPS_WEB_URL` overridable. Default-profile
+  `docker compose config` equals origin/main's (diff rc 0). Image not rebuilt (Dockerfile unchanged) —
+  its `src/` is stale; noted as unverified.
+- Gates: pytest 50 passed; root typecheck 0, test 0 (24 passed), build 0. Live on 9341 with a fresh
+  `fix-check` lesson (cached audio): normal fix (fragments identical, other fragments' notes identical),
+  empty fix (rc 1, unchanged, feedback open), bad index (rc 2, feedback untouched), error codes 2/3/4.
+  Section-only cache gave the same `fix --dry-run` before/after as the full cache. Test lesson deleted
+  (204), dev server stopped.
