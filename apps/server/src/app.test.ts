@@ -332,6 +332,30 @@ describe('OpenAPI spec', () => {
     expect(problems).toEqual([]);
   });
 
+  it('has example bodies that the API accepts as they are', async () => {
+    type Spec = { paths: Record<string, Record<string, { requestBody?: { content: Record<string, { example?: unknown }> } }>> };
+    const spec = (await (await req('GET', '/api/openapi.json')).json()) as Spec;
+    const xml = spec.paths['/api/lessons/import/musicxml'].post.requestBody!.content['application/vnd.recordare.musicxml+xml'].example;
+    const fromXml = await upload('/api/lessons/import/musicxml?slug=spec-example-xml', String(xml), 'application/vnd.recordare.musicxml+xml');
+    expect(fromXml.status).toBe(201);
+    expect(((await fromXml.json()) as LessonJson).notes.map((n) => `${n.pitch}${n.hand}`)).toEqual(['48L', '64R', '67R']);
+
+    const lesson = spec.paths['/api/lessons'].post.requestBody!.content['application/json'].example as { slug: string };
+    expect((await req('POST', '/api/lessons', lesson)).status).toBe(201);
+    const fix = spec.paths['/api/lessons/{ref}/fragments/{position}/notes'].put.requestBody!.content['application/json'].example;
+    expect((await req('PUT', `/api/lessons/${lesson.slug}/fragments/0/notes`, fix)).status).toBe(200);
+    const frs = spec.paths['/api/lessons/{ref}/fragments'].put.requestBody!.content['application/json'].example;
+    expect((await req('PUT', `/api/lessons/${lesson.slug}/fragments`, frs)).status).toBe(200);
+    const fb = spec.paths['/api/lessons/{ref}/feedback'].post.requestBody!.content['application/json'].example;
+    const created = await req('POST', `/api/lessons/${lesson.slug}/feedback`, fb);
+    expect(created.status).toBe(201);
+    const patch = spec.paths['/api/feedback/{id}'].patch.requestBody!.content['application/json'].example;
+    expect((await req('PATCH', `/api/feedback/${((await created.json()) as { id: string }).id}`, patch)).status).toBe(200);
+    const prog = spec.paths['/api/lessons/{ref}/progress'].post.requestBody!.content['application/json'].example;
+    expect((await req('POST', `/api/lessons/${lesson.slug}/progress`, prog)).status).toBe(200);
+    expect((await req('PUT', `/api/lessons/${lesson.slug}`, lesson)).status).toBe(200);
+  });
+
   it('serves the Scalar docs page', async () => {
     const r = await req('GET', '/api/docs');
     expect(r.status).toBe(200);
