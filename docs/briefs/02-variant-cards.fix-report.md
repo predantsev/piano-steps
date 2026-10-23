@@ -64,7 +64,7 @@ learned).
 ## Gates
 
 - `npm run typecheck` → 0 `TS` errors (core, server, web).
-- `npm test` → `Test Files 4 passed (4) · Tests 49 passed (49)` (cards: 25).
+- `npm test` → `Test Files 4 passed (4) · Tests 50 passed (50)` (cards: 26).
 - `npm run build` → `✓ built in 147ms`.
 
 ## Browser check
@@ -92,9 +92,10 @@ learned).
 `git log --oneline 8711eed..HEAD`:
 
 ```
+341b184 fix(cards): #2 metronome bar phase from the fragment start (pickup lessons); stop on wrap outside the player tick
+ec3ba7b docs(cards): #2 fix-round report and log; correct the earlier report
 05d2528 fix(cards): #2 chip overflow fade and status word, steady play/stop width, next-fragment button, middle C, fab fallback
 81fe150 fix(cards): #2 drop the local fragment window; hold/next cues, grid count-in, seamless loop, scoped Space
 ```
 
-plus `docs(cards): #2 fix-round report, log, corrected report` (this file, the log, the old report,
-the renamed test).
+plus `docs(cards): #2 fix report: final commit list and test count` (this update).
