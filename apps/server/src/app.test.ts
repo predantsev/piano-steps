@@ -143,7 +143,7 @@ const fixtureXml = readFileSync(new URL('../../../packages/core/src/fixtures/two
 type LessonJson = { slug: string; title: string; notes: { pitch: number; hand: string }[]; fragments: unknown[]; source?: { kind: string; url?: string } };
 type ErrJson = { error: string; details?: string[]; id?: string };
 
-const upload = (path: string, data: BodyInit, type = 'application/octet-stream') =>
+const upload = (path: string, data: NonNullable<RequestInit['body']>, type = 'application/octet-stream') =>
   app.request(path, { method: 'POST', body: data, headers: { 'content-type': type } });
 
 describe('MusicXML import', () => {
