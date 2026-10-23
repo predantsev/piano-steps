@@ -22,6 +22,12 @@ type FragmentRow = typeof fragments.$inferSelect;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export class NotFound extends Error {}
+/** The request was well-formed but the result would not be a valid lesson (400 `validation`). */
+export class Invalid extends Error {
+  constructor(readonly details: string[]) {
+    super(details.join('; '));
+  }
+}
 export class Conflict extends Error {
   constructor(message: string, readonly id: string) {
     super(message);
@@ -173,7 +179,7 @@ export async function replaceFragmentNotes(
   if (!fr) throw new NotFound(`Fragment ${position} not found in "${idOrSlug}"`);
   const kept = lesson.notes.filter((n) => n.start < fr.start - 1e-6 || n.start >= fr.end - 1e-6);
   const v = validateLessonInput({ ...lesson, slug: lesson.slug, notes: [...kept, ...notes] });
-  if (!v.ok) throw new Error(v.errors.join('; '));
+  if (!v.ok) throw new Invalid(v.errors);
   return replaceLesson(db, lesson.id, prepareLesson(v.value));
 }
 

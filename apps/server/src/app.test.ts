@@ -1,4 +1,6 @@
 import ToneMidi from '@tonejs/midi';
+import { strToU8, zipSync } from 'fflate';
+import { readFileSync } from 'node:fs';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createApp } from './app.ts';
 import { openDb, type DbHandle } from './db/client.ts';
@@ -132,5 +134,208 @@ describe('auth', () => {
       headers: { ...headers, authorization: 'Bearer secret' },
     });
     expect(ok.status).toBe(201);
+  });
+});
+
+// ── #5: MusicXML import, MIDI export, error shape, OpenAPI completeness ──────
+
+const fixtureXml = readFileSync(new URL('../../../packages/core/src/fixtures/two-hands.musicxml', import.meta.url), 'utf8');
+type LessonJson = { slug: string; title: string; notes: { pitch: number; hand: string }[]; fragments: unknown[]; source?: { kind: string; url?: string } };
+type ErrJson = { error: string; details?: string[]; id?: string };
+
+const upload = (path: string, data: BodyInit, type = 'application/octet-stream') =>
+  app.request(path, { method: 'POST', body: data, headers: { 'content-type': type } });
+
+describe('MusicXML import', () => {
+  it('imports raw MusicXML with hands from staves and bar-line fragments', async () => {
+    const r = await upload('/api/lessons/import/musicxml?sourceUrl=https://example.org/score', fixtureXml, 'application/vnd.recordare.musicxml+xml');
+    expect(r.status).toBe(201);
+    const l = (await r.json()) as LessonJson;
+    expect(l.slug).toBe('test-piece');
+    expect(l.notes).toHaveLength(12);
+    expect(l.notes.find((n) => n.pitch === 43)?.hand).toBe('L');
+    expect(l.notes.find((n) => n.pitch === 75)?.hand).toBe('R');
+    expect(l.fragments).toHaveLength(1);
+    expect(l.source).toEqual({ kind: 'musicxml', url: 'https://example.org/score' });
+
+    // same slug again → 409 with the existing id; ?upsert=true → 200
+    const again = await upload('/api/lessons/import/musicxml', fixtureXml);
+    expect(again.status).toBe(409);
+    const conflict = (await again.json()) as ErrJson;
+    expect(conflict).toMatchObject({ error: 'conflict' });
+    expect(conflict.id).toBeTruthy();
+    expect((await upload('/api/lessons/import/musicxml?upsert=true', fixtureXml)).status).toBe(200);
+  });
+
+  it('imports compressed .mxl and multipart uploads, with title/slug/part from the query', async () => {
+    const container =
+      '<container><rootfiles><rootfile full-path="s.musicxml" media-type="application/vnd.recordare.musicxml+xml"/></rootfiles></container>';
+    const mxl = zipSync({ 'META-INF/container.xml': strToU8(container), 's.musicxml': strToU8(fixtureXml) });
+    const r = await upload('/api/lessons/import/musicxml?title=Zipped&slug=zipped-mxl&part=P1', mxl, 'application/vnd.recordare.musicxml');
+    expect(r.status).toBe(201);
+    expect((await r.json()) as LessonJson).toMatchObject({ slug: 'zipped-mxl', title: 'Zipped' });
+
+    const form = new FormData();
+    form.set('file', new File([fixtureXml], 'piece.musicxml', { type: 'application/xml' }));
+    const m = await app.request('/api/lessons/import/musicxml?slug=from-form', { method: 'POST', body: form });
+    expect(m.status).toBe(201);
+    expect(((await m.json()) as LessonJson).notes).toHaveLength(12);
+  });
+
+  it('answers 400 invalid-musicxml / bad-request / validation with details', async () => {
+    const bad = await upload('/api/lessons/import/musicxml', '<score-partwise><part', 'application/xml');
+    expect(bad.status).toBe(400);
+    const e = (await bad.json()) as ErrJson;
+    expect(e.error).toBe('invalid-musicxml');
+    expect(e.details?.[0]).toMatch(/Not valid XML/);
+
+    const nopart = await upload('/api/lessons/import/musicxml?part=Violin', fixtureXml);
+    expect(((await nopart.json()) as ErrJson).details?.[0]).toMatch(/No part matches Violin/);
+
+    const empty = await upload('/api/lessons/import/musicxml', '');
+    expect(empty.status).toBe(400);
+    expect(((await empty.json()) as ErrJson).error).toBe('bad-request');
+
+    const badSlug = await upload('/api/lessons/import/musicxml?slug=Not%20A%20Slug', fixtureXml);
+    expect(badSlug.status).toBe(400);
+    expect((await badSlug.json()) as ErrJson).toMatchObject({ error: 'validation' });
+  });
+});
+
+describe('MIDI export', () => {
+  it('downloads a lesson as a two-track MIDI file that re-imports to the same notes', async () => {
+    const lesson = (await (await req('GET', '/api/lessons/fur-elise-opening')).json()) as LessonJson;
+    const r = await req('GET', '/api/lessons/fur-elise-opening/export.mid');
+    expect(r.status).toBe(200);
+    expect(r.headers.get('content-type')).toBe('audio/midi');
+    expect(r.headers.get('content-disposition')).toBe('attachment; filename="fur-elise-opening.mid"');
+    const midi = new Midi(new Uint8Array(await r.arrayBuffer()));
+    expect(midi.tracks.map((t) => t.name)).toEqual(['Right hand', 'Left hand']);
+    expect(midi.tracks[0].notes.length + midi.tracks[1].notes.length).toBe(lesson.notes.length);
+    expect(midi.tracks[1].notes.length).toBe(lesson.notes.filter((n) => n.hand === 'L').length);
+
+    const back = await upload('/api/lessons/import/midi?slug=fur-elise-roundtrip', new Uint8Array(await (await req('GET', '/api/lessons/fur-elise-opening/export.mid')).arrayBuffer()));
+    expect(back.status).toBe(201);
+    const b = (await back.json()) as LessonJson;
+    expect(b.notes.map((n) => `${n.pitch}${n.hand}`).sort()).toEqual(lesson.notes.map((n) => `${n.pitch}${n.hand}`).sort());
+  });
+
+  it('answers 404 not-found for an unknown lesson', async () => {
+    const r = await req('GET', '/api/lessons/nope/export.mid');
+    expect(r.status).toBe(404);
+    expect(await r.json()).toEqual({ error: 'not-found', details: ['Lesson "nope" not found'] });
+  });
+});
+
+describe('error shape', () => {
+  it('is always { error: code, details? } as JSON', async () => {
+    const unknown = await req('GET', '/api/nothing-here');
+    expect(unknown.status).toBe(404);
+    expect(await unknown.json()).toEqual({ error: 'not-found', details: ['No route for GET /api/nothing-here'] });
+
+    const malformed = await app.request('/api/lessons', {
+      method: 'POST',
+      body: '{"title": ',
+      headers: { 'content-type': 'application/json' },
+    });
+    expect(malformed.status).toBe(400);
+    expect(((await malformed.json()) as ErrJson).error).toBe('bad-request');
+
+    const badMidi = await upload('/api/lessons/import/midi', new Uint8Array([1, 2, 3, 4]));
+    expect(badMidi.status).toBe(400);
+    const m = (await badMidi.json()) as ErrJson;
+    expect(m.error).toBe('invalid-midi');
+    expect(m.details?.length).toBe(1);
+
+    const missingFile = await app.request('/api/lessons/import/midi', { method: 'POST', body: new FormData() });
+    expect(missingFile.status).toBe(400);
+    expect(((await missingFile.json()) as ErrJson).details).toEqual(['multipart field "file" is missing']);
+
+    const badQuery = await req('GET', '/api/feedback?status=closed');
+    expect(badQuery.status).toBe(400);
+    expect(((await badQuery.json()) as ErrJson).error).toBe('validation');
+
+    const noFeedback = await req('PATCH', '/api/feedback/not-a-uuid', { status: 'resolved' });
+    expect(noFeedback.status).toBe(404);
+    expect(((await noFeedback.json()) as ErrJson).error).toBe('not-found');
+
+    const noFragment = await req('PUT', '/api/lessons/ode-to-joy/fragments/99/notes', { notes: [] });
+    expect(noFragment.status).toBe(404);
+  });
+
+  it('answers 401 unauthorized with a hint when the token is missing', async () => {
+    const secured = createApp({ db: handle.db, dbKind: handle.kind, apiToken: 'secret' });
+    const r = await secured.request('/api/lessons/ode-to-joy/export.mid');
+    expect(r.status).toBe(200); // reads stay open
+    const w = await secured.request('/api/lessons/import/musicxml', { method: 'POST', body: fixtureXml });
+    expect(w.status).toBe(401);
+    const e = (await w.json()) as ErrJson;
+    expect(e.error).toBe('unauthorized');
+    expect(e.details?.[0]).toMatch(/Authorization: Bearer/);
+    const h = (await (await secured.request('/api/health')).json()) as { auth: boolean };
+    expect(h.auth).toBe(true);
+  });
+});
+
+describe('OpenAPI spec', () => {
+  type Media = { example?: unknown; examples?: unknown; schema?: { $ref?: string; format?: string } };
+  type Op = {
+    summary?: string;
+    description?: string;
+    requestBody?: { content: Record<string, Media> };
+    responses: Record<string, { content?: Record<string, Media> }>;
+  };
+
+  it('documents every route: summary, description, example bodies, consistent errors', async () => {
+    const spec = (await (await req('GET', '/api/openapi.json')).json()) as { openapi: string; paths: Record<string, Record<string, Op>> };
+    expect(spec.openapi).toBe('3.1.0');
+    const paths = Object.keys(spec.paths);
+    for (const p of [
+      '/api/health',
+      '/api/schema/lesson.json',
+      '/api/lessons',
+      '/api/lessons/{ref}',
+      '/api/lessons/{ref}/fragments',
+      '/api/lessons/{ref}/fragments/{position}/notes',
+      '/api/lessons/import/midi',
+      '/api/lessons/import/musicxml',
+      '/api/lessons/{ref}/export.mid',
+      '/api/lessons/{ref}/progress',
+      '/api/lessons/{ref}/feedback',
+      '/api/feedback',
+      '/api/feedback/{id}',
+    ])
+      expect(paths).toContain(p);
+
+    const problems: string[] = [];
+    for (const [path, ops] of Object.entries(spec.paths))
+      for (const [method, op] of Object.entries(ops)) {
+        const where = `${method.toUpperCase()} ${path}`;
+        if (!op.summary) problems.push(`${where}: no summary`);
+        if (!op.description) problems.push(`${where}: no description`);
+        for (const [type, media] of Object.entries(op.requestBody?.content ?? {})) {
+          const binary = media.schema?.format === 'binary' || type === 'multipart/form-data';
+          if (!binary && media.example === undefined && media.examples === undefined)
+            problems.push(`${where}: request ${type} has no example`);
+        }
+        if (op.requestBody && !/curl|example/i.test(op.description ?? '') && Object.values(op.requestBody.content).every((m) => m.example === undefined))
+          problems.push(`${where}: binary-only body without a curl example in the description`);
+        for (const [status, res] of Object.entries(op.responses)) {
+          const media = res.content?.['application/json'];
+          if (status.startsWith('2') && media && media.example === undefined) problems.push(`${where}: ${status} has no example`);
+          if (/^[45]/.test(status) && media?.schema?.$ref !== '#/components/schemas/Error')
+            problems.push(`${where}: ${status} is not the Error schema`);
+          if (/^[45]/.test(status) && media?.example === undefined) problems.push(`${where}: ${status} has no example`);
+        }
+        if (method !== 'get' && !op.responses['401']) problems.push(`${where}: write without a documented 401`);
+      }
+    expect(problems).toEqual([]);
+  });
+
+  it('serves the Scalar docs page', async () => {
+    const r = await req('GET', '/api/docs');
+    expect(r.status).toBe(200);
+    expect(r.headers.get('content-type')).toMatch(/text\/html/);
+    expect(await r.text()).toContain('/api/openapi.json');
   });
 });
