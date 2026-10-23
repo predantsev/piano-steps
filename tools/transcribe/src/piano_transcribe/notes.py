@@ -11,6 +11,10 @@ Hand = Literal["L", "R"]
 # packages/core/src/steps.ts, so "one chord" means the same thing here and in the app.
 CHORD_WINDOW = 0.045
 
+# "Is this onset on that bound": the same tolerance as `TIME_EPS` in packages/core/src/steps.ts.
+# A note belongs to fragment [start, end) when start − TIME_EPS ≤ onset < end − TIME_EPS.
+TIME_EPS = 0.002
+
 PIANO_LOW, PIANO_HIGH = 21, 108  # A0 … C8, the range the lesson format accepts
 
 
@@ -52,8 +56,8 @@ def shift(notes: Iterable[Note], by: float) -> list[Note]:
 
 
 def in_window(notes: Iterable[Note], start: float, end: float) -> list[Note]:
-    """Notes whose onset is in [start, end) — the fragment rule of the lesson format."""
-    return [n for n in notes if start - 1e-6 <= n.start < end - 1e-6]
+    """Notes whose onset is in [start, end) — the fragment rule the app plays by (`notesInRange`)."""
+    return [n for n in notes if start - TIME_EPS <= n.start < end - TIME_EPS]
 
 
 NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]

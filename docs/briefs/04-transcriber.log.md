@@ -148,3 +148,23 @@ brief was silent.
   Für Elise's opening never crosses C4, so it does not separate the two methods.
 - Timing note: the per-engine seconds in the final run (20–40 s) were measured while a Docker build
   ran; the clean first run was 11.0 s (bytedance) / 2.2 s (basic-pitch) per 60 s clip.
+
+## Fix round (brief 11, review `findings/04-transcriber.review.json`) — 2026-10-23
+
+- Rebased on origin/main (`git fetch origin && git rebase origin/main` → "Successfully rebased",
+  10 commits, no conflicts). main brings #8 `TIME_EPS = 0.002` (`packages/core/src/steps.ts:35`).
+- Boundary rule. Read on main: player/`notesInRange` use `start − TIME_EPS ≤ onset < end − TIME_EPS`;
+  the server's `replaceFragmentNotes` still deletes by a 1e-6 window (`apps/server/src/repo.ts:174`);
+  every PUT re-runs `prepareLesson` → `snapFragments(tolSec = 0.01)` (`packages/core/src/prepare.ts:15`),
+  so a note inserted within 10 ms of an unanchored bound pulls the bound onto itself.
+  Decision: `notes.TIME_EPS = 0.002` drives `in_window` (show, before/after). `fragment_replacement`
+  no longer clamps to `end − 0.001`: a new note at/after `end − TIME_EPS` is kept only when it is a
+  re-hearing of one of the fragment's own notes (same pitch within tol) and then sits at that old
+  note's onset; anything else past the end is dropped (closes the "different-pitch pull" finding).
+  New notes with no own same-pitch match but a neighbour's note (any pitch) within tol are skipped.
+  Old notes the server deletes but the player counts in the next fragment (`[end − TIME_EPS, end)`)
+  are carried back unchanged in the PUT. Near an unanchored end a note is kept ≥ SNAP_TOL + TIME_EPS
+  away. Evidence: 5 new unit tests (`tests/test_lesson_and_eval.py`), `uv run pytest -q` → 33 passed.
+- ASSUMPTION: the server's 1e-6 delete window is main's to change (scope: no `apps/server` edits);
+  the client compensates (carry-back) and the report lists it as a main-side follow-up.
+- Times rounded to 4 decimals (`TIME_DECIMALS`), like core's `round()` / `beats()`.
