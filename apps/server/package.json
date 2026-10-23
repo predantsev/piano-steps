@@ -1,0 +1,27 @@
+{
+  "name": "@piano-steps/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "piano-steps API + database (Hono, Drizzle, Postgres/PGlite).",
+  "scripts": {
+    "dev": "tsx watch --clear-screen=false src/main.ts",
+    "start": "PORT=${PORT:-9300} SERVE_WEB=1 tsx src/main.ts",
+    "db:generate": "drizzle-kit generate",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "^0.5.11",
+    "@hono/node-server": "^2.1.5",
+    "@hono/zod-openapi": "^1.6.3",
+    "@piano-steps/core": "*",
+    "@scalar/hono-api-reference": "^0.12.14",
+    "drizzle-orm": "^0.45.4",
+    "hono": "^4.13.13",
+    "postgres": "^3.4.9",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.31.11"
+  }
+}

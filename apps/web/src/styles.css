@@ -1,0 +1,188 @@
+/* Design tokens. Tri-state theme: System (no data-theme attr) · Light · Dark. */
+:root,
+:root[data-theme='light'] {
+  color-scheme: light;
+  --bg: #faf9f5;
+  --fg: #3d3d3a;
+  --strong: #141413;
+  --panel: #ffffff;
+  --panel-2: #f0eee6;
+  --bd: #d1cfc5;
+  --mut: #87867f;
+  --accent: #d97757;
+  --accent-fg: #ffffff;
+  --ok: #788c5d;
+  --bad: #c0453a;
+  --hand-r: #d97757; /* right hand = warm */
+  --hand-l: #6a8caf; /* left hand = cool */
+  --hint: #e9c46a;
+  --key-white: #ffffff;
+  --key-white-down: #ece9df;
+  --key-black: #1f1e1c;
+  --key-black-down: #3a3833;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.08), 0 4px 16px rgb(0 0 0 / 0.06);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --bg: #191917;
+    --fg: #c9c7be;
+    --strong: #f5f4ee;
+    --panel: #211f1d;
+    --panel-2: #2a2825;
+    --bd: #3a3833;
+    --mut: #9a988f;
+    --accent: #e0805f;
+    --accent-fg: #191917;
+    --ok: #9cb37c;
+    --bad: #e06c5f;
+    --hand-r: #e0805f;
+    --hand-l: #86a6c9;
+    --hint: #d9b45a;
+    --key-white: #e9e6dc;
+    --key-white-down: #c9c5b8;
+    --key-black: #0e0d0c;
+    --key-black-down: #2c2a27;
+    --shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 4px 16px rgb(0 0 0 / 0.3);
+  }
+}
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #191917;
+  --fg: #c9c7be;
+  --strong: #f5f4ee;
+  --panel: #211f1d;
+  --panel-2: #2a2825;
+  --bd: #3a3833;
+  --mut: #9a988f;
+  --accent: #e0805f;
+  --accent-fg: #191917;
+  --ok: #9cb37c;
+  --bad: #e06c5f;
+  --hand-r: #e0805f;
+  --hand-l: #86a6c9;
+  --hint: #d9b45a;
+  --key-white: #e9e6dc;
+  --key-white-down: #c9c5b8;
+  --key-black: #0e0d0c;
+  --key-black-down: #2c2a27;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 4px 16px rgb(0 0 0 / 0.3);
+}
+
+:root {
+  --sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --serif: ui-serif, Georgia, 'Times New Roman', serif;
+  --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --radius: 12px;
+  --tap: 44px; /* minimum touch target */
+  font-size: 18px;
+}
+
+* {
+  box-sizing: border-box;
+}
+html,
+body,
+#root {
+  height: 100%;
+}
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--sans);
+  line-height: 1.5;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+  overscroll-behavior: none;
+}
+h1,
+h2,
+h3 {
+  font-family: var(--serif);
+  color: var(--strong);
+  font-weight: 600;
+  margin: 0;
+}
+
+button,
+select,
+input,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+/* Shared button style — variants are welcome to use these classes. */
+.btn {
+  min-height: var(--tap);
+  min-width: var(--tap);
+  padding: 0 0.9rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--bd);
+  background: var(--panel);
+  color: var(--strong);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  user-select: none;
+  touch-action: manipulation;
+}
+.btn:active {
+  transform: translateY(1px);
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-fg);
+  font-weight: 600;
+}
+.btn.ghost {
+  background: transparent;
+}
+.btn.big {
+  min-height: 56px;
+  padding: 0 1.4rem;
+  font-size: 1.05rem;
+}
+
+.seg {
+  display: inline-flex;
+  border: 1px solid var(--bd);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--panel);
+}
+.seg button {
+  min-height: var(--tap);
+  padding: 0 0.8rem;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.seg button[aria-pressed='true'] {
+  background: var(--accent);
+  color: var(--accent-fg);
+  font-weight: 600;
+}
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--bd);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.muted {
+  color: var(--mut);
+}
+.mono {
+  font-family: var(--mono);
+}

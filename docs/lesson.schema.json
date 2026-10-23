@@ -1,0 +1,183 @@
+{
+  "$id": "https://github.com/predantsev/piano-steps/blob/main/docs/lesson.schema.json",
+  "title": "piano-steps lesson (input)",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "default": 1,
+      "type": "number",
+      "const": 1
+    },
+    "slug": {
+      "type": "string",
+      "maxLength": 80,
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "artist": {
+      "type": "string",
+      "maxLength": 200
+    },
+    "composer": {
+      "type": "string",
+      "maxLength": 200
+    },
+    "description": {
+      "type": "string",
+      "maxLength": 4000
+    },
+    "source": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "manual",
+            "midi",
+            "musicxml",
+            "transcription-audio",
+            "transcription-video",
+            "agent"
+          ]
+        },
+        "url": {
+          "description": "Where it came from, e.g. a YouTube URL",
+          "type": "string"
+        },
+        "offsetSec": {
+          "description": "Position in the source recording (seconds) where lesson time 0 begins — lets the app play the original for a fragment",
+          "type": "number",
+          "minimum": 0
+        },
+        "note": {
+          "description": "Free text: how it was produced, known inaccuracies",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind"
+      ]
+    },
+    "license": {
+      "type": "string",
+      "maxLength": 200
+    },
+    "tempo": {
+      "type": "object",
+      "properties": {
+        "bpm": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Quarter-note beats per minute"
+        },
+        "timeSignature": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            }
+          ],
+          "items": false,
+          "minItems": 2,
+          "maxItems": 2
+        }
+      },
+      "required": [
+        "bpm"
+      ]
+    },
+    "notes": {
+      "minItems": 1,
+      "maxItems": 20000,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "pitch": {
+            "type": "integer",
+            "minimum": 21,
+            "maximum": 108,
+            "description": "MIDI note number, 21 (A0) … 108 (C8); 60 = C4 (middle C)"
+          },
+          "start": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Onset, seconds from lesson start"
+          },
+          "duration": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "description": "Length in seconds"
+          },
+          "hand": {
+            "type": "string",
+            "enum": [
+              "L",
+              "R"
+            ],
+            "description": "Which hand plays the note: L = left, R = right"
+          },
+          "velocity": {
+            "description": "Loudness 0…1",
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "finger": {
+            "description": "Suggested finger, 1 = thumb … 5 = little finger",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5
+          }
+        },
+        "required": [
+          "pitch",
+          "start",
+          "duration"
+        ]
+      }
+    },
+    "fragments": {
+      "description": "Practice chunks; generated automatically when omitted",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "start": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Seconds"
+          },
+          "end": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "description": "Seconds, exclusive"
+          }
+        },
+        "required": [
+          "start",
+          "end"
+        ]
+      }
+    }
+  },
+  "required": [
+    "title",
+    "notes"
+  ]
+}

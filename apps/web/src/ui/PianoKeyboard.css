@@ -1,0 +1,88 @@
+.pk {
+  position: relative;
+  width: 100%;
+  min-height: 120px;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  border-radius: 0 0 10px 10px;
+  overflow: hidden;
+  background: var(--key-black);
+}
+.pk-key {
+  position: absolute;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  padding-bottom: 6px;
+  transition: background-color 60ms linear;
+}
+.pk-white {
+  height: 100%;
+  background: var(--key-white);
+  border-right: 1px solid var(--bd);
+  border-radius: 0 0 8px 8px;
+  z-index: 1;
+}
+.pk-black {
+  height: 62%;
+  background: var(--key-black);
+  border-radius: 0 0 6px 6px;
+  z-index: 2;
+  color: #ddd;
+}
+.pk-name {
+  font: 600 0.62rem/1 var(--mono);
+  color: var(--mut);
+  pointer-events: none;
+}
+.pk-black .pk-name {
+  color: #aaa;
+  font-size: 0.55rem;
+}
+.pk-badge {
+  pointer-events: none;
+  min-width: 1.5em;
+  height: 1.5em;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  font: 700 0.75rem/1 var(--sans);
+  background: rgb(0 0 0 / 0.25);
+  color: #fff;
+  margin-bottom: 4px;
+}
+
+/* marks */
+.pk-white.pk-R,
+.pk-black.pk-R {
+  background: var(--hand-r);
+}
+.pk-white.pk-L,
+.pk-black.pk-L {
+  background: var(--hand-l);
+}
+.pk-white.pk-ok,
+.pk-black.pk-ok {
+  background: var(--ok);
+}
+.pk-white.pk-bad,
+.pk-black.pk-bad {
+  background: var(--bad);
+}
+.pk-white.pk-hint,
+.pk-black.pk-hint {
+  background: var(--hint);
+}
+.pk-key.pk-next {
+  box-shadow: inset 0 0 0 3px var(--accent);
+}
+.pk-white.pk-R .pk-name,
+.pk-white.pk-L .pk-name,
+.pk-white.pk-ok .pk-name,
+.pk-white.pk-bad .pk-name {
+  color: #fff;
+}

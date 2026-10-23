@@ -1,0 +1,11 @@
+{
+  "name": "Piano Steps",
+  "short_name": "Piano Steps",
+  "description": "Learn a melody on the piano by watching which keys to press, fragment by fragment.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#FAF9F5",
+  "theme_color": "#D97757",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

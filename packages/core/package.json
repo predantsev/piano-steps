@@ -1,0 +1,18 @@
+{
+  "name": "@piano-steps/core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Shared lesson format, validation, MIDI import and practice helpers (used by web, server and CLI).",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "schema": "tsx src/print-json-schema.ts > ../../docs/lesson.schema.json"
+  },
+  "dependencies": {
+    "@tonejs/midi": "^2.0.28",
+    "zod": "^4.6.7"
+  }
+}

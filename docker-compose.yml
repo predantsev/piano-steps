@@ -1,0 +1,37 @@
+# docker compose up -d --build   →   http://piano-steps.localhost:9300  (API docs: /api/docs)
+# iPad on the same Wi-Fi:  PIANO_STEPS_BIND=0.0.0.0 docker compose up -d   →   http://<mac-ip>:9300
+name: piano-steps
+
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: piano
+      POSTGRES_PASSWORD: piano
+      POSTGRES_DB: piano_steps
+    ports:
+      - "127.0.0.1:${PIANO_STEPS_DB_PORT:-9432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U piano -d piano_steps"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  app:
+    build: .
+    environment:
+      DATABASE_URL: postgres://piano:piano@db:5432/piano_steps
+      API_TOKEN: ${PIANO_STEPS_API_TOKEN:-}
+      SEED_DEMO: ${PIANO_STEPS_SEED_DEMO:-1}
+    ports:
+      - "${PIANO_STEPS_BIND:-127.0.0.1}:${PIANO_STEPS_PORT:-9300}:9300"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pgdata:

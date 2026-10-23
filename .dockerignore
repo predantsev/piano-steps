@@ -1,0 +1,12 @@
+node_modules
+**/node_modules
+**/dist
+.data
+**/.data
+.git
+.claude
+tools/transcribe/.venv
+tools/transcribe/.work
+test-results
+playwright-report
+*.log
