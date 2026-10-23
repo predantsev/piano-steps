@@ -12,7 +12,7 @@ const STRINGS = {
   restart: { uk: 'З початку', en: 'From the start' },
   hearStep: { uk: 'Послухати', en: 'Hear it' },
   loop: { uk: 'Повтор', en: 'Loop' },
-  wait: { uk: 'Чекати на мене', en: 'Wait for me' },
+  wait: { uk: 'Чекати мене', en: 'Wait for me' },
   sound: { uk: 'Звук', en: 'Sound' },
   speed: { uk: 'Швидкість', en: 'Speed' },
   hands: { uk: 'Руки', en: 'Hands' },

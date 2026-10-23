@@ -2,22 +2,34 @@
 .fl {
   height: 100%;
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto minmax(0, 1fr);
   gap: 8px;
   padding: 10px 12px 12px;
   min-height: 0;
 }
 
-/* Fragment chips — one row, scrolls sideways; the right end stays clear of the shell's floating
-   buttons (🎧 / ⚑, absolutely positioned at the top-right of the stage). */
+/* Top row: fragment chips (scroll sideways) + "Got it". Its right end stays clear of the shell's
+   floating buttons (🎧 / ⚑, absolutely positioned at the top-right of the stage); the component
+   measures them into --fl-fab-clear. */
+.fl-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-right: var(--fl-fab-clear, 16rem);
+  min-width: 0;
+}
 .fl-frags {
   display: flex;
   gap: 8px;
+  flex: 0 1 auto;
+  min-width: 0;
   overflow-x: auto;
   overscroll-behavior-x: contain;
   scrollbar-width: thin;
-  padding-right: var(--fl-fab-clear, 16rem);
   -webkit-overflow-scrolling: touch;
+}
+.fl-gotit {
+  flex: none;
 }
 .fl-chip {
   flex: none;
@@ -41,17 +53,17 @@
   align-items: center;
   gap: 8px;
 }
+.fl-controls > .btn:not(.big) {
+  padding: 0 0.7rem;
+}
 .fl-primary {
-  min-width: 9.5rem;
+  min-width: 7.5rem;
 }
 .fl-sep {
   width: 1px;
   align-self: stretch;
   background: var(--bd);
   margin: 4px 2px;
-}
-.fl-spacer {
-  flex: 1;
 }
 .fl-toggle[aria-pressed='true'] {
   background: var(--panel-2);
@@ -67,14 +79,10 @@
 }
 .fl-controls .seg button {
   min-width: var(--tap);
+  padding: 0 0.65rem;
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
-}
-.fl-seg-label {
-  display: inline-flex;
-  align-items: center;
-  padding: 0 0.2rem 0 0.6rem;
 }
 .fl-dot {
   width: 0.62rem;
@@ -93,7 +101,13 @@
   margin-left: -0.35rem;
 }
 
-/* The lane and the keyboard share one column: same left edge, same width. */
+/* The lane and the keyboard share one column (same left edge, same width) and touch:
+   the now-line is the keyboard's top edge. */
+.fl-stage {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  min-height: 0;
+}
 .fl-lane {
   position: relative;
   min-height: 0;
@@ -125,9 +139,28 @@
   text-align: center;
   pointer-events: none;
 }
+.fl-pill-wait {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 16px 4px 4px;
+  text-align: left;
+}
+.fl-hear {
+  pointer-events: auto;
+  border-radius: 999px;
+  flex: none;
+}
 .fl-pill b {
   color: var(--strong);
   font-size: 1.1rem;
+}
+.fl-lookahead {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  background: color-mix(in srgb, var(--panel) 85%, transparent);
+  box-shadow: var(--shadow);
 }
 .fl-keys {
   min-height: 140px;
@@ -137,10 +170,5 @@
 @media (max-height: 640px) {
   .fl-keys {
     min-height: 110px;
-  }
-}
-@media (max-width: 900px) {
-  .fl-frags {
-    padding-right: var(--fl-fab-clear-narrow, 0);
   }
 }

@@ -45,6 +45,11 @@ function readPrefs(speed: number): Prefs {
   }
 }
 
+function nextLookAhead(x: number): number {
+  const i = LOOK_AHEADS.findIndex((v) => v === x);
+  return LOOK_AHEADS[(i + 1) % LOOK_AHEADS.length];
+}
+
 function savePrefs(p: Prefs) {
   try {
     const { rate: _rate, ...rest } = p;
@@ -90,6 +95,7 @@ export default function FallingNotes({
   const lessonEnd = useMemo(() => lesson.notes.reduce((m, n) => Math.max(m, n.start + n.duration), 0), [lesson]);
 
   // Latest callbacks for the engine (it lives across renders).
+  const paintRef = useRef<() => void>(() => {});
   const attemptRef = useRef<() => void>(() => {});
   attemptRef.current = () => {
     if (fragIdx !== null) recordProgress({ fragmentPosition: fragIdx, attempt: true });
@@ -99,7 +105,10 @@ export default function FallingNotes({
     () =>
       new PracticeEngine(player, lesson.notes, engineOptions(prefs), {
         onAttempt: () => attemptRef.current(),
-        onChange: rerender,
+        onChange: () => {
+          rerender();
+          queueMicrotask(() => paintRef.current()); // keys follow presses at once, even if frames are throttled
+        },
         audioLag,
       }),
     // prefs are pushed with setOptions below; the engine is per lesson + player
@@ -172,6 +181,19 @@ export default function FallingNotes({
     };
   }, [engine, player, fragCount]);
 
+  // Keep the top row clear of the shell's floating buttons (🎧 / ⚑ at the stage's top-right).
+  const topRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const top = topRef.current;
+    const fab = top?.closest('.stage')?.querySelector<HTMLElement>(':scope > .fab');
+    if (!top || !fab) return;
+    const fit = () => top.style.setProperty('--fl-fab-clear', `${Math.ceil(fab.getBoundingClientRect().width) + 16}px`);
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(fab);
+    return () => ro.disconnect();
+  }, []);
+
   // ── the lane: canvas sized to its box × devicePixelRatio, painted every animation frame ──
   const laneRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -194,6 +216,7 @@ export default function FallingNotes({
       sizeRef.current = { w: r.width, h: r.height, dpr };
       canvas.width = Math.max(1, Math.round(r.width * dpr));
       canvas.height = Math.max(1, Math.round(r.height * dpr));
+      paintRef.current(); // resizing clears the canvas; repaint now rather than on the next frame
     };
     resize();
     const ro = new ResizeObserver(resize);
@@ -204,6 +227,7 @@ export default function FallingNotes({
     // theme: System (no attribute, OS preference) · Light · Dark (data-theme on <html>)
     const recolor = () => {
       colorsRef.current = readColors(canvas);
+      paintRef.current();
     };
     recolor();
     const mo = new MutationObserver(recolor);
@@ -223,9 +247,7 @@ export default function FallingNotes({
     const ctx = canvas?.getContext('2d');
     if (!canvas || !ctx) return;
     let raf = 0;
-    const frame = () => {
-      raf = requestAnimationFrame(frame);
-      engine.tick();
+    const paint = () => {
       const now = engine.visualTime();
       const { lookAhead } = prefsRef.current;
       const bars = visibleBars(engine.notes, engine.span, now, lookAhead, engine.opts.loop, engine.opts.hands);
@@ -260,8 +282,17 @@ export default function FallingNotes({
         setHighlights(marks.keys);
       }
     };
+    const frame = () => {
+      raf = requestAnimationFrame(frame);
+      engine.tick();
+      paint();
+    };
+    paintRef.current = paint;
     raf = requestAnimationFrame(frame);
-    return () => cancelAnimationFrame(raf);
+    return () => {
+      cancelAnimationFrame(raf);
+      paintRef.current = () => {};
+    };
   }, [engine, keys, input]);
 
   // Tap a falling bar to hear its note.
@@ -333,9 +364,20 @@ export default function FallingNotes({
 
   return (
     <div className="fl">
-      <div className="fl-frags" role="toolbar" aria-label={s(lang, 'fragments')}>
-        {lesson.fragments.map((f, i) => chip(f.title ?? `#${i + 1}`, i))}
-        {chip(s(lang, 'wholeLesson'), null)}
+      <div className="fl-top" ref={topRef}>
+        <div className="fl-frags" role="toolbar" aria-label={s(lang, 'fragments')}>
+          {lesson.fragments.map((f, i) => chip(f.title ?? `#${i + 1}`, i))}
+          {chip(s(lang, 'wholeLesson'), null)}
+        </div>
+        {fragIdx !== null && (
+          <button
+            className="btn fl-toggle fl-gotit"
+            aria-pressed={mastered}
+            onClick={() => recordProgress({ fragmentPosition: fragIdx, status: mastered ? 'learning' : 'mastered' })}
+          >
+            ✓ {s(lang, mastered ? 'mastered' : 'gotIt')}
+          </button>
+        )}
       </div>
 
       <div className="fl-controls">
@@ -350,11 +392,6 @@ export default function FallingNotes({
         <button className="btn" onClick={() => engine.restart()} title={s(lang, 'restart')} aria-label={s(lang, 'restart')}>
           ⏮
         </button>
-        {prefs.wait && (
-          <button className="btn" onClick={() => engine.hearStep()} disabled={phase !== 'waiting' || noNotes}>
-            🔊 {s(lang, 'hearStep')}
-          </button>
-        )}
 
         <span className="fl-sep" />
 
@@ -391,60 +428,57 @@ export default function FallingNotes({
             </button>
           ))}
         </div>
+      </div>
 
-        <div className="seg" role="group" aria-label={s(lang, 'lookAhead')} title={s(lang, 'lookAhead')}>
-          <span className="fl-seg-label" aria-hidden>
-            👁
-          </span>
-          {LOOK_AHEADS.map((x) => (
-            <button key={x} aria-pressed={prefs.lookAhead === x} onClick={() => set({ lookAhead: x })}>
-              {x}s
-            </button>
-          ))}
+      <div className="fl-stage">
+        <div className="fl-lane" ref={laneRef}>
+          <canvas ref={canvasRef} onPointerDown={onLanePointerDown} aria-label={s(lang, 'tapBar')} role="img" />
+          <button
+            className="btn fl-lookahead"
+            onClick={() => set({ lookAhead: nextLookAhead(prefs.lookAhead) })}
+            title={s(lang, 'lookAhead')}
+            aria-label={`${s(lang, 'lookAhead')}: ${prefs.lookAhead}s`}
+          >
+            👁 {prefs.lookAhead}s
+          </button>
+          {prefs.wait && noNotes && <div className="fl-pill">{s(lang, 'noNotes')}</div>}
+          {prefs.wait && waitingStep && (
+            <div className="fl-pill fl-pill-wait" aria-live="polite">
+              <button
+                className="btn fl-hear"
+                onClick={() => engine.hearStep()}
+                title={s(lang, 'hearStep')}
+                aria-label={s(lang, 'hearStep')}
+              >
+                🔊
+              </button>
+              <span>
+                {s(lang, 'playThese')}{' '}
+                <b>{waitingStep.pitches.map((p) => pitchName(p, settings.noteNames)).join(' + ')}</b>{' '}
+                <span className="muted">{s(lang, 'thenNext')}</span>
+              </span>
+            </div>
+          )}
+          {phase === 'preroll' && <div className="fl-pill">{s(lang, 'getReady')}</div>}
         </div>
 
-        <span className="fl-spacer" />
-
-        {fragIdx !== null && (
-          <button
-            className={`btn fl-toggle fl-gotit ${mastered ? 'on' : ''}`}
-            aria-pressed={mastered}
-            onClick={() => recordProgress({ fragmentPosition: fragIdx, status: mastered ? 'learning' : 'mastered' })}
-          >
-            ✓ {s(lang, mastered ? 'mastered' : 'gotIt')}
-          </button>
-        )}
+        <PianoKeyboard
+          range={range}
+          highlights={highlights}
+          labels={settings.keyLabels}
+          noteNames={settings.noteNames}
+          height="26vh"
+          className="fl-keys"
+          onNoteOn={(p) => {
+            player.noteOn(p);
+            input.emit('on', p, 'screen');
+          }}
+          onNoteOff={(p) => {
+            player.noteOff(p);
+            input.emit('off', p, 'screen');
+          }}
+        />
       </div>
-
-      <div className="fl-lane" ref={laneRef}>
-        <canvas ref={canvasRef} onPointerDown={onLanePointerDown} aria-label={s(lang, 'tapBar')} role="img" />
-        {prefs.wait && noNotes && <div className="fl-pill">{s(lang, 'noNotes')}</div>}
-        {prefs.wait && waitingStep && (
-          <div className="fl-pill" aria-live="polite">
-            {s(lang, 'playThese')}{' '}
-            <b>{waitingStep.pitches.map((p) => pitchName(p, settings.noteNames)).join(' + ')}</b>{' '}
-            <span className="muted">{s(lang, 'thenNext')}</span>
-          </div>
-        )}
-        {phase === 'preroll' && <div className="fl-pill">{s(lang, 'getReady')}</div>}
-      </div>
-
-      <PianoKeyboard
-        range={range}
-        highlights={highlights}
-        labels={settings.keyLabels}
-        noteNames={settings.noteNames}
-        height="26vh"
-        className="fl-keys"
-        onNoteOn={(p) => {
-          player.noteOn(p);
-          input.emit('on', p, 'screen');
-        }}
-        onNoteOff={(p) => {
-          player.noteOff(p);
-          input.emit('off', p, 'screen');
-        }}
-      />
     </div>
   );
 }
