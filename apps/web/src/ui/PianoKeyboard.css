@@ -77,8 +77,38 @@
 .pk-black.pk-hint {
   background: var(--hint);
 }
-.pk-key.pk-next {
-  box-shadow: inset 0 0 0 3px var(--accent);
+.pk-key {
+  --hc: var(--hand-r);
+}
+/* "coming up next": a ring in the hand's colour with a white inner edge, so it reads on white
+   keys, black keys and on top of a filled key (repeated note) alike */
+.pk-ring {
+  position: absolute;
+  inset: 3px 3px 5px;
+  border: 4px solid var(--hc);
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 2px #fff, 0 0 0 1px rgb(0 0 0 / 0.35);
+  pointer-events: none;
+}
+.pk-black .pk-ring {
+  inset: 2px 2px 4px;
+  border-width: 3px;
+  border-radius: 4px;
+}
+/* held over from an earlier step: keep it down — stripes, not a solid "press now" fill */
+.pk-white.pk-hold {
+  background: repeating-linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--hc) 45%, var(--key-white)) 0 7px,
+    var(--key-white) 7px 14px
+  );
+}
+.pk-black.pk-hold {
+  background: repeating-linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--hc) 60%, var(--key-black)) 0 5px,
+    var(--key-black) 5px 10px
+  );
 }
 .pk-white.pk-R .pk-name,
 .pk-white.pk-L .pk-name,

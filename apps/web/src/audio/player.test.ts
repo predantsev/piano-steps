@@ -5,6 +5,7 @@ const LOOK_AHEAD = 0.1;
 const OUTPUT_LATENCY = 0.02;
 const clock = { t: 0 };
 const attacks: { note: string; at: number }[] = [];
+const releases = { n: 0 };
 
 vi.mock('tone', () => {
   class Inst {
@@ -16,7 +17,9 @@ vi.mock('tone', () => {
     }
     triggerAttack() {}
     triggerRelease() {}
-    releaseAll() {}
+    releaseAll() {
+      releases.n++;
+    }
   }
   return {
     start: async () => {},
@@ -35,6 +38,7 @@ describe('LessonPlayer clock', () => {
     vi.useFakeTimers();
     clock.t = 10;
     attacks.length = 0;
+    releases.n = 0;
   });
   afterEach(() => vi.useRealTimers());
 
@@ -73,5 +77,71 @@ describe('LessonPlayer clock', () => {
     const before = p.time;
     p.setRate(1);
     expect(p.time).toBeGreaterThanOrEqual(before - 0.01);
+  });
+
+  it('loops seamlessly: the next pass is queued exactly one pass-length later, no freeze at the wrap', async () => {
+    const p = new LessonPlayer();
+    await p.unlock();
+    p.load([
+      { pitch: 60, start: 0, duration: 0.5 },
+      { pitch: 64, start: 0.5, duration: 0.5 },
+    ]);
+    const events: string[] = [];
+    p.subscribe((e) => events.push(e.type === 'state' ? `state:${e.state}` : e.type));
+    p.play({ from: 0, to: 1, loop: true });
+    const samples: number[] = [];
+    for (let i = 0; i < 600; i++) {
+      clock.t += 0.005;
+      vi.advanceTimersByTime(5);
+      samples.push(p.time);
+    }
+    const c4 = attacks.filter((a) => a.note === 'C4').map((a) => a.at);
+    expect(c4.length).toBeGreaterThanOrEqual(3);
+    for (let i = 1; i < c4.length; i++) expect(c4[i] - c4[i - 1]).toBeCloseTo(1, 6);
+    expect(events.filter((e) => e === 'loop').length).toBeGreaterThanOrEqual(2);
+    // time only ever moves forward, except one jump back per wrap; it never sits still for > 10 ms while playing
+    let stuck = 0;
+    let maxStuck = 0;
+    for (let i = 1; i < samples.length; i++) {
+      if (samples[0] === 0 && i < 40) continue; // start-up delay before the first note
+      if (samples[i] === samples[i - 1]) maxStuck = Math.max(maxStuck, ++stuck);
+      else stuck = 0;
+    }
+    expect(maxStuck).toBeLessThanOrEqual(2);
+    p.stop();
+  });
+
+  it('an empty range ends at once instead of looping forever', async () => {
+    const p = new LessonPlayer();
+    await p.unlock();
+    p.load([{ pitch: 60, start: 0, duration: 1 }]);
+    const events: string[] = [];
+    p.subscribe((e) => events.push(e.type));
+    p.play({ from: 5, to: 6, loop: true });
+    expect(p.state).toBe('stopped');
+    expect(events.filter((e) => e === 'end')).toHaveLength(1);
+    advance(0.5);
+    expect(events.filter((e) => e === 'loop')).toHaveLength(0);
+  });
+
+  it('ends after the last pass when not looping', async () => {
+    const p = new LessonPlayer();
+    await p.unlock();
+    p.load([{ pitch: 60, start: 0, duration: 0.5 }]);
+    const events: string[] = [];
+    p.subscribe((e) => events.push(e.type));
+    p.play({ from: 0 });
+    advance(1);
+    expect(p.state).toBe('stopped');
+    expect(events.filter((e) => e === 'end')).toHaveLength(1);
+  });
+
+  it('stop() silences chord previews too', async () => {
+    const p = new LessonPlayer();
+    await p.unlock();
+    p.playChord([60, 64, 67], 9);
+    const before = releases.n;
+    p.stop();
+    expect(releases.n).toBeGreaterThan(before);
   });
 });

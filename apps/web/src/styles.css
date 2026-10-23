@@ -13,8 +13,8 @@
   --accent-fg: #ffffff;
   --ok: #788c5d;
   --bad: #c0453a;
-  --hand-r: #d97757; /* right hand = warm */
-  --hand-l: #6a8caf; /* left hand = cool */
+  --hand-r: #2f8f5b; /* right hand = green (Synthesia convention), distinct from the accent */
+  --hand-l: #3f73b8; /* left hand = blue */
   --hint: #e9c46a;
   --key-white: #ffffff;
   --key-white-down: #ece9df;
@@ -36,8 +36,8 @@
     --accent-fg: #191917;
     --ok: #9cb37c;
     --bad: #e06c5f;
-    --hand-r: #e0805f;
-    --hand-l: #86a6c9;
+    --hand-r: #4fbf82;
+    --hand-l: #74a6e6;
     --hint: #d9b45a;
     --key-white: #e9e6dc;
     --key-white-down: #c9c5b8;
@@ -59,8 +59,8 @@
   --accent-fg: #191917;
   --ok: #9cb37c;
   --bad: #e06c5f;
-  --hand-r: #e0805f;
-  --hand-l: #86a6c9;
+  --hand-r: #4fbf82;
+  --hand-l: #74a6e6;
   --hint: #d9b45a;
   --key-white: #e9e6dc;
   --key-white-down: #c9c5b8;
