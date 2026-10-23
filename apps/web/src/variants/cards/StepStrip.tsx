@@ -152,10 +152,13 @@ export function StepStrip({ steps, current, hasLeft, noteNames, lang, onTap, onS
               if (!lane) return null;
               const x0 = layout.xAt(s.time) + 8;
               const x1 = layout.xAt(s.time + lane.holdSec) - 6;
+              // bright while the key is down at the current step (its own step, or held over)
+              const cur = steps[current];
+              const active = !!cur && i <= current && cur.time < s.time + lane.holdSec - 0.02;
               return (
                 <span
                   key={`${i}${h}`}
-                  className={`cv-hold cv-hand-${h} ${i === current ? 'is-current' : ''}`}
+                  className={`cv-hold cv-hand-${h} ${active ? 'is-current' : ''}`}
                   style={{ left: x0, width: Math.max(10, x1 - x0), top: laneTop[h] - PAD + laneH[h] - BAR_H - 7 }}
                 />
               );
