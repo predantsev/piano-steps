@@ -5,7 +5,9 @@ import * as Tone from 'tone';
 /**
  * Plays a lesson (or a slice of it) with a sampled grand piano.
  *
- * - Sound starts only after a user gesture (`unlock()`), which iOS/iPadOS requires.
+ * - Sound starts only after a user gesture (`unlock()`), which iOS/iPadOS requires. iOS may refuse a
+ *   gesture or interrupt the context later (backgrounding, a call), so every gesture retries until the
+ *   context is actually running; while it is not, the clock stands still and `audioRunning` is false.
  * - Until the samples have loaded, a soft synth stands in, so the first tap is never silent.
  * - `time` is lesson time in seconds *as heard*; read it in requestAnimationFrame to draw.
  * - Notes are handed to the audio graph by a short look-ahead scheduler, so pause/stop
@@ -28,12 +30,18 @@ export interface PlayOptions {
   muted?: boolean;
 }
 
-export type PlayerEvent = { type: 'state'; state: PlayerState } | { type: 'loop' } | { type: 'end' };
+export type PlayerEvent =
+  | { type: 'state'; state: PlayerState }
+  | { type: 'loop' }
+  | { type: 'end' }
+  | { type: 'audio'; running: boolean };
 type Listener = (e: PlayerEvent) => void;
 
 const SALAMANDER = 'https://tonejs.github.io/audio/salamander/';
 const SAMPLE_NOTES = ['A0', 'C1', 'D#1', 'F#1', 'A1', 'C2', 'D#2', 'F#2', 'A2', 'C3', 'D#3', 'F#3', 'A3', 'C4',
   'D#4', 'F#4', 'A4', 'C5', 'D#5', 'F#5', 'A5', 'C6', 'D#6', 'F#6', 'A6', 'C7', 'D#7', 'F#7', 'A7', 'C8'];
+/** 0.1 s of silence: playing it in an <audio> element takes iOS out of the silent-switch "ambient" session. */
+const SILENT_WAV = 'data:audio/wav;base64,UklGRkQDAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YSADAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgA==';
 const LOOKAHEAD = 0.15; // seconds of audio scheduled ahead
 const TICK_MS = 25;
 const START_DELAY = 0.05; // seconds between play() and the first note, on the scheduling clock
@@ -60,32 +68,36 @@ export class LessonPlayer {
   private runEnd = 0; // lesson time where every pass ends
   private pausedAt = 0;
   private timer: ReturnType<typeof setInterval> | null = null;
-  private unlocked = false;
+  private watching = false;
+  private keepAlive: HTMLAudioElement | null = null;
 
-  /** Call from a user gesture (tap/click). Safe to call many times. */
+  /**
+   * Call from a user gesture (tap/click/key). Safe to call on every gesture: it does nothing once the
+   * audio context is running, and tries again whenever it is not (refused gesture, iOS interruption).
+   */
   async unlock(): Promise<void> {
-    if (this.unlocked) return;
-    this.unlocked = true;
-    await Tone.start();
-    this.synth = new Tone.PolySynth(Tone.Synth, {
-      oscillator: { type: 'triangle' },
-      envelope: { attack: 0.005, decay: 0.3, sustain: 0.2, release: 0.8 },
-      volume: -10,
-    }).toDestination();
-    const urls: Record<string, string> = {};
-    for (const n of SAMPLE_NOTES) urls[n] = `${n.replace('#', 's')}.mp3`;
-    this.sampler = new Tone.Sampler({
-      urls,
-      baseUrl: SALAMANDER,
-      release: 1,
-      onload: () => {
-        this.samplesLoaded = true;
-      },
-    }).toDestination();
+    if (this.audioRunning && this.synth) return;
+    // First thing in the gesture: iOS honours resume() only synchronously inside the handler.
+    const started = Tone.start();
+    this.primeOutput();
+    this.ignoreSilentSwitch();
+    this.watchContext();
+    this.createInstruments();
+    try {
+      await started;
+    } catch {
+      /* refused — the next gesture tries again */
+    }
   }
 
+  /** The audio context is running, so the clock advances and notes sound. */
+  get audioRunning(): boolean {
+    return Tone.getContext().state === 'running';
+  }
+
+  /** A gesture created the instruments and the context is running. */
   get isUnlocked() {
-    return this.unlocked;
+    return !!this.synth && this.audioRunning;
   }
 
   load(notes: readonly LessonNote[]) {
@@ -185,6 +197,75 @@ export class LessonPlayer {
   }
 
   // ── internals ────────────────────────────────────────────────────────────
+
+  private createInstruments() {
+    if (this.synth) return;
+    this.synth = new Tone.PolySynth(Tone.Synth, {
+      oscillator: { type: 'triangle' },
+      envelope: { attack: 0.005, decay: 0.3, sustain: 0.2, release: 0.8 },
+      volume: -10,
+    }).toDestination();
+    const urls: Record<string, string> = {};
+    for (const n of SAMPLE_NOTES) urls[n] = `${n.replace('#', 's')}.mp3`;
+    this.sampler = new Tone.Sampler({
+      urls,
+      baseUrl: SALAMANDER,
+      release: 1,
+      onload: () => {
+        this.samplesLoaded = true;
+      },
+    }).toDestination();
+  }
+
+  /** Classic iOS unlock: start a silent one-sample buffer inside the gesture. */
+  private primeOutput() {
+    try {
+      const raw = Tone.getContext().rawContext as unknown as BaseAudioContext;
+      const src = raw.createBufferSource();
+      src.buffer = raw.createBuffer(1, 1, raw.sampleRate);
+      src.connect(raw.destination);
+      src.start(0);
+    } catch {
+      /* not critical */
+    }
+  }
+
+  /**
+   * iOS plays Web Audio in the "ambient" session, which the silent switch (or the bell in Control Center)
+   * mutes even though the tab is not muted. Ask for "playback" instead: the Audio Session API where it
+   * exists (iOS 17+), else a looping silent <audio> element started in the gesture.
+   */
+  private ignoreSilentSwitch() {
+    if (typeof navigator === 'undefined') return;
+    const session = (navigator as Navigator & { audioSession?: { type: string } }).audioSession;
+    if (session) {
+      try {
+        session.type = 'playback';
+        return;
+      } catch {
+        /* fall through to the <audio> trick */
+      }
+    }
+    if (this.keepAlive || typeof Audio === 'undefined') return;
+    const a = new Audio(SILENT_WAV);
+    a.loop = true;
+    a.setAttribute('playsinline', '');
+    void a.play().then(
+      () => (this.keepAlive = a),
+      () => {},
+    );
+  }
+
+  /** Report running/not running, and try to resume after an interruption while playing. */
+  private watchContext() {
+    if (this.watching) return;
+    this.watching = true;
+    Tone.getContext().on('statechange', () => {
+      const running = this.audioRunning;
+      if (!running && this.state === 'playing') void Tone.start().catch(() => {});
+      this.emit({ type: 'audio', running });
+    });
+  }
 
   private instrument(): Tone.Sampler | Tone.PolySynth | null {
     return this.samplesLoaded ? this.sampler : this.synth;

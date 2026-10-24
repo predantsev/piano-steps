@@ -196,7 +196,7 @@ export function createDevApi(getShell: () => DevShell): DevApiHandle {
           ...state,
           warning:
             'Playing silently: the clock runs, but the piano sound is created on the first real tap/click ' +
-            'on the page (the shell unlocks audio on pointerdown).',
+            'on the page (the shell retries the unlock on every tap/click/key until audio runs).',
         };
       return state;
     },

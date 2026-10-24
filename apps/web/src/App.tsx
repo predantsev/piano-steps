@@ -51,15 +51,19 @@ export default function App() {
   }, [dialog, health]);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  // iOS/iPadOS only allow audio after a user gesture: unlock on the first touch anywhere.
+  // iOS/iPadOS only allow audio after a user gesture, may refuse some (pointerdown) and interrupt the
+  // context later — so every gesture retries until it runs. Capture phase: before the variant's play().
+  const [audioBlocked, setAudioBlocked] = useState(false);
   useEffect(() => {
     const unlock = () => void player.unlock();
-    window.addEventListener('pointerdown', unlock, { once: true });
-    window.addEventListener('keydown', unlock, { once: true });
+    const events = ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown'] as const;
+    for (const e of events) window.addEventListener(e, unlock, true);
+    const sync = () => setAudioBlocked(player.state === 'playing' && !player.audioRunning);
+    const unsub = player.subscribe(sync);
     const detach = input.attachComputerKeyboard();
     return () => {
-      window.removeEventListener('pointerdown', unlock);
-      window.removeEventListener('keydown', unlock);
+      for (const e of events) window.removeEventListener(e, unlock, true);
+      unsub();
       detach();
     };
   }, [player, input]);
@@ -258,6 +262,11 @@ export default function App() {
       </header>
 
       <main className="stage">
+        {audioBlocked && (
+          <div className="unlock" data-audio-blocked>
+            <button className="btn primary">🔊 {t(lang, 'tapForSound')}</button>
+          </div>
+        )}
         {api.isOffline() && <div className="banner">{t(lang, 'offline')}</div>}
         {error && (
           <div className="banner" style={{ color: 'var(--bad)', whiteSpace: 'pre-wrap' }} onClick={() => setError(null)}>

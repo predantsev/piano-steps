@@ -6,6 +6,7 @@ const OUTPUT_LATENCY = 0.02;
 const clock = { t: 0 };
 const attacks: { note: string; at: number }[] = [];
 const releases = { n: 0 };
+const audio = { state: 'suspended', allowStart: true, starts: 0, listeners: [] as (() => void)[] };
 
 vi.mock('tone', () => {
   class Inst {
@@ -22,9 +23,19 @@ vi.mock('tone', () => {
     }
   }
   return {
-    start: async () => {},
+    start: async () => {
+      audio.starts++;
+      if (audio.allowStart) audio.state = 'running';
+    },
     now: () => clock.t + LOOK_AHEAD,
-    getContext: () => ({ immediate: () => clock.t, rawContext: { outputLatency: OUTPUT_LATENCY } }),
+    getContext: () => ({
+      immediate: () => clock.t,
+      rawContext: { outputLatency: OUTPUT_LATENCY },
+      get state() {
+        return audio.state;
+      },
+      on: (_e: string, fn: () => void) => audio.listeners.push(fn),
+    }),
     PolySynth: Inst,
     Synth: class {},
     Sampler: Inst,
@@ -143,5 +154,45 @@ describe('LessonPlayer clock', () => {
     const before = releases.n;
     p.stop();
     expect(releases.n).toBeGreaterThan(before);
+  });
+});
+
+// iPad bug #25: iOS refused the first gesture (or interrupted the context) and the old one-shot
+// unlock never tried again — the clock stood still at the first note, with no sound.
+describe('LessonPlayer audio unlock', () => {
+  beforeEach(() => {
+    audio.state = 'suspended';
+    audio.allowStart = true;
+    audio.starts = 0;
+    audio.listeners.length = 0;
+  });
+
+  it('retries on the next gesture when a gesture was refused', async () => {
+    const p = new LessonPlayer();
+    audio.allowStart = false;
+    await p.unlock();
+    expect(p.isUnlocked).toBe(false);
+    audio.allowStart = true;
+    await p.unlock();
+    expect(audio.starts).toBe(2);
+    expect(p.isUnlocked).toBe(true);
+    await p.unlock(); // running → nothing to do
+    expect(audio.starts).toBe(2);
+  });
+
+  it('resumes and reports it when the context is interrupted while playing', async () => {
+    const p = new LessonPlayer();
+    await p.unlock();
+    p.load([{ pitch: 60, start: 0, duration: 5 }]);
+    const running: boolean[] = [];
+    p.subscribe((e) => e.type === 'audio' && running.push(e.running));
+    p.play({ from: 0 });
+    audio.allowStart = false;
+    audio.state = 'interrupted';
+    for (const l of audio.listeners) l();
+    expect(audio.starts).toBe(2); // tried to resume on its own
+    expect(running).toEqual([false]);
+    expect(p.isUnlocked).toBe(false); // so the next gesture unlocks again
+    p.stop();
   });
 });

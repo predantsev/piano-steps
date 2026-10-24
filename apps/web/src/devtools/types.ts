@@ -54,7 +54,7 @@ export interface DevState {
     from: number;
     to: number | null;
     loop: boolean;
-    /** The shell's audio unlock ran (first pointerdown/keydown on the page). */
+    /** A real gesture created the instruments and the audio context is running. */
     audioUnlocked: boolean;
     /** Web Audio state; the player clock only advances while this is "running". */
     audioContext: string;

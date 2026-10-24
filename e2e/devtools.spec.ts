@@ -42,6 +42,52 @@ test('window.pianoSteps plays after a real gesture', async ({ page, hasTouch }) 
   expect((await page.evaluate(() => window.pianoSteps!.stop())).player.state).toBe('stopped');
 });
 
+// #25: on a real iPad the audio context did not run (refused gesture / iOS interruption) and the one-shot
+// unlock never retried — the clock stood still at the first note, silently. Simulate it: the context is
+// suspended (as iOS does) and resume() is refused until allowed.
+test('audio that the browser refused unlocks on the next tap, and the clock then moves', async ({ page, hasTouch }) => {
+  await page.addInitScript(() => {
+    const w = window as unknown as { __refuseAudio: boolean; __ctx?: AudioContext };
+    w.__refuseAudio = false;
+    const Native = window.AudioContext;
+    window.AudioContext = class extends Native {
+      constructor(...a: ConstructorParameters<typeof AudioContext>) {
+        super(...a);
+        w.__ctx = this;
+      }
+    };
+    const resume = Native.prototype.resume;
+    Native.prototype.resume = function (this: AudioContext) {
+      if (w.__refuseAudio) return Promise.reject(new DOMException('refused', 'NotAllowedError'));
+      return resume.call(this);
+    };
+  });
+  type W = { __refuseAudio: boolean; __ctx?: AudioContext };
+  await openApp(page, '?lesson=ode-to-joy');
+  const audioContext = async () => (await state(page)).player.audioContext;
+  await tapOrClick(page.locator('.brand'), hasTouch);
+  await expect.poll(audioContext).toBe('running');
+  await page.evaluate(async () => {
+    const w = window as unknown as W;
+    w.__refuseAudio = true;
+    await w.__ctx!.suspend();
+  });
+  await expect.poll(audioContext).not.toBe('running');
+  const playing = await page.evaluate(() => window.pianoSteps!.play(0, 4));
+  expect(playing.warning).toMatch(/Audio is locked/);
+  const overlay = page.locator('[data-audio-blocked]');
+  await expect(overlay).toBeVisible();
+  expect((await state(page)).player.time).toBe(0);
+
+  await page.evaluate(() => ((window as unknown as W).__refuseAudio = false));
+  await tapOrClick(overlay.getByRole('button'), hasTouch);
+  await expect.poll(audioContext).toBe('running');
+  await expect(overlay).toBeHidden();
+  await expect.poll(async () => (await state(page)).player.time).toBeGreaterThan(0.3);
+  expect((await state(page)).player.audioUnlocked).toBe(true);
+  await page.evaluate(() => window.pianoSteps!.stop());
+});
+
 test('window.pianoSteps switches lesson and variant and reports errors', async ({ page }) => {
   await openApp(page);
   const lessons = await page.evaluate(() => window.pianoSteps!.listLessons());
