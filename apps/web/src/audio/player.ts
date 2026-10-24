@@ -5,7 +5,9 @@ import * as Tone from 'tone';
 /**
  * Plays a lesson (or a slice of it) with a sampled grand piano.
  *
- * - Sound starts only after a user gesture (`unlock()`), which iOS/iPadOS requires.
+ * - Sound starts only after a user gesture (`unlock()`), which iOS/iPadOS requires. iOS may refuse a
+ *   gesture or interrupt the context later (backgrounding, a call), so every gesture retries until the
+ *   context is actually running; while it is not, the clock stands still and `audioRunning` is false.
  * - Until the samples have loaded, a soft synth stands in, so the first tap is never silent.
  * - `time` is lesson time in seconds *as heard*; read it in requestAnimationFrame to draw.
  * - Notes are handed to the audio graph by a short look-ahead scheduler, so pause/stop
@@ -28,7 +30,11 @@ export interface PlayOptions {
   muted?: boolean;
 }
 
-export type PlayerEvent = { type: 'state'; state: PlayerState } | { type: 'loop' } | { type: 'end' };
+export type PlayerEvent =
+  | { type: 'state'; state: PlayerState }
+  | { type: 'loop' }
+  | { type: 'end' }
+  | { type: 'audio'; running: boolean };
 type Listener = (e: PlayerEvent) => void;
 
 const SALAMANDER = 'https://tonejs.github.io/audio/salamander/';
@@ -60,32 +66,34 @@ export class LessonPlayer {
   private runEnd = 0; // lesson time where every pass ends
   private pausedAt = 0;
   private timer: ReturnType<typeof setInterval> | null = null;
-  private unlocked = false;
+  private watching = false;
 
-  /** Call from a user gesture (tap/click). Safe to call many times. */
+  /**
+   * Call from a user gesture (tap/click/key). Safe to call on every gesture: it does nothing once the
+   * audio context is running, and tries again whenever it is not (refused gesture, iOS interruption).
+   */
   async unlock(): Promise<void> {
-    if (this.unlocked) return;
-    this.unlocked = true;
-    await Tone.start();
-    this.synth = new Tone.PolySynth(Tone.Synth, {
-      oscillator: { type: 'triangle' },
-      envelope: { attack: 0.005, decay: 0.3, sustain: 0.2, release: 0.8 },
-      volume: -10,
-    }).toDestination();
-    const urls: Record<string, string> = {};
-    for (const n of SAMPLE_NOTES) urls[n] = `${n.replace('#', 's')}.mp3`;
-    this.sampler = new Tone.Sampler({
-      urls,
-      baseUrl: SALAMANDER,
-      release: 1,
-      onload: () => {
-        this.samplesLoaded = true;
-      },
-    }).toDestination();
+    if (this.audioRunning && this.synth) return;
+    // First thing in the gesture: iOS honours resume() only synchronously inside the handler.
+    const started = Tone.start();
+    this.primeOutput();
+    this.watchContext();
+    this.createInstruments();
+    try {
+      await started;
+    } catch {
+      /* refused — the next gesture tries again */
+    }
   }
 
+  /** The audio context is running, so the clock advances and notes sound. */
+  get audioRunning(): boolean {
+    return Tone.getContext().state === 'running';
+  }
+
+  /** A gesture created the instruments and the context is running. */
   get isUnlocked() {
-    return this.unlocked;
+    return !!this.synth && this.audioRunning;
   }
 
   load(notes: readonly LessonNote[]) {
@@ -185,6 +193,49 @@ export class LessonPlayer {
   }
 
   // ── internals ────────────────────────────────────────────────────────────
+
+  private createInstruments() {
+    if (this.synth) return;
+    this.synth = new Tone.PolySynth(Tone.Synth, {
+      oscillator: { type: 'triangle' },
+      envelope: { attack: 0.005, decay: 0.3, sustain: 0.2, release: 0.8 },
+      volume: -10,
+    }).toDestination();
+    const urls: Record<string, string> = {};
+    for (const n of SAMPLE_NOTES) urls[n] = `${n.replace('#', 's')}.mp3`;
+    this.sampler = new Tone.Sampler({
+      urls,
+      baseUrl: SALAMANDER,
+      release: 1,
+      onload: () => {
+        this.samplesLoaded = true;
+      },
+    }).toDestination();
+  }
+
+  /** Classic iOS unlock: start a silent one-sample buffer inside the gesture. */
+  private primeOutput() {
+    try {
+      const raw = Tone.getContext().rawContext as unknown as BaseAudioContext;
+      const src = raw.createBufferSource();
+      src.buffer = raw.createBuffer(1, 1, raw.sampleRate);
+      src.connect(raw.destination);
+      src.start(0);
+    } catch {
+      /* not critical */
+    }
+  }
+
+  /** Report running/not running, and try to resume after an interruption while playing. */
+  private watchContext() {
+    if (this.watching) return;
+    this.watching = true;
+    Tone.getContext().on('statechange', () => {
+      const running = this.audioRunning;
+      if (!running && this.state === 'playing') void Tone.start().catch(() => {});
+      this.emit({ type: 'audio', running });
+    });
+  }
 
   private instrument(): Tone.Sampler | Tone.PolySynth | null {
     return this.samplesLoaded ? this.sampler : this.synth;
