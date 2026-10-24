@@ -42,38 +42,44 @@ test('window.pianoSteps plays after a real gesture', async ({ page, hasTouch }) 
   expect((await page.evaluate(() => window.pianoSteps!.stop())).player.state).toBe('stopped');
 });
 
-// #25: on a real iPad the first gesture did not unlock audio and the one-shot unlock never retried —
-// the clock stood still at the first note, silently. Simulate iOS refusing resume() until allowed.
-test('audio that the browser refused unlocks on the next tap, and the clock then moves', async ({ page, hasTouch }, info) => {
-  // Chromium's Tone graph does not survive no-op'd source starts; the bug is a WebKit one anyway.
-  test.skip(info.project.name !== 'ipad-webkit', 'WebKit (iPad) only');
+// #25: on a real iPad the audio context did not run (refused gesture / iOS interruption) and the one-shot
+// unlock never retried — the clock stood still at the first note, silently. Simulate it: the context is
+// suspended (as iOS does) and resume() is refused until allowed.
+test('audio that the browser refused unlocks on the next tap, and the clock then moves', async ({ page, hasTouch }) => {
   await page.addInitScript(() => {
-    const w = window as unknown as { __refuseAudio: boolean };
-    w.__refuseAudio = true;
-    const resume = AudioContext.prototype.resume;
-    AudioContext.prototype.resume = function (this: AudioContext) {
+    const w = window as unknown as { __refuseAudio: boolean; __ctx?: AudioContext };
+    w.__refuseAudio = false;
+    const Native = window.AudioContext;
+    window.AudioContext = class extends Native {
+      constructor(...a: ConstructorParameters<typeof AudioContext>) {
+        super(...a);
+        w.__ctx = this;
+      }
+    };
+    const resume = Native.prototype.resume;
+    Native.prototype.resume = function (this: AudioContext) {
       if (w.__refuseAudio) return Promise.reject(new DOMException('refused', 'NotAllowedError'));
       return resume.call(this);
     };
-    // Starting a source after a gesture also wakes the context in Chromium/WebKit — refuse that too.
-    for (const proto of [AudioScheduledSourceNode.prototype, AudioBufferSourceNode.prototype]) {
-      const start = proto.start as (...a: unknown[]) => void;
-      proto.start = function (this: AudioScheduledSourceNode, ...a: unknown[]) {
-        if (!w.__refuseAudio) start.apply(this, a);
-      };
-    }
   });
+  type W = { __refuseAudio: boolean; __ctx?: AudioContext };
   await openApp(page, '?lesson=ode-to-joy');
   const audioContext = async () => (await state(page)).player.audioContext;
   await tapOrClick(page.locator('.brand'), hasTouch);
-  expect(await audioContext()).not.toBe('running');
+  await expect.poll(audioContext).toBe('running');
+  await page.evaluate(async () => {
+    const w = window as unknown as W;
+    w.__refuseAudio = true;
+    await w.__ctx!.suspend();
+  });
+  await expect.poll(audioContext).not.toBe('running');
   const playing = await page.evaluate(() => window.pianoSteps!.play(0, 4));
   expect(playing.warning).toMatch(/Audio is locked/);
   const overlay = page.locator('[data-audio-blocked]');
   await expect(overlay).toBeVisible();
   expect((await state(page)).player.time).toBe(0);
 
-  await page.evaluate(() => ((window as unknown as { __refuseAudio: boolean }).__refuseAudio = false));
+  await page.evaluate(() => ((window as unknown as W).__refuseAudio = false));
   await tapOrClick(overlay.getByRole('button'), hasTouch);
   await expect.poll(audioContext).toBe('running');
   await expect(overlay).toBeHidden();

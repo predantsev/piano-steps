@@ -40,6 +40,8 @@ type Listener = (e: PlayerEvent) => void;
 const SALAMANDER = 'https://tonejs.github.io/audio/salamander/';
 const SAMPLE_NOTES = ['A0', 'C1', 'D#1', 'F#1', 'A1', 'C2', 'D#2', 'F#2', 'A2', 'C3', 'D#3', 'F#3', 'A3', 'C4',
   'D#4', 'F#4', 'A4', 'C5', 'D#5', 'F#5', 'A5', 'C6', 'D#6', 'F#6', 'A6', 'C7', 'D#7', 'F#7', 'A7', 'C8'];
+/** 0.1 s of silence: playing it in an <audio> element takes iOS out of the silent-switch "ambient" session. */
+const SILENT_WAV = 'data:audio/wav;base64,UklGRkQDAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YSADAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgA==';
 const LOOKAHEAD = 0.15; // seconds of audio scheduled ahead
 const TICK_MS = 25;
 const START_DELAY = 0.05; // seconds between play() and the first note, on the scheduling clock
@@ -67,6 +69,7 @@ export class LessonPlayer {
   private pausedAt = 0;
   private timer: ReturnType<typeof setInterval> | null = null;
   private watching = false;
+  private keepAlive: HTMLAudioElement | null = null;
 
   /**
    * Call from a user gesture (tap/click/key). Safe to call on every gesture: it does nothing once the
@@ -77,6 +80,7 @@ export class LessonPlayer {
     // First thing in the gesture: iOS honours resume() only synchronously inside the handler.
     const started = Tone.start();
     this.primeOutput();
+    this.ignoreSilentSwitch();
     this.watchContext();
     this.createInstruments();
     try {
@@ -224,6 +228,32 @@ export class LessonPlayer {
     } catch {
       /* not critical */
     }
+  }
+
+  /**
+   * iOS plays Web Audio in the "ambient" session, which the silent switch (or the bell in Control Center)
+   * mutes even though the tab is not muted. Ask for "playback" instead: the Audio Session API where it
+   * exists (iOS 17+), else a looping silent <audio> element started in the gesture.
+   */
+  private ignoreSilentSwitch() {
+    if (typeof navigator === 'undefined') return;
+    const session = (navigator as Navigator & { audioSession?: { type: string } }).audioSession;
+    if (session) {
+      try {
+        session.type = 'playback';
+        return;
+      } catch {
+        /* fall through to the <audio> trick */
+      }
+    }
+    if (this.keepAlive || typeof Audio === 'undefined') return;
+    const a = new Audio(SILENT_WAV);
+    a.loop = true;
+    a.setAttribute('playsinline', '');
+    void a.play().then(
+      () => (this.keepAlive = a),
+      () => {},
+    );
   }
 
   /** Report running/not running, and try to resume after an interruption while playing. */
