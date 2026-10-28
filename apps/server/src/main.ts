@@ -5,7 +5,7 @@ import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createApp } from './app.ts';
 import { openDb } from './db/client.ts';
-import { seedDemoLessons } from './repo.ts';
+import { seedDemoLessons, seedGuide } from './repo.ts';
 
 const port = Number(process.env.PORT ?? 9301);
 const host = process.env.HOST ?? '127.0.0.1';
@@ -15,6 +15,8 @@ if (process.env.SEED_DEMO !== '0') {
   const n = await seedDemoLessons(handle.db);
   if (n) console.log(`seeded ${n} demo lessons`);
 }
+
+if (await seedGuide(handle.db)) console.log('seeded the example guide (en)');
 
 const app = createApp({ db: handle.db, dbKind: handle.kind, apiToken: process.env.API_TOKEN || undefined });
 

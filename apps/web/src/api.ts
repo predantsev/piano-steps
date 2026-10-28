@@ -1,8 +1,10 @@
 import {
+  EXAMPLE_GUIDE,
   demoLessons,
   prepareLesson,
   validateLessonInput,
   type Feedback,
+  type Guide,
   type FragmentProgress,
   type Lesson,
   type LessonSummary,
@@ -187,4 +189,13 @@ export async function recordProgress(
 export async function sendFeedback(ref: string, input: { fragmentPosition?: number; message: string }): Promise<Feedback> {
   if (offline) throw new ApiError('offline: feedback needs the server', 503);
   return call<Feedback>('POST', `/api/lessons/${encodeURIComponent(ref)}/feedback`, input);
+}
+
+/** The guide in `lang` (the server falls back to English); offline or missing → the bundled English example. */
+export async function getGuide(lang: string): Promise<Guide> {
+  try {
+    return await call<Guide>('GET', `/api/guide?lang=${encodeURIComponent(lang)}`);
+  } catch {
+    return { lang: 'en', updatedAt: new Date(0).toISOString(), ...EXAMPLE_GUIDE };
+  }
 }

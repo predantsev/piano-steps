@@ -3,6 +3,9 @@ import {
   FeedbackInput,
   FeedbackStatus,
   Fragment,
+  GuideInput,
+  GuideLang,
+  EXAMPLE_GUIDE,
   LessonInput,
   LessonNote,
   ProgressStatus,
@@ -94,6 +97,9 @@ const FeedbackOut = z
     updatedAt: z.string(),
   })
   .openapi('Feedback');
+
+const GuideOut = GuideInput.extend({ lang: z.string(), updatedAt: z.string() }).openapi('Guide');
+const guideExample = { lang: 'en', updatedAt: '2026-10-28T12:00:00.000Z', ...EXAMPLE_GUIDE, sections: EXAMPLE_GUIDE.sections.slice(0, 1) };
 
 const ErrorOut = z
   .object({
@@ -599,6 +605,62 @@ export function createApp({ db, dbKind, apiToken }: AppOptions) {
     async (c) => c.json(await repo.updateFeedback(db, c.req.valid('param').id, c.req.valid('json')), 200),
   );
 
+  // ── guide ────────────────────────────────────────────────────────────────
+  app.openapi(
+    createRoute({
+      method: 'get',
+      path: '/api/guide',
+      tags: ['guide'],
+      summary: 'The in-app guide ("How to use it") in one language',
+      description:
+        'Falls back to English when there is no guide in `lang`; `lang` in the answer says which one you got. ' +
+        'A paragraph starting with "• " is a list item.',
+      request: { query: z.object({ lang: GuideLang.optional().openapi({ example: 'uk' }) }) },
+      responses: {
+        200: json(GuideOut, 'Guide', guideExample),
+        400: err('Invalid language code', ex.errors.validation),
+        404: err('No guide at all', { error: 'not-found', details: ['No guide in "uk" or "en"'] }),
+      },
+    }),
+    async (c) => c.json(await repo.getGuide(db, c.req.valid('query').lang ?? 'en'), 200),
+  );
+
+  app.openapi(
+    createRoute({
+      method: 'get',
+      path: '/api/guides',
+      tags: ['guide'],
+      summary: 'Which languages the guide exists in',
+      description: 'One entry per language. Update every one of them when the guide changes.',
+      responses: {
+        200: json(
+          z.object({ guides: z.array(z.object({ lang: z.string(), title: z.string(), updatedAt: z.string() })) }),
+          'Guides',
+          { guides: [{ lang: 'en', title: EXAMPLE_GUIDE.title, updatedAt: guideExample.updatedAt }] },
+        ),
+      },
+    }),
+    async (c) => c.json({ guides: await repo.listGuides(db) }, 200),
+  );
+
+  app.openapi(
+    createRoute({
+      method: 'put',
+      path: '/api/guide/{lang}',
+      tags: ['guide'],
+      summary: 'Create or replace the guide in one language',
+      description:
+        'Agents: when a change alters what the user sees, update the guide in EVERY language listed by ' +
+        'GET /api/guides, keeping section ids the same across languages. The whole guide is replaced.',
+      request: {
+        params: z.object({ lang: GuideLang.openapi({ example: 'uk' }) }),
+        body: body(GuideInput, { title: EXAMPLE_GUIDE.title, sections: guideExample.sections }),
+      },
+      responses: { 200: json(GuideOut, 'Saved', guideExample), ...write },
+    }),
+    async (c) => c.json(await repo.putGuide(db, c.req.valid('param').lang, c.req.valid('json')), 200),
+  );
+
   // ── docs ─────────────────────────────────────────────────────────────────
   app.doc31('/api/openapi.json', {
     openapi: '3.1.0',
@@ -610,7 +672,8 @@ export function createApp({ db, dbKind, apiToken }: AppOptions) {
         'Agents: create lessons with POST /api/lessons (JSON), /api/lessons/import/midi or ' +
         '/api/lessons/import/musicxml; download one as MIDI with GET /api/lessons/{ref}/export.mid; fix reported ' +
         'fragments via GET /api/feedback?status=open → PUT /api/lessons/{ref}/fragments/{position}/notes → ' +
-        'PATCH /api/feedback/{id}.\n\n' +
+        'PATCH /api/feedback/{id}. The in-app guide is GET /api/guide?lang= / PUT /api/guide/{lang} — keep it in ' +
+        'step with what you change, in every language (GET /api/guides).\n\n' +
         'Errors are always `{ "error": "<code>", "details": ["…"] }` (see the Error schema). When /api/health ' +
         'says `auth: true`, send `Authorization: Bearer <token>` on every non-GET request.',
     },

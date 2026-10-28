@@ -71,6 +71,19 @@ Driving the UI as an agent (dev builds): `window.pianoSteps` / WebMCP tools — 
 - **Variants stay in their folder.** A practice UI lives in `apps/web/src/variants/<id>/` and talks
   to the shell only through `VariantProps` (`apps/web/src/variant.ts`).
 
+## Change log and the guide
+
+Asked for by the owner (2026-10-28), project-wide: **every update, addition or bug fix is logged,
+and the guide follows the app.**
+
+- **Log it** in `CHANGELOG.md` in the same PR: date, one bold line saying what changed, the issue/PR,
+  and *Why* — the reason or the symptom it fixes. Newest first.
+- **If the change alters what the user sees or does** (a button, a mode, a label, a flow), update the
+  in-app guide in **every language in the database** (`GET /api/guides` → `PUT /api/guide/{lang}`,
+  same section ids in each). The repo's English example (`packages/core/src/guide/guide.en.json`)
+  is updated in the PR too. Ukrainian and any other language live only in the DB — never commit them.
+- Details: `docs/guide.md`.
+
 ## Tracking
 
 - Work is tracked in [GitHub Issues](https://github.com/predantsev/piano-steps/issues) (`gh issue list`). Labels and conventions per `startup-rules/TRACKING.md`.

@@ -108,3 +108,10 @@ same pitch in one hand (MIDI cannot tell them apart).
 
 Every route in `/api/docs` has a description and a ready-to-send example body.
 Testing the **web app** itself (driving the UI from an agent): see [testing-api.md](./testing-api.md).
+
+## The in-app guide
+
+`GET /api/guides` lists the languages; `GET /api/guide?lang=uk` reads one; `PUT /api/guide/uk`
+replaces it (`{ title, sections: [{ id, title, body: [..] }] }`). When your change alters what the
+user sees, update the guide in **every** listed language with the same section ids, and add a
+`CHANGELOG.md` entry. See `docs/guide.md`.

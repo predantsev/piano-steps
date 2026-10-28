@@ -1,9 +1,12 @@
 import {
+  EXAMPLE_GUIDE,
   demoLessons,
   notesInRange,
   prepareLesson,
   validateLessonInput,
   type Feedback,
+  type Guide,
+  type GuideInput,
   type FeedbackStatus,
   type Fragment,
   type FragmentProgress,
@@ -15,7 +18,7 @@ import {
 } from '@piano-steps/core';
 import { and, asc, desc, eq, sql } from 'drizzle-orm';
 import type { Db } from './db/client.ts';
-import { feedback, fragments, lessons, progress } from './db/schema.ts';
+import { feedback, fragments, guides, lessons, progress } from './db/schema.ts';
 
 type LessonRow = typeof lessons.$inferSelect;
 type FragmentRow = typeof fragments.$inferSelect;
@@ -294,6 +297,47 @@ export async function updateFeedback(
     .returning();
   if (!f) throw new NotFound(`Feedback "${id}" not found`);
   return toFeedback(f);
+}
+
+// ── guide ───────────────────────────────────────────────────────────────────
+
+type GuideRow = typeof guides.$inferSelect;
+
+function toGuide(r: GuideRow): Guide {
+  return { lang: r.lang, title: r.title, sections: r.sections, updatedAt: r.updatedAt.toISOString() };
+}
+
+/** The guide in `lang`, else in English, else NotFound. */
+export async function getGuide(db: Db, lang: string): Promise<Guide> {
+  for (const l of lang === 'en' ? ['en'] : [lang, 'en']) {
+    const [r] = await db.select().from(guides).where(eq(guides.lang, l));
+    if (r) return toGuide(r);
+  }
+  throw new NotFound(`No guide in "${lang}" or "en"`);
+}
+
+export async function listGuides(db: Db): Promise<{ lang: string; title: string; updatedAt: string }[]> {
+  const rows = await db.select().from(guides).orderBy(asc(guides.lang));
+  return rows.map((r) => ({ lang: r.lang, title: r.title, updatedAt: r.updatedAt.toISOString() }));
+}
+
+/** Create or replace the guide in one language. */
+export async function putGuide(db: Db, lang: string, input: GuideInput): Promise<Guide> {
+  const values = { lang, title: input.title, sections: input.sections, updatedAt: new Date() };
+  const [r] = await db
+    .insert(guides)
+    .values(values)
+    .onConflictDoUpdate({ target: guides.lang, set: { title: values.title, sections: values.sections, updatedAt: values.updatedAt } })
+    .returning();
+  return toGuide(r);
+}
+
+/** Insert the English example guide when the DB has no guide at all. */
+export async function seedGuide(db: Db): Promise<boolean> {
+  const [{ n }] = await db.select({ n: sql<number>`count(*)` }).from(guides);
+  if (Number(n) > 0) return false;
+  await putGuide(db, 'en', EXAMPLE_GUIDE);
+  return true;
 }
 
 // ── seed ────────────────────────────────────────────────────────────────────
