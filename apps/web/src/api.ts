@@ -1,5 +1,5 @@
 import {
-  EXAMPLE_GUIDE,
+  bundledGuide,
   demoLessons,
   prepareLesson,
   validateLessonInput,
@@ -199,11 +199,12 @@ export async function listFeedback(ref: string): Promise<Feedback[]> {
   return feedback;
 }
 
-/** The guide in `lang` (the server falls back to English); offline or missing → the bundled English example. */
+/** The guide in `lang`: from the server (it may hold a temporary override); offline → the copy bundled with the app. */
 export async function getGuide(lang: string): Promise<Guide> {
+  if (offline) return bundledGuide(lang);
   try {
     return await call<Guide>('GET', `/api/guide?lang=${encodeURIComponent(lang)}`);
   } catch {
-    return { lang: 'en', updatedAt: new Date(0).toISOString(), ...EXAMPLE_GUIDE };
+    return bundledGuide(lang);
   }
 }

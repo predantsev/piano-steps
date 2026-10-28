@@ -22,6 +22,20 @@
       "when": 1793200230966,
       "tag": "0002_note_feedback",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793203909050,
+      "tag": "0003_drop_guides",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793203909542,
+      "tag": "0004_guide_overrides",
+      "breakpoints": true
     }
   ]
 }

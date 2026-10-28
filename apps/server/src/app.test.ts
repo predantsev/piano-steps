@@ -418,30 +418,28 @@ describe('OpenAPI spec', () => {
 });
 
 describe('guide API', () => {
-  it('seeds the English example once, falls back to it, and stores other languages', async () => {
-    const { seedGuide } = await import('./repo.ts');
-    expect(await seedGuide(handle.db)).toBe(true);
-    expect(await seedGuide(handle.db)).toBe(false);
-
-    const en = await req('GET', '/api/guide?lang=en');
-    expect(en.status).toBe(200);
-    const g = (await en.json()) as { lang: string; title: string; sections: { id: string }[] };
-    expect(g.lang).toBe('en');
-    expect(g.sections.map((s) => s.id)).toContain('feedback');
-
-    const fallback = (await (await req('GET', '/api/guide?lang=uk')).json()) as { lang: string };
-    expect(fallback.lang).toBe('en');
+  it('serves the repo guides, and a temporary override until it is deleted', async () => {
+    const en = (await (await req('GET', '/api/guide?lang=en')).json()) as { lang: string; source: string; sections: { id: string }[] };
+    expect(en).toMatchObject({ lang: 'en', source: 'repo' });
+    expect(en.sections.map((s) => s.id)).toContain('feedback');
+    expect(await (await req('GET', '/api/guide?lang=uk')).json()).toMatchObject({ lang: 'uk', source: 'repo', title: 'Як користуватися' });
+    expect(await (await req('GET', '/api/guide?lang=de')).json()).toMatchObject({ lang: 'en', source: 'repo' });
 
     const put = await req('PUT', '/api/guide/uk', {
-      title: 'Як користуватися',
+      title: 'Тимчасово',
       sections: [{ id: 'flow', title: 'Коротко', body: ['Текст', '• пункт'] }],
     });
     expect(put.status).toBe(200);
-    const uk = (await (await req('GET', '/api/guide?lang=uk')).json()) as { lang: string; title: string };
-    expect(uk).toMatchObject({ lang: 'uk', title: 'Як користуватися' });
+    expect(await (await req('GET', '/api/guide?lang=uk')).json()).toMatchObject({ source: 'override', title: 'Тимчасово' });
+    const list = (await (await req('GET', '/api/guides')).json()) as { guides: { lang: string; source: string }[] };
+    expect(list.guides).toEqual([
+      expect.objectContaining({ lang: 'en', source: 'repo' }),
+      expect.objectContaining({ lang: 'uk', source: 'override' }),
+    ]);
 
-    const list = (await (await req('GET', '/api/guides')).json()) as { guides: { lang: string }[] };
-    expect(list.guides.map((x) => x.lang)).toEqual(['en', 'uk']);
+    expect((await req('DELETE', '/api/guide/uk')).status).toBe(204);
+    expect((await req('DELETE', '/api/guide/uk')).status).toBe(404);
+    expect(await (await req('GET', '/api/guide?lang=uk')).json()).toMatchObject({ source: 'repo', title: 'Як користуватися' });
 
     expect((await req('PUT', '/api/guide/ukr', { title: 'x', sections: [] })).status).toBe(400);
     expect((await req('GET', '/api/guide?lang=UK')).status).toBe(400);

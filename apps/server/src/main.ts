@@ -5,7 +5,7 @@ import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createApp } from './app.ts';
 import { openDb } from './db/client.ts';
-import { ensureNoteIds, seedDemoLessons, seedGuide } from './repo.ts';
+import { ensureNoteIds, listGuides, seedDemoLessons } from './repo.ts';
 
 const port = Number(process.env.PORT ?? 9301);
 const host = process.env.HOST ?? '127.0.0.1';
@@ -18,7 +18,9 @@ if (process.env.SEED_DEMO !== '0') {
 
 const backfilled = await ensureNoteIds(handle.db);
 if (backfilled) console.log(`gave note ids to ${backfilled} lessons`);
-if (await seedGuide(handle.db)) console.log('seeded the example guide (en)');
+const unsynced = (await listGuides(handle.db)).filter((g) => g.source === 'override').map((g) => g.lang);
+if (unsynced.length)
+  console.warn(`guide overrides not yet in the repo: ${unsynced.join(', ')} — move them into packages/core/src/guide and DELETE /api/guide/{lang}`);
 
 const app = createApp({ db: handle.db, dbKind: handle.kind, apiToken: process.env.API_TOKEN || undefined });
 

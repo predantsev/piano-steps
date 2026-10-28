@@ -4,9 +4,9 @@ import { getGuide } from '../api.ts';
 import type { Lang } from '../settings.ts';
 
 /**
- * The in-app guide ("How to use it"). Its text is a database record per language
- * (GET /api/guide?lang=), written by agents with PUT /api/guide/{lang}; offline, the bundled English
- * example is shown. Each section is a <details>, so the guide stays short on an iPad.
+ * The in-app guide ("How to use it"). Its text lives in the repo (packages/core/src/guide/guide.<lang>.json),
+ * served by GET /api/guide?lang= — which may return a temporary override saved through the API; offline,
+ * the copy bundled with the app is shown. Each section is a <details>, so the guide stays short on an iPad.
  */
 export function HelpDialog({ lang, onClose }: { lang: Lang; onClose: () => void }) {
   const [guide, setGuide] = useState<Guide | null>(null);

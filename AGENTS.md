@@ -79,9 +79,11 @@ and the guide follows the app.**
 - **Log it** in `CHANGELOG.md` in the same PR: date, one bold line saying what changed, the issue/PR,
   and *Why* — the reason or the symptom it fixes. Newest first.
 - **If the change alters what the user sees or does** (a button, a mode, a label, a flow), update the
-  in-app guide in **every language in the database** (`GET /api/guides` → `PUT /api/guide/{lang}`,
-  same section ids in each). The repo's English example (`packages/core/src/guide/guide.en.json`)
-  is updated in the PR too. Ukrainian and any other language live only in the DB — never commit them.
+  in-app guide in the same PR, in **every language**: `packages/core/src/guide/guide.<lang>.json`
+  (en, uk — same section ids; a test checks it).
+- **A guide change made through the API** (`PUT /api/guide/{lang}`) is only a temporary override: move
+  it into the file in a PR, then `DELETE /api/guide/{lang}`. Check `GET /api/guides` for
+  `source: "override"` at session start.
 - Details: `docs/guide.md`.
 
 ## Tracking

@@ -1,28 +1,37 @@
 # The in-app guide
 
-The **?** button in the top bar opens "How to use it". Its text is **data, not code**: one record
-per language in the database table `guides` (`lang` = two-letter code, `title`, `sections` as
-JSON), served by `GET /api/guide?lang=<code>` (falls back to English) and replaced with
-`PUT /api/guide/<code>`. `GET /api/guides` lists the languages present.
+The **?** button in the top bar opens "How to use it". The guide is part of the UI, so it lives
+**in the repo, next to the code it describes** — one file per UI language:
+
+- [`packages/core/src/guide/guide.en.json`](../packages/core/src/guide/guide.en.json)
+- [`packages/core/src/guide/guide.uk.json`](../packages/core/src/guide/guide.uk.json)
+
+They are bundled into the app (the guide works offline) and served by `GET /api/guide?lang=<code>`
+(unknown languages fall back to English). A test checks that every language has the same sections
+in the same order.
+
+## Changing it
+
+**In a PR, every language at once** — the same PR that changes the app (AGENTS.md § "Change log and
+the guide"). Keep section `id`s identical across languages.
+
+**Quick fix through the API (temporary):** `PUT /api/guide/<code>` saves an *override* in the
+database (`guide_overrides`); the app shows it at once, without a rebuild. It is not the source of
+truth. Whoever saves one must move the text into `guide.<code>.json` in a PR and then
+`DELETE /api/guide/<code>`. `GET /api/guides` lists every language with `source: "repo"` or
+`"override"`; the server also warns about unsynced overrides on start, and the session-start check
+in CLAUDE.md looks for them.
+
+```bash
+curl -s http://127.0.0.1:9300/api/guides
+curl -X PUT http://127.0.0.1:9300/api/guide/uk -H 'content-type: application/json' --data @guide.uk.json
+curl -X DELETE http://127.0.0.1:9300/api/guide/uk
+```
 
 ## If you install the app
 
-The repo ships **one example guide, in English**:
-[`packages/core/src/guide/guide.en.json`](../packages/core/src/guide/guide.en.json).
-On the first start with an empty `guides` table the server copies it into the database
-(row `lang = 'en'`). Use it as your guide, or replace it:
-
-```bash
-curl -X PUT http://127.0.0.1:9300/api/guide/en \
-  -H 'content-type: application/json' --data @my-guide.en.json
-```
-
-Other languages are added the same way (`PUT /api/guide/uk`, …) and live **only in your
-database** — they are not in the repo. Without a server (offline mode) the app shows the bundled
-English example.
-
-**If you change the app, keeping the guide in step is your responsibility** — in every language
-your database has. The example file in the repo describes the app as shipped, nothing more.
+The guides in the repo describe the app as shipped. **If you change the app, keeping the guide in
+step is your responsibility** — in every language.
 
 ## Format
 

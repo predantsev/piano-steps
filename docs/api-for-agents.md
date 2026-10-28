@@ -115,7 +115,8 @@ Testing the **web app** itself (driving the UI from an agent): see [testing-api.
 
 ## The in-app guide
 
-`GET /api/guides` lists the languages; `GET /api/guide?lang=uk` reads one; `PUT /api/guide/uk`
-replaces it (`{ title, sections: [{ id, title, body: [..] }] }`). When your change alters what the
-user sees, update the guide in **every** listed language with the same section ids, and add a
-`CHANGELOG.md` entry. See `docs/guide.md`.
+The guide lives in the repo: `packages/core/src/guide/guide.<lang>.json` (en, uk). When your change
+alters what the user sees, update **every** language in the same PR (same section ids) and add a
+`CHANGELOG.md` entry. `PUT /api/guide/{lang}` only saves a temporary override (shown at once); if you
+use it, move the text into the file in a PR and `DELETE /api/guide/{lang}`. `GET /api/guides` shows
+unsynced overrides (`source: "override"`). See `docs/guide.md`.

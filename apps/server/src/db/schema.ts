@@ -72,10 +72,11 @@ export const progress = pgTable(
 );
 
 /**
- * The in-app guide, one row per language. Seeded from the English example in packages/core on
- * first start; agents replace it with PUT /api/guide/{lang} (and add other languages that way).
+ * TEMPORARY overrides of the in-app guide, one row per language (PUT /api/guide/{lang}). The guide
+ * itself lives in the repo (packages/core/src/guide/guide.<lang>.json); an override is shown instead
+ * until someone moves it into that file and deletes it (DELETE /api/guide/{lang}).
  */
-export const guides = pgTable('guides', {
+export const guideOverrides = pgTable('guide_overrides', {
   lang: text('lang').primaryKey(),
   title: text('title').notNull(),
   sections: jsonb('sections').$type<GuideSection[]>().notNull(),
