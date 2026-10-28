@@ -5,6 +5,14 @@ with its issue and PR. Rule and checklist: AGENTS.md § "Change log and the guid
 
 ## 2026-10-28
 
+- **The guide moved back into the repo, in both languages** (#35). `guide.en.json` and
+  `guide.uk.json` in `packages/core/src/guide` are the source of truth, bundled into the app (works
+  offline); a test keeps their sections in step. `PUT /api/guide/{lang}` still works but saves a
+  **temporary override** (table `guide_overrides`), flagged by `GET /api/guides` and on server start
+  until it is moved into the file and `DELETE`d. *Why:* the whole UI is bilingual in code, so the
+  guide belongs next to it — versioned with the features it describes, reviewed in the same PR, and
+  not lost with the database; the API path stays for quick fixes.
+
 - **Stable note ids; tap a falling note to report it** (#30). Every note now has a stable `id`
   (given by the server, kept on edits; old lessons are back-filled on start). In Falling notes,
   tapping a bar pauses, sounds the note and opens a menu: Hear it · Sounds wrong (higher / lower /

@@ -7,6 +7,8 @@ Product rules, stack, invariants, and conventions live in [AGENTS.md](AGENTS.md)
 ## Session start
 
 Don't trust prior conversation context — it may have been compacted or the session may be fresh. Run **`/startups:orient-session`** at the start of every session: it reads the durable memory below in order and produces a "where are we?" briefing.
+If the app is running, also check `GET /api/guides` for `"source": "override"` — a guide edit made through
+the API that is not in the repo yet; move it into `packages/core/src/guide/` in a PR (`docs/guide.md`).
 
 ## Memory architecture (where things live)
 
@@ -17,7 +19,7 @@ Don't trust prior conversation context — it may have been compacted or the ses
 | Past sessions journal | `docs/sessions/YYYY-MM-DD-*.md` | When picking up where we left off |
 | Architecture decisions (why) | `docs/decisions/NNNN-*.md` | When revisiting a past choice |
 | Decisions log (chronological) | `docs/decisions-log.md` | When a settled question resurfaces |
-| Change log (what + why per change) | `CHANGELOG.md` · guide: `docs/guide.md` | Before and after every change |
+| Change log (what + why per change) | `CHANGELOG.md` · guide: `docs/guide.md`, `packages/core/src/guide/` | Before and after every change |
 | Hard-won learnings (gotchas) | `docs/knowledge-base/*.md` | When debugging / hitting weirdness |
 | Lesson format | `docs/lesson-format.md`, `docs/lesson.schema.json` | Before producing or changing lessons |
 | API recipes for agents | `docs/api-for-agents.md` | Before uploading / fixing lessons |

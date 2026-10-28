@@ -1,10 +1,12 @@
 import { z } from 'zod';
-import exampleGuideEn from './guide.en.json' with { type: 'json' };
+import guideEn from './guide.en.json' with { type: 'json' };
+import guideUk from './guide.uk.json' with { type: 'json' };
 
 /**
- * The in-app guide ("How to use it"): one record per language, stored in the database and
- * replaced by agents through the API (PUT /api/guide/{lang}). The repo ships one example, in
- * English (guide.en.json) — seeded on first start; every other language lives only in the DB.
+ * The in-app guide ("How to use it"). The source of truth is the files next to this one —
+ * guide.<lang>.json, one per UI language — bundled into the app, so the guide is versioned with the
+ * code it describes. The API can put a TEMPORARY override in the database (PUT /api/guide/{lang});
+ * it is shown instead of the file until someone moves it into the file and deletes it.
  * Docs: docs/guide.md.
  */
 
@@ -33,10 +35,24 @@ export const GuideInput = z.object({
 });
 export type GuideInput = z.infer<typeof GuideInput>;
 
+/** Where the text came from: the repo file, or a temporary override saved through the API. */
+export type GuideSource = 'repo' | 'override';
+
 export interface Guide extends GuideInput {
   lang: string;
-  updatedAt: string;
+  source: GuideSource;
+  /** Override only: when it was saved. */
+  updatedAt?: string;
 }
 
-/** The example guide shipped with the code (English). Seed and offline fallback. */
-export const EXAMPLE_GUIDE: GuideInput = GuideInput.parse(exampleGuideEn);
+/** The guides shipped with the code, by language. Every UI language has one. */
+export const BUNDLED_GUIDES: Readonly<Record<string, GuideInput>> = {
+  en: GuideInput.parse(guideEn),
+  uk: GuideInput.parse(guideUk),
+};
+
+/** The bundled guide in `lang`, else English. */
+export function bundledGuide(lang: string): Guide {
+  const l = lang in BUNDLED_GUIDES ? lang : 'en';
+  return { lang: l, source: 'repo', ...BUNDLED_GUIDES[l] };
+}

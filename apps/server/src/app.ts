@@ -6,7 +6,7 @@ import {
   Fragment,
   GuideInput,
   GuideLang,
-  EXAMPLE_GUIDE,
+  BUNDLED_GUIDES,
   LessonInput,
   LessonNote,
   ProgressStatus,
@@ -103,8 +103,11 @@ const FeedbackOut = z
   })
   .openapi('Feedback');
 
-const GuideOut = GuideInput.extend({ lang: z.string(), updatedAt: z.string() }).openapi('Guide');
-const guideExample = { lang: 'en', updatedAt: '2026-10-28T12:00:00.000Z', ...EXAMPLE_GUIDE, sections: EXAMPLE_GUIDE.sections.slice(0, 1) };
+const GuideSourceOut = z.enum(['repo', 'override']).openapi({
+  description: '`repo` = the file in packages/core/src/guide; `override` = a temporary copy saved through the API',
+});
+const GuideOut = GuideInput.extend({ lang: z.string(), source: GuideSourceOut, updatedAt: z.string().optional() }).openapi('Guide');
+const guideExample = { lang: 'en', source: 'repo', title: BUNDLED_GUIDES.en.title, sections: BUNDLED_GUIDES.en.sections.slice(0, 1) };
 
 const ErrorOut = z
   .object({
@@ -627,14 +630,11 @@ export function createApp({ db, dbKind, apiToken }: AppOptions) {
       tags: ['guide'],
       summary: 'The in-app guide ("How to use it") in one language',
       description:
-        'Falls back to English when there is no guide in `lang`; `lang` in the answer says which one you got. ' +
-        'A paragraph starting with "• " is a list item.',
+        'The guide lives in the repo (packages/core/src/guide/guide.<lang>.json). A temporary override saved with ' +
+        'PUT /api/guide/{lang} is served instead while it exists (`source: override`). Unknown languages fall back ' +
+        'to English. A paragraph starting with "• " is a list item.',
       request: { query: z.object({ lang: GuideLang.optional().openapi({ example: 'uk' }) }) },
-      responses: {
-        200: json(GuideOut, 'Guide', guideExample),
-        400: err('Invalid language code', ex.errors.validation),
-        404: err('No guide at all', { error: 'not-found', details: ['No guide in "uk" or "en"'] }),
-      },
+      responses: { 200: json(GuideOut, 'Guide', guideExample), 400: err('Invalid language code', ex.errors.validation) },
     }),
     async (c) => c.json(await repo.getGuide(db, c.req.valid('query').lang ?? 'en'), 200),
   );
@@ -644,13 +644,17 @@ export function createApp({ db, dbKind, apiToken }: AppOptions) {
       method: 'get',
       path: '/api/guides',
       tags: ['guide'],
-      summary: 'Which languages the guide exists in',
-      description: 'One entry per language. Update every one of them when the guide changes.',
+      summary: 'Guide languages, and which ones have an unsynced override',
+      description:
+        'Agents: an entry with `source: override` is a change made through the API that is not in the repo yet — ' +
+        'move it into packages/core/src/guide/guide.<lang>.json (in a PR) and DELETE /api/guide/{lang}.',
       responses: {
         200: json(
-          z.object({ guides: z.array(z.object({ lang: z.string(), title: z.string(), updatedAt: z.string() })) }),
+          z.object({
+            guides: z.array(z.object({ lang: z.string(), title: z.string(), source: GuideSourceOut, updatedAt: z.string().optional() })),
+          }),
           'Guides',
-          { guides: [{ lang: 'en', title: EXAMPLE_GUIDE.title, updatedAt: guideExample.updatedAt }] },
+          { guides: [{ lang: 'en', title: BUNDLED_GUIDES.en.title, source: 'repo' }] },
         ),
       },
     }),
@@ -662,17 +666,44 @@ export function createApp({ db, dbKind, apiToken }: AppOptions) {
       method: 'put',
       path: '/api/guide/{lang}',
       tags: ['guide'],
-      summary: 'Create or replace the guide in one language',
+      summary: 'Save a temporary override of the guide in one language',
       description:
-        'Agents: when a change alters what the user sees, update the guide in EVERY language listed by ' +
-        'GET /api/guides, keeping section ids the same across languages. The whole guide is replaced.',
+        'For a quick fix without a rebuild: the app shows this text at once. It is NOT the source of truth — ' +
+        'whoever saves it must move it into packages/core/src/guide/guide.<lang>.json in a PR and then ' +
+        'DELETE /api/guide/{lang}. Keep section ids the same in every language. The whole guide is replaced.',
       request: {
         params: z.object({ lang: GuideLang.openapi({ example: 'uk' }) }),
-        body: body(GuideInput, { title: EXAMPLE_GUIDE.title, sections: guideExample.sections }),
+        body: body(GuideInput, { title: BUNDLED_GUIDES.en.title, sections: guideExample.sections }),
       },
-      responses: { 200: json(GuideOut, 'Saved', guideExample), ...write },
+      responses: { 200: json(GuideOut, 'Saved', { ...guideExample, source: 'override', updatedAt: '2026-10-28T12:00:00.000Z' }), ...write },
     }),
-    async (c) => c.json(await repo.putGuide(db, c.req.valid('param').lang, c.req.valid('json')), 200),
+    async (c) => {
+      const lang = c.req.valid('param').lang;
+      const g = await repo.putGuideOverride(db, lang, c.req.valid('json'));
+      console.warn(`guide override saved for "${lang}" — move it into packages/core/src/guide/guide.${lang}.json`);
+      return c.json(g, 200);
+    },
+  );
+
+  app.openapi(
+    createRoute({
+      method: 'delete',
+      path: '/api/guide/{lang}',
+      tags: ['guide'],
+      summary: 'Drop the override (after moving it into the repo)',
+      description: 'The app then shows the repo file again.',
+      request: { params: z.object({ lang: GuideLang.openapi({ example: 'uk' }) }) },
+      responses: {
+        204: { description: 'Deleted' },
+        401: write[401],
+        404: err('No override in this language', { error: 'not-found', details: ['No guide override for "uk"'] }),
+      },
+    }),
+    async (c) => {
+      const lang = c.req.valid('param').lang;
+      if (!(await repo.deleteGuideOverride(db, lang))) throw new repo.NotFound(`No guide override for "${lang}"`);
+      return c.body(null, 204);
+    },
   );
 
   // ── docs ─────────────────────────────────────────────────────────────────
@@ -686,8 +717,8 @@ export function createApp({ db, dbKind, apiToken }: AppOptions) {
         'Agents: create lessons with POST /api/lessons (JSON), /api/lessons/import/midi or ' +
         '/api/lessons/import/musicxml; download one as MIDI with GET /api/lessons/{ref}/export.mid; fix reported ' +
         'fragments via GET /api/feedback?status=open → PUT /api/lessons/{ref}/fragments/{position}/notes → ' +
-        'PATCH /api/feedback/{id}. The in-app guide is GET /api/guide?lang= / PUT /api/guide/{lang} — keep it in ' +
-        'step with what you change, in every language (GET /api/guides).\n\n' +
+        'PATCH /api/feedback/{id}. The in-app guide lives in packages/core/src/guide/guide.<lang>.json — update ' +
+        'every language in the PR that changes the app; PUT /api/guide/{lang} is only a temporary override.\n\n' +
         'Errors are always `{ "error": "<code>", "details": ["…"] }` (see the Error schema). When /api/health ' +
         'says `auth: true`, send `Authorization: Bearer <token>` on every non-GET request.',
     },

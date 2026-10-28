@@ -1,5 +1,6 @@
 import {
-  EXAMPLE_GUIDE,
+  BUNDLED_GUIDES,
+  bundledGuide,
   demoLessons,
   notesInRange,
   prepareLesson,
@@ -20,7 +21,7 @@ import {
 } from '@piano-steps/core';
 import { and, asc, desc, eq, sql } from 'drizzle-orm';
 import type { Db } from './db/client.ts';
-import { feedback, fragments, guides, lessons, progress } from './db/schema.ts';
+import { feedback, fragments, guideOverrides, lessons, progress } from './db/schema.ts';
 
 type LessonRow = typeof lessons.$inferSelect;
 type FragmentRow = typeof fragments.$inferSelect;
@@ -337,44 +338,50 @@ export async function ensureNoteIds(db: Db): Promise<number> {
 }
 
 // ── guide ───────────────────────────────────────────────────────────────────
+// The guide lives in the repo (packages/core/src/guide); the DB holds only temporary overrides.
 
-type GuideRow = typeof guides.$inferSelect;
+type OverrideRow = typeof guideOverrides.$inferSelect;
 
-function toGuide(r: GuideRow): Guide {
-  return { lang: r.lang, title: r.title, sections: r.sections, updatedAt: r.updatedAt.toISOString() };
+function fromOverride(r: OverrideRow): Guide {
+  return { lang: r.lang, source: 'override', title: r.title, sections: r.sections, updatedAt: r.updatedAt.toISOString() };
 }
 
-/** The guide in `lang`, else in English, else NotFound. */
+/** The guide in `lang`: its override if there is one, else the repo file; unknown languages fall back to English. */
 export async function getGuide(db: Db, lang: string): Promise<Guide> {
-  for (const l of lang === 'en' ? ['en'] : [lang, 'en']) {
-    const [r] = await db.select().from(guides).where(eq(guides.lang, l));
-    if (r) return toGuide(r);
-  }
-  throw new NotFound(`No guide in "${lang}" or "en"`);
+  const [r] = await db.select().from(guideOverrides).where(eq(guideOverrides.lang, lang));
+  if (r) return fromOverride(r);
+  if (lang in BUNDLED_GUIDES) return bundledGuide(lang);
+  const [en] = await db.select().from(guideOverrides).where(eq(guideOverrides.lang, 'en'));
+  return en ? fromOverride(en) : bundledGuide('en');
 }
 
-export async function listGuides(db: Db): Promise<{ lang: string; title: string; updatedAt: string }[]> {
-  const rows = await db.select().from(guides).orderBy(asc(guides.lang));
-  return rows.map((r) => ({ lang: r.lang, title: r.title, updatedAt: r.updatedAt.toISOString() }));
+/** Every language with a guide, and whether it is the repo file or an unsynced override. */
+export async function listGuides(db: Db): Promise<{ lang: string; title: string; source: 'repo' | 'override'; updatedAt?: string }[]> {
+  const overrides = new Map((await db.select().from(guideOverrides)).map((r) => [r.lang, r]));
+  const langs = [...new Set([...Object.keys(BUNDLED_GUIDES), ...overrides.keys()])].sort();
+  return langs.map((lang) => {
+    const o = overrides.get(lang);
+    return o
+      ? { lang, title: o.title, source: 'override' as const, updatedAt: o.updatedAt.toISOString() }
+      : { lang, title: BUNDLED_GUIDES[lang].title, source: 'repo' as const };
+  });
 }
 
-/** Create or replace the guide in one language. */
-export async function putGuide(db: Db, lang: string, input: GuideInput): Promise<Guide> {
-  const values = { lang, title: input.title, sections: input.sections, updatedAt: new Date() };
+/** Save a temporary override of the guide in one language. */
+export async function putGuideOverride(db: Db, lang: string, input: GuideInput): Promise<Guide> {
+  const now = new Date();
   const [r] = await db
-    .insert(guides)
-    .values(values)
-    .onConflictDoUpdate({ target: guides.lang, set: { title: values.title, sections: values.sections, updatedAt: values.updatedAt } })
+    .insert(guideOverrides)
+    .values({ lang, title: input.title, sections: input.sections, updatedAt: now })
+    .onConflictDoUpdate({ target: guideOverrides.lang, set: { title: input.title, sections: input.sections, updatedAt: now } })
     .returning();
-  return toGuide(r);
+  return fromOverride(r);
 }
 
-/** Insert the English example guide when the DB has no guide at all. */
-export async function seedGuide(db: Db): Promise<boolean> {
-  const [{ n }] = await db.select({ n: sql<number>`count(*)` }).from(guides);
-  if (Number(n) > 0) return false;
-  await putGuide(db, 'en', EXAMPLE_GUIDE);
-  return true;
+/** Drop the override (once it is in the repo file). False when there was none. */
+export async function deleteGuideOverride(db: Db, lang: string): Promise<boolean> {
+  const gone = await db.delete(guideOverrides).where(eq(guideOverrides.lang, lang)).returning();
+  return gone.length > 0;
 }
 
 // ── seed ────────────────────────────────────────────────────────────────────
