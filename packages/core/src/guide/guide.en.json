@@ -1,0 +1,117 @@
+{
+  "title": "How to use it",
+  "sections": [
+    {
+      "id": "flow",
+      "title": "How it works — in short",
+      "body": [
+        "The app shows a melody as short fragments on a keyboard: \"press this, then these two together\". You watch, play it on your own real piano and go on. No sheet music to read.",
+        "• At the top pick a lesson (the list) and a view: \"Falling notes\", \"Cards\" or \"Sheet + keys\".",
+        "• Pick a fragment (#1, #2… or ‹ ›) — learn one at a time.",
+        "• Hear or watch the fragment, play it on the piano, tap Next.",
+        "• When a fragment works, mark it \"Got it\" (✓). Progress is saved.",
+        "No connected piano is needed: a \"did I play it right\" check happens only if you press keys on the screen or on the computer keyboard."
+      ]
+    },
+    {
+      "id": "falling",
+      "title": "View: Falling notes",
+      "body": [
+        "Notes fall onto the keys, Synthesia-style. A bar touches its key exactly when the note sounds.",
+        "• The big bottom button: Play / Pause / Resume; a short \"Get ready…\" before the start.",
+        "• ⏮ From the start, 🔁 Loop (the fragment repeats), 🔊/🔇 sound.",
+        "• Speed 25–100 %. Start slow.",
+        "• Hands: Both, Left, Right — practise one hand, the other stays silent. Green is right, blue is left.",
+        "• 👁 Ahead: how many seconds of notes you see in advance (2 / 3 / 5).",
+        "• Tap a falling bar to hear its note.",
+        "• At the top: the fragments and \"Whole lesson\"; next to them ✓ Got it."
+      ]
+    },
+    {
+      "id": "wait",
+      "title": "\"Wait for me\" — and moving on without a keyboard",
+      "body": [
+        "In ⏸ Wait for me the notes stop on the line by the keys, and the bar says what to play (\"Play E4 + G4\"). You go on when ready — three equal ways:",
+        "• Tap the big \"Next ›\" button at the bottom — the main way on an iPad.",
+        "• Press the right keys on the on-screen keyboard (all of a chord). The step moves on by itself; a wrong key flashes.",
+        "• Space on an attached keyboard does the same as Next.",
+        "🔊 \"Hear it\" next to it plays the current step."
+      ]
+    },
+    {
+      "id": "cards",
+      "title": "View: Cards",
+      "body": [
+        "Step by step: one card, one action (\"Press E4\", \"Press together C4 + E4\").",
+        "• Next › / ‹ Back, or swipe the card strip; tap a card to jump there and hear it.",
+        "• ▶ Step to hear a step, ▶ Fragment for the whole fragment, ⟳ loop, speed.",
+        "• ♩ Play along: silent, with a metronome and a one-bar count-in — play to the click.",
+        "• Keyboard colours: hand colour = press now, stripes = keep holding, ring = next step.",
+        "• Pressing the right keys on screen also moves to the next step.",
+        "• At the end of a fragment: Again, \"Got it → next fragment\" or just \"Next fragment ›\"."
+      ]
+    },
+    {
+      "id": "sheet",
+      "title": "View: Sheet + keys",
+      "body": [
+        "Notation in sync with the keyboard — for getting used to notes bit by bit. Reading them is optional.",
+        "• ♪ Listen: ▶ / ■, ⟲ loop. ⇥ Steps: ‹ Back / Next › one note or chord at a time.",
+        "• Tap a note on the staff to hear it and see its key.",
+        "• Press a key to see where it sits on the staff (this does not move the step).",
+        "• \"Names\" (labels under notes) and \"Hands\" (hand colours) toggles, speed, ✓ Got it."
+      ]
+    },
+    {
+      "id": "keys",
+      "title": "Keyboard and on-screen keys",
+      "body": [
+        "• The on-screen keyboard plays chords with several fingers and glissando — slide your finger.",
+        "• Space = the big button (play/pause or Next). ← / → switch fragments (in Cards and Steps: back / next).",
+        "• The computer keyboard as a piano: A W S E D F T G Y H U J K = C4 up to C5 (then O L P ;). Z / X — octave down / up.",
+        "The \"Space = Next\" hint shows only with a mouse or trackpad; Space works without it too."
+      ]
+    },
+    {
+      "id": "sound",
+      "title": "Sound on an iPad",
+      "body": [
+        "The browser allows sound only after a touch, so your first tap on the page turns it on. If you see \"Tap to enable sound\", tap.",
+        "The app plays even with the iPad in silent mode. If it is quiet: check the volume, the 🔊 button in the view and that the tab is not muted; then reload and tap the screen.",
+        "Until the grand-piano samples load from the internet, the first notes sound with a simple synth."
+      ]
+    },
+    {
+      "id": "lessons",
+      "title": "Where lessons come from",
+      "body": [
+        "• An agent (Claude Code) makes a lesson from a YouTube video, audio or MIDI: tell it \"make a lesson from this video <link>\" — it transcribes the notes and uploads the lesson through the API.",
+        "• ⤒ Import — a .mid / .midi, .musicxml / .xml / .mxl or lesson .json file. The lesson appears in the list and opens.",
+        "• 🎧 Original — when a lesson came from YouTube, opens the video right at the current fragment. Handy to compare by ear.",
+        "Lessons live in the database on your computer, not on the internet."
+      ]
+    },
+    {
+      "id": "feedback",
+      "title": "\"Sounds wrong\" — what it does",
+      "body": [
+        "Transcribing notes from a video is not perfect. If a fragment sounds unlike the original, tap ⚑ Sounds wrong and say in words what is off (\"the second bar should be a different, lower note\"). The report is tied to the current fragment.",
+        "What happens next, honestly:",
+        "• The app only stores the report in a queue. It does not fix the lesson itself and does not show the reports.",
+        "• An agent fixes it: tell Claude Code \"check the feedback queue\" (the /transcribe skill). It re-transcribes that fragment from the original, replaces only that fragment's notes and marks the report resolved — or says why it could not.",
+        "• Without an agent: fix it by hand — open the original (🎧), find the right notes and import a corrected lesson; the report list is at /api/feedback?status=open.",
+        "So it works best together: you notice the mistake by ear and describe it, the agent fixes it. The more specific (which bar, higher/lower, which hand), the better the fix."
+      ]
+    },
+    {
+      "id": "settings",
+      "title": "Settings (⚙)",
+      "body": [
+        "• Note names: C D E or Do Re Mi. Labels on keys: all / C only / none.",
+        "• Language UA / EN, theme (Auto → Light → Dark).",
+        "• API token — only if the server asks for one: without it imports, reports and progress are not saved.",
+        "The chosen lesson and view are remembered, and the address-bar link opens exactly them. If the server is unreachable, demo lessons are shown."
+      ]
+    }
+  ]
+}

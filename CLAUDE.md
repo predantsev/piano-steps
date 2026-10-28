@@ -17,6 +17,7 @@ Don't trust prior conversation context — it may have been compacted or the ses
 | Past sessions journal | `docs/sessions/YYYY-MM-DD-*.md` | When picking up where we left off |
 | Architecture decisions (why) | `docs/decisions/NNNN-*.md` | When revisiting a past choice |
 | Decisions log (chronological) | `docs/decisions-log.md` | When a settled question resurfaces |
+| Change log (what + why per change) | `CHANGELOG.md` · guide: `docs/guide.md` | Before and after every change |
 | Hard-won learnings (gotchas) | `docs/knowledge-base/*.md` | When debugging / hitting weirdness |
 | Lesson format | `docs/lesson-format.md`, `docs/lesson.schema.json` | Before producing or changing lessons |
 | API recipes for agents | `docs/api-for-agents.md` | Before uploading / fixing lessons |

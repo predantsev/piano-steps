@@ -1,4 +1,4 @@
-import type { LessonNote, LessonSource, Tempo } from '@piano-steps/core';
+import type { GuideSection, LessonNote, LessonSource, Tempo } from '@piano-steps/core';
 import { doublePrecision, integer, jsonb, pgTable, text, timestamp, unique, uuid } from 'drizzle-orm/pg-core';
 
 /**
@@ -66,3 +66,14 @@ export const progress = pgTable(
   },
   (t) => [unique('progress_lesson_fragment').on(t.lessonId, t.fragmentPosition)],
 );
+
+/**
+ * The in-app guide, one row per language. Seeded from the English example in packages/core on
+ * first start; agents replace it with PUT /api/guide/{lang} (and add other languages that way).
+ */
+export const guides = pgTable('guides', {
+  lang: text('lang').primaryKey(),
+  title: text('title').notNull(),
+  sections: jsonb('sections').$type<GuideSection[]>().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
