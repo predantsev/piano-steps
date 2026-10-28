@@ -9,6 +9,7 @@ const STRINGS = {
   lesson: { uk: 'Урок', en: 'Lesson' },
   variant: { uk: 'Вигляд', en: 'View' },
   settings: { uk: 'Налаштування', en: 'Settings' },
+  help: { uk: 'Як користуватися', en: 'How to use it' },
   noteNames: { uk: 'Назви нот', en: 'Note names' },
   letters: { uk: 'C D E', en: 'C D E' },
   solfege: { uk: 'До Ре Мі', en: 'Do Re Mi' },
