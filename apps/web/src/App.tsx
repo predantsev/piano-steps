@@ -7,6 +7,7 @@ import { t } from './i18n.ts';
 import { NoteInput } from './input/noteInput.ts';
 import { useSettings, useTheme } from './settings.ts';
 import { FeedbackDialog } from './ui/FeedbackDialog.tsx';
+import { HelpDialog } from './ui/HelpDialog.tsx';
 import { SourcePlayer, hasOriginal } from './ui/SourcePlayer.tsx';
 import { VARIANTS } from './variants/index.ts';
 import './App.css';
@@ -40,7 +41,8 @@ export default function App() {
   );
   const [progress, setProgress] = useState<FragmentProgress[]>([]);
   const [fragmentPos, setFragmentPos] = useState<number | null>(null);
-  const [dialog, setDialog] = useState<null | 'feedback' | 'original' | 'settings'>(null);
+  const [dialog, setDialog] = useState<null | 'feedback' | 'original' | 'settings' | 'help'>(null);
+  const closeDialog = useCallback(() => setDialog(null), []);
   const [error, setError] = useState<string | null>(null);
   const [health, setHealth] = useState<api.Health | null>(null);
   const [tokenInvalid, setTokenInvalid] = useState(false);
@@ -256,7 +258,10 @@ export default function App() {
             e.target.value = '';
           }}
         />
-        <button className="btn ghost" aria-label={t(lang, 'settings')} onClick={() => setDialog('settings')}>
+        <button className="btn ghost icon" aria-label={t(lang, 'help')} title={t(lang, 'help')} onClick={() => setDialog('help')}>
+          ?
+        </button>
+        <button className="btn ghost icon" aria-label={t(lang, 'settings')} title={t(lang, 'settings')} onClick={() => setDialog('settings')}>
           ⚙
         </button>
       </header>
@@ -321,6 +326,7 @@ export default function App() {
       {dialog === 'original' && lesson && (
         <SourcePlayer lesson={lesson} fragment={frag} onClose={() => setDialog(null)} closeLabel={t(lang, 'close')} />
       )}
+      {dialog === 'help' && <HelpDialog lang={lang} onClose={closeDialog} />}
       {dialog === 'settings' && (
         <div className="sheet-backdrop" onClick={() => setDialog(null)}>
           <div className="sheet card" onClick={(e) => e.stopPropagation()}>

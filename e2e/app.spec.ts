@@ -181,3 +181,28 @@ test('a token with invisible or non-Latin characters never breaks the app', asyn
   await page.evaluate(() => window.pianoSteps!.listLessons());
   expect((await get).headers()['authorization']).toBeUndefined();
 });
+
+test('the guide opens from the top bar, fits the screen and closes', async ({ page, hasTouch }) => {
+  await openApp(page, '?lesson=ode-to-joy&ui=falling');
+  for (const name of ['How to use it', 'Settings']) {
+    const box = await page.getByRole('button', { name, exact: true }).boundingBox();
+    expect(box!.width, `${name} is finger-sized`).toBeGreaterThanOrEqual(44);
+    expect(box!.height, `${name} is finger-sized`).toBeGreaterThanOrEqual(44);
+  }
+  await tapOrClick(page.getByRole('button', { name: 'How to use it', exact: true }), hasTouch);
+  const dialog = page.getByRole('dialog', { name: 'How to use it' });
+  await expect(dialog).toBeVisible();
+  const feedback = dialog.locator('[data-help="feedback"]');
+  await tapOrClick(feedback.locator('summary'), hasTouch);
+  await expect(feedback).toContainText('An agent fixes it');
+  const box = await dialog.boundingBox();
+  expect(box!.y + box!.height).toBeLessThanOrEqual(page.viewportSize()!.height);
+  await tapOrClick(dialog.getByRole('button', { name: 'Close' }), hasTouch);
+  await expect(dialog).toBeHidden();
+});
+
+test('the falling view orders hands as on the keyboard: left before right', async ({ page }) => {
+  await openApp(page, '?lesson=ode-to-joy&ui=falling');
+  const hands = page.getByRole('group', { name: 'Hands' }).getByRole('button');
+  await expect(hands).toHaveText(['Both', 'Left', 'Right']);
+});

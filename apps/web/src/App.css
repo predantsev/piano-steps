@@ -13,7 +13,16 @@
   padding: 8px 12px;
   border-bottom: 1px solid var(--bd);
   background: var(--panel);
-  flex-wrap: wrap;
+  /* one row on an iPad in landscape: the lesson picker gives way first */
+  flex-wrap: nowrap;
+}
+.topbar > * {
+  flex-shrink: 0;
+}
+@media (max-width: 1000px) {
+  .topbar {
+    flex-wrap: wrap;
+  }
 }
 .topbar .brand {
   font-family: var(--serif);
@@ -30,6 +39,8 @@
   background: var(--bg);
   padding: 0 10px;
   max-width: 40vw;
+  min-width: 7rem;
+  flex: 0 1 auto;
 }
 .topbar .spacer {
   flex: 1;
@@ -99,4 +110,37 @@
   place-items: center;
   background: color-mix(in srgb, var(--bg) 70%, transparent);
   z-index: 50;
+}
+
+/* The guide: scrolls inside the sheet, one collapsible section per topic. */
+.help {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100dvh - 32px);
+}
+.help-body {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  margin-top: 8px;
+}
+.help details {
+  border-top: 1px solid var(--bd);
+}
+.help summary {
+  min-height: var(--tap);
+  display: flex;
+  align-items: center;
+  font-weight: 600;
+  cursor: pointer;
+}
+.help p {
+  margin: 0 0 10px;
+  line-height: 1.5;
+}
+.help .help-item {
+  padding-left: 1.1em;
+  text-indent: -0.8em;
+}
+.help .help-item::before {
+  content: '• ';
 }

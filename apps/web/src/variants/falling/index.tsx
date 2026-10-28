@@ -463,10 +463,11 @@ export default function FallingNotes({
         </div>
 
         <div className="seg" role="group" aria-label={s(lang, 'hands')} title={s(lang, 'hands')}>
-          {(['both', 'R', 'L'] as const).map((h) => (
+          {/* left before right, as on the keyboard */}
+          {(['both', 'L', 'R'] as const).map((h) => (
             <button key={h} aria-pressed={prefs.hands === h} onClick={() => set({ hands: h })}>
-              {h !== 'L' && <span className="fl-dot fl-dot-r" aria-hidden />}
               {h !== 'R' && <span className="fl-dot fl-dot-l" aria-hidden />}
+              {h !== 'L' && <span className="fl-dot fl-dot-r" aria-hidden />}
               {s(lang, h === 'both' ? 'both' : h === 'R' ? 'right' : 'left')}
             </button>
           ))}
