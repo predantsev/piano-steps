@@ -44,6 +44,10 @@ export const feedback = pgTable('feedback', {
     .notNull()
     .references(() => lessons.id, { onDelete: 'cascade' }),
   fragmentPosition: integer('fragment_position'),
+  /** The one note reported (its stable id) and a copy of it as it was then. */
+  noteId: text('note_id'),
+  note: jsonb('note').$type<LessonNote>(),
+  kind: text('kind').$type<'higher' | 'lower' | 'extra' | 'missing' | 'timing' | 'other'>(),
   message: text('message').notNull(),
   status: text('status').$type<'open' | 'in-progress' | 'resolved' | 'wont-fix'>().notNull().default('open'),
   resolution: text('resolution'),

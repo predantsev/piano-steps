@@ -5,6 +5,15 @@ with its issue and PR. Rule and checklist: AGENTS.md § "Change log and the guid
 
 ## 2026-10-28
 
+- **Stable note ids; tap a falling note to report it** (#30). Every note now has a stable `id`
+  (given by the server, kept on edits; old lessons are back-filled on start). In Falling notes,
+  tapping a bar pauses, sounds the note and opens a menu: Hear it · Sounds wrong (higher / lower /
+  extra / missing / timing / other + comment) · Fix it myself (later). The report stores the note id
+  and a copy of the note. ⚑ Sounds wrong now lists the lesson's earlier reports with their status
+  and the agent's note. *Why:* the owner wants to point at the exact wrong note while listening and
+  come back to it later with an agent; until now a report named only a fragment and the app never
+  showed what became of it. Cards and Sheet + keys are unchanged for now.
+
 - **The guide lives in the database** (#29). The "How to use it" text moved from the web code
   into the `guides` table, one record per language, read with `GET /api/guide?lang=` and
   replaced by agents with `PUT /api/guide/{lang}`. The repo keeps one English example

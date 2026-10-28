@@ -1,7 +1,7 @@
 // Variant A — "Falling notes" (Synthesia-style): coloured bars fall onto the keys; loop, slow-down,
 // hands, and a wait mode that stops at every step until the user has played it on the real piano.
-import { notesInRange, pitchName, type Fragment, type FragmentProgress } from '@piano-steps/core';
-import { useEffect, useMemo, useReducer, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
+import { notesInRange, pitchName, type Fragment, type FragmentProgress, type LessonNote } from '@piano-steps/core';
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import * as Tone from 'tone';
 import { PianoKeyboard, type KeyHighlight } from '../../ui/PianoKeyboard.tsx';
 import type { VariantProps } from '../../variant.ts';
@@ -9,6 +9,7 @@ import { PracticeEngine, type PracticeOptions } from './engine.ts';
 import { fitRange, keyGeometry } from './geometry.ts';
 import { barRect, drawLane, readColors, type LaneColors } from './lane.ts';
 import { keyMarks, marksSignature } from './marks.ts';
+import { NoteMenu } from './NoteMenu.tsx';
 import { s } from './strings.ts';
 import { visibleBars, type Bar, type Hands } from './timeline.ts';
 import './falling.css';
@@ -88,6 +89,7 @@ export default function FallingNotes({
   progress,
   recordProgress,
   onFragmentChange,
+  reportNote,
 }: VariantProps) {
   const [fragIdx, setFragIdx] = useState<number | null>(lesson.fragments.length ? 0 : null);
   const [prefs, setPrefs] = useState<Prefs>(() => readPrefs(settings.speed));
@@ -170,7 +172,7 @@ export default function FallingNotes({
       return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable);
     };
     const down = (ev: KeyboardEvent) => {
-      if (ev.metaKey || ev.ctrlKey || ev.altKey || typing(ev) || document.querySelector('.sheet-backdrop')) return;
+      if (ev.metaKey || ev.ctrlKey || ev.altKey || typing(ev) || document.querySelector('.sheet-backdrop, .fl-menu-backdrop')) return;
       if (ev.code === 'Space' || ev.key === ' ') {
         ev.preventDefault();
         if (!ev.repeat) {
@@ -314,7 +316,9 @@ export default function FallingNotes({
     };
   }, [engine, keys, input]);
 
-  // Tap a falling bar to hear its note.
+  // Tap a falling bar: it pauses, sounds, and opens the note menu (hear / report / fix later).
+  const [menu, setMenu] = useState<{ note: LessonNote; x: number; y: number } | null>(null);
+  const closeMenu = useCallback(() => setMenu(null), []);
   const onLanePointerDown = (e: ReactPointerEvent<HTMLCanvasElement>) => {
     const box = e.currentTarget.getBoundingClientRect();
     const x = e.clientX - box.left;
@@ -329,7 +333,9 @@ export default function FallingNotes({
     }
     if (hit) {
       void player.unlock();
+      if (engine.phase === 'playing' || engine.phase === 'preroll') engine.pause();
       player.playChord([hit.note.pitch], Math.min(2, Math.max(0.3, hit.note.duration / prefs.rate)), hit.note.velocity ?? 0.8);
+      setMenu({ note: hit.note, x: e.clientX, y: e.clientY });
     }
   };
 
@@ -486,6 +492,22 @@ export default function FallingNotes({
       <div className="fl-stage">
         <div className="fl-lane" ref={laneRef}>
           <canvas ref={canvasRef} onPointerDown={onLanePointerDown} aria-label={s(lang, 'tapBar')} role="img" />
+          {menu && (
+            <NoteMenu
+              note={menu.note}
+              at={menu}
+              lang={lang}
+              noteNames={settings.noteNames}
+              onHear={() => {
+                const n = menu.note;
+                player.playChord([n.pitch], Math.min(2, Math.max(0.3, n.duration / prefs.rate)), n.velocity ?? 0.8);
+              }}
+              onReport={
+                reportNote && menu.note.id ? (r) => reportNote({ noteId: menu.note.id!, ...r }) : undefined
+              }
+              onClose={closeMenu}
+            />
+          )}
           {empty ? (
             <div className="fl-pill">{s(lang, 'emptyFragment')}</div>
           ) : (

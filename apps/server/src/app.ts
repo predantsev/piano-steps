@@ -1,6 +1,7 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import {
   FeedbackInput,
+  FeedbackKind,
   FeedbackStatus,
   Fragment,
   GuideInput,
@@ -16,6 +17,7 @@ import {
   musicxmlToLesson,
   prepareLesson,
   validateLessonInput,
+  lessonRuleErrors,
   type LessonInput as LessonInputT,
 } from '@piano-steps/core';
 import { Scalar } from '@scalar/hono-api-reference';
@@ -90,6 +92,9 @@ const FeedbackOut = z
     lessonId: z.string(),
     lessonSlug: z.string().optional(),
     fragmentPosition: z.number().optional(),
+    noteId: z.string().optional(),
+    note: LessonNote.optional().openapi({ description: 'The note as it was when reported' }),
+    kind: FeedbackKind.optional(),
     message: z.string(),
     status: FeedbackStatus,
     resolution: z.string().optional(),
@@ -135,6 +140,13 @@ const write = {
   413: err(`The body is over ${MAX_BODY_BYTES / 1048576} MB`, ex.errors.tooLarge),
   415: err('The body is not sent as `content-type: application/json`', ex.errors.unsupportedMediaType),
 };
+
+/** The schema passed; also enforce the rules it cannot express (fragment ranges, unique note ids). */
+function checkedLesson<T extends Parameters<typeof lessonRuleErrors>[0]>(input: T): T {
+  const errors = lessonRuleErrors(input);
+  if (errors.length) throw new HttpError(400, 'validation', errors);
+  return input;
+}
 
 export interface AppOptions {
   db: Db;
@@ -261,7 +273,7 @@ export function createApp({ db, dbKind, apiToken }: AppOptions) {
     }),
     async (c) => {
       const upsert = c.req.valid('query').upsert === 'true';
-      const lesson = await repo.createLesson(db, prepareLesson(c.req.valid('json')), { upsert });
+      const lesson = await repo.createLesson(db, prepareLesson(checkedLesson(c.req.valid('json'))), { upsert });
       return c.json(lesson, lesson.createdAt === lesson.updatedAt ? 201 : 200);
     },
   );
@@ -294,7 +306,7 @@ export function createApp({ db, dbKind, apiToken }: AppOptions) {
       responses: { 200: json(LessonOut, 'Replaced', ex.lesson), ...write, ...read },
     }),
     async (c) =>
-      c.json(await repo.replaceLesson(db, c.req.valid('param').ref, prepareLesson(c.req.valid('json'))), 200),
+      c.json(await repo.replaceLesson(db, c.req.valid('param').ref, prepareLesson(checkedLesson(c.req.valid('json')))), 200),
   );
 
   app.openapi(
@@ -549,7 +561,9 @@ export function createApp({ db, dbKind, apiToken }: AppOptions) {
       summary: 'Report that a lesson/fragment sounds wrong',
       description:
         'Written by the user from the app ("Sounds wrong"). It lands in the agents\' work queue ' +
-        '(GET /api/feedback?status=open) with status `open`. Omit `fragmentPosition` for the lesson as a whole.',
+        '(GET /api/feedback?status=open) with status `open`. Omit `fragmentPosition` for the lesson as a whole. ' +
+        'From a tapped note the app sends `noteId` + `kind` (higher · lower · extra · missing · timing · other); the ' +
+        'server then stores a copy of that note and its fragment, so the report stays readable after a fix.',
       request: { params: z.object({ ref: Ref }), body: body(FeedbackInput, ex.feedbackInput) },
       responses: { 201: json(FeedbackOut, 'Created', ex.feedback), ...write, ...read },
     }),

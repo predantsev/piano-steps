@@ -105,6 +105,11 @@
       "items": {
         "type": "object",
         "properties": {
+          "id": {
+            "description": "Stable note id, unique in the lesson. Assigned by the server when missing; send it back unchanged when you edit a note, so reports about that note keep pointing at it.",
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,40}$"
+          },
           "pitch": {
             "type": "integer",
             "minimum": 21,

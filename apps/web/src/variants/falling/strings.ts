@@ -33,6 +33,21 @@ const STRINGS = {
   noNotes: { uk: 'У цьому фрагменті немає нот для цієї руки', en: 'No notes for this hand in this fragment' },
   tapBar: { uk: 'Торкніться смужки, щоб почути ноту', en: 'Tap a bar to hear its note' },
   getReady: { uk: 'Готуйся…', en: 'Get ready…' },
+  noteHear: { uk: 'Послухати', en: 'Hear it' },
+  noteWrong: { uk: 'Звучить не так:', en: 'Sounds wrong:' },
+  kindHigher: { uk: 'Має бути вище', en: 'Should be higher' },
+  kindLower: { uk: 'Має бути нижче', en: 'Should be lower' },
+  kindExtra: { uk: 'Зайва нота', en: 'Extra note' },
+  kindMissing: { uk: 'Бракує ноти', en: 'A note is missing' },
+  kindTiming: { uk: 'Не вчасно', en: 'Wrong timing' },
+  kindOther: { uk: 'Інше', en: 'Other' },
+  noteComment: { uk: 'Коментар (необов’язково)', en: 'Comment (optional)' },
+  noteSend: { uk: 'Зберегти скаргу', en: 'Save report' },
+  noteSent: { uk: 'Збережено — агент подивиться', en: 'Saved — an agent will look at it' },
+  noteFixSelf: { uk: 'Виправити самому — незабаром', en: 'Fix it myself — coming later' },
+  handR: { uk: 'права', en: 'right' },
+  handL: { uk: 'ліва', en: 'left' },
+  close: { uk: 'Закрити', en: 'Close' },
 } as const;
 
 export type StringKey = keyof typeof STRINGS;

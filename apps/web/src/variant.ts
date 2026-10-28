@@ -1,4 +1,4 @@
-import type { FragmentProgress, Lesson, ProgressStatus } from '@piano-steps/core';
+import type { FeedbackKind, FragmentProgress, Lesson, ProgressStatus } from '@piano-steps/core';
 import type { ComponentType, LazyExoticComponent } from 'react';
 import type { LessonPlayer } from './audio/player.ts';
 import type { NoteInput } from './input/noteInput.ts';
@@ -38,6 +38,12 @@ export interface VariantProps {
    * forgotten when the variant unmounts or the lesson changes. Variants that never call it are fine.
    */
   reportState?(state: Record<string, unknown>): void;
+  /**
+   * Optional — report that one note sounds wrong (by its stable `id`). The shell stores it in the
+   * feedback queue (POST /api/lessons/{ref}/feedback with `noteId`), where an agent picks it up.
+   * Rejects with a readable Error (offline, missing token, …).
+   */
+  reportNote?(report: { noteId: string; kind?: FeedbackKind; message?: string }): Promise<void>;
 }
 
 export interface VariantDef {

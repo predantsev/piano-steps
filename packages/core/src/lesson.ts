@@ -17,7 +17,17 @@ export const LESSON_SCHEMA_VERSION = 1;
 export const Hand = z.enum(['L', 'R']).describe('Which hand plays the note: L = left, R = right');
 export type Hand = z.infer<typeof Hand>;
 
+export const NOTE_ID_RE = /^[A-Za-z0-9_-]{1,40}$/;
+
 export const LessonNote = z.object({
+  id: z
+    .string()
+    .regex(NOTE_ID_RE, 'letters, digits, _ or -, up to 40')
+    .optional()
+    .describe(
+      'Stable note id, unique in the lesson. Assigned by the server when missing; send it back unchanged when ' +
+        'you edit a note, so reports about that note keep pointing at it.',
+    ),
   pitch: z.number().int().min(21).max(108).describe('MIDI note number, 21 (A0) … 108 (C8); 60 = C4 (middle C)'),
   start: z.number().min(0).describe('Onset, seconds from lesson start'),
   duration: z.number().positive().describe('Length in seconds'),
@@ -110,13 +120,38 @@ export interface LessonSummary {
 export const FeedbackStatus = z.enum(['open', 'in-progress', 'resolved', 'wont-fix']);
 export type FeedbackStatus = z.infer<typeof FeedbackStatus>;
 
-export const FeedbackInput = z.object({
-  fragmentPosition: z.number().int().min(0).optional().describe('Fragment index; omit for the lesson as a whole'),
-  message: z.string().min(1).max(4000),
-});
-export type FeedbackInput = z.infer<typeof FeedbackInput>;
+/** What is wrong with one note, as the user hears it. */
+export const FeedbackKind = z
+  .enum(['higher', 'lower', 'extra', 'missing', 'timing', 'other'])
+  .describe(
+    'higher / lower = should be a higher / lower note; extra = should not be there; missing = a note is ' +
+      'missing near it; timing = too early, too late or the wrong length; other = see the message',
+  );
+export type FeedbackKind = z.infer<typeof FeedbackKind>;
 
-export interface Feedback extends FeedbackInput {
+export const FeedbackInput = z.object({
+  fragmentPosition: z
+    .number()
+    .int()
+    .min(0)
+    .optional()
+    .describe('Fragment index; omit for the lesson as a whole (derived from the note when `noteId` is given)'),
+  noteId: z.string().regex(NOTE_ID_RE).optional().describe('The one note this is about (its stable id)'),
+  kind: FeedbackKind.optional(),
+  message: z.string().max(4000).default('').describe('What sounds wrong, in words; may be empty when `kind` says it'),
+}).refine((v) => v.message.trim() !== '' || v.kind !== undefined, {
+  message: 'say what is wrong: a message, a kind, or both',
+  path: ['message'],
+});
+export type FeedbackInput = z.input<typeof FeedbackInput>;
+
+export interface Feedback {
+  fragmentPosition?: number;
+  noteId?: string;
+  /** The note as it was when reported — stays readable after the fragment is re-transcribed. */
+  note?: LessonNote;
+  kind?: FeedbackKind;
+  message: string;
   id: string;
   lessonId: string;
   lessonSlug?: string;
@@ -165,19 +200,49 @@ export function sortNotes(notes: readonly LessonNote[]): LessonNote[] {
   return [...notes].sort((a, b) => a.start - b.start || a.pitch - b.pitch);
 }
 
+/** A fresh note id ("n" + 10 random base-36 characters). */
+export function newNoteId(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(10));
+  return 'n' + Array.from(bytes, (b) => (b % 36).toString(36)).join('');
+}
+
+/** Give every note without an id a fresh one (ids already present are kept). */
+export function withNoteIds(notes: readonly LessonNote[]): LessonNote[] {
+  const used = new Set(notes.map((n) => n.id).filter((id): id is string => !!id));
+  return notes.map((n) => {
+    if (n.id) return n;
+    let id = newNoteId();
+    while (used.has(id)) id = newNoteId();
+    used.add(id);
+    return { id, ...n };
+  });
+}
+
 export type ValidationResult =
   | { ok: true; value: LessonInputParsed }
   | { ok: false; errors: string[] };
+
+/** Checks the schema alone cannot express: fragment ranges and unique note ids. */
+export function lessonRuleErrors(input: LessonInputParsed): string[] {
+  const errors =
+    input.fragments
+      ?.map((f, i) => (f.end <= f.start ? `fragments.${i}: end must be after start` : null))
+      .filter((e): e is string => e !== null) ?? [];
+  const seen = new Set<string>();
+  input.notes.forEach((n, i) => {
+    if (n.id === undefined) return;
+    if (seen.has(n.id)) errors.push(`notes.${i}.id: "${n.id}" is used by another note`);
+    seen.add(n.id);
+  });
+  return errors;
+}
 
 /** Validate unknown JSON against the lesson format; errors are human-readable "path: message". */
 export function validateLessonInput(data: unknown): ValidationResult {
   const r = LessonInput.safeParse(data);
   if (r.success) {
-    const fragErrors = r.data.fragments
-      ?.map((f, i) => (f.end <= f.start ? `fragments.${i}: end must be after start` : null))
-      .filter((e): e is string => e !== null);
-    if (fragErrors && fragErrors.length) return { ok: false, errors: fragErrors };
-    return { ok: true, value: r.data };
+    const errors = lessonRuleErrors(r.data);
+    return errors.length ? { ok: false, errors } : { ok: true, value: r.data };
   }
   return {
     ok: false,

@@ -37,6 +37,7 @@ running app also serves it at `/api/schema/lesson.json`.
 | `pitch` | MIDI note number 21–108. 60 = C4 (middle C), 61 = C#4, 69 = A4. |
 | `start`, `duration` | Seconds from the start of the lesson. Not quantised — a raw transcription is fine. |
 | `hand` | `"L"` / `"R"`. Optional, but UIs colour by hand, so set it when known. |
+| `id` | Stable note id, unique in the lesson (`[A-Za-z0-9_-]{1,40}`), optional on input. The server gives every note without one a fresh id (`n` + 10 characters) and keeps ids you send. **When you edit notes, send unchanged notes back with their `id`** — reports about a note point at it by id. |
 | `velocity` | 0–1, optional (playback loudness). |
 | `finger` | 1 = thumb … 5 = little finger, optional. |
 | fragment | A practice chunk = time window `[start, end)` over the notes. A note belongs to the fragment its **onset** falls in. |
