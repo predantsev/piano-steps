@@ -60,6 +60,11 @@ uv run transcribe show <slug> <fragment>            # what is there now
 uv run transcribe fix <slug> <fragment> --dry-run   # before/after, writes nothing
 ```
 
+A report made by tapping a note carries `noteId`, `kind` (higher · lower · extra · missing · timing ·
+other) and `note` (a copy of that note): start from that one note — often a single-note edit through
+`PUT /api/lessons/{slug}/fragments/{position}/notes` (keep the other notes' `id`s) with the owner
+listening fixes it better than re-transcribing the fragment.
+
 Pick the change by the complaint, compare before/after, then apply with `--feedback <id>` (marks it
 `in-progress`, then `resolved` with a resolution text). If `fix` finds nothing, or less than half
 the old notes, it writes nothing, exits 1 and puts the item back to `open` with the reason — try

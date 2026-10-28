@@ -4,6 +4,7 @@ import {
   prepareLesson,
   validateLessonInput,
   type Feedback,
+  type FeedbackInput,
   type Guide,
   type FragmentProgress,
   type Lesson,
@@ -186,9 +187,16 @@ export async function recordProgress(
   ).progress;
 }
 
-export async function sendFeedback(ref: string, input: { fragmentPosition?: number; message: string }): Promise<Feedback> {
+export async function sendFeedback(ref: string, input: FeedbackInput): Promise<Feedback> {
   if (offline) throw new ApiError('offline: feedback needs the server', 503);
   return call<Feedback>('POST', `/api/lessons/${encodeURIComponent(ref)}/feedback`, input);
+}
+
+/** Earlier reports for one lesson, newest first (empty offline). */
+export async function listFeedback(ref: string): Promise<Feedback[]> {
+  if (offline) return [];
+  const { feedback } = await call<{ feedback: Feedback[] }>('GET', `/api/feedback?lesson=${encodeURIComponent(ref)}`);
+  return feedback;
 }
 
 /** The guide in `lang` (the server falls back to English); offline or missing → the bundled English example. */

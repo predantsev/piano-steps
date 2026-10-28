@@ -206,3 +206,43 @@ test('the falling view orders hands as on the keyboard: left before right', asyn
   const hands = page.getByRole('group', { name: 'Hands' }).getByRole('button');
   await expect(hands).toHaveText(['Both', 'Left', 'Right']);
 });
+
+test('tapping a falling note opens its menu and saves a report about that exact note', async ({ page, hasTouch }) => {
+  await openApp(page, '?lesson=twinkle-twinkle&ui=falling');
+  const canvas = page.locator('.fl-lane canvas');
+  await expect(canvas).toBeVisible();
+  // Find a hand-coloured bar pixel (green = right, blue = left); the lane is grey, the now-line orange.
+  const hit = await canvas.evaluate((c: HTMLCanvasElement) => {
+    const ctx = c.getContext('2d')!;
+    const { width, height } = c;
+    const data = ctx.getImageData(0, 0, width, height).data;
+    for (let y = height - 4; y > 0; y -= 4)
+      for (let x = 2; x < width; x += 4) {
+        const i = (y * width + x) * 4;
+        const [r, g, b] = [data[i], data[i + 1], data[i + 2]];
+        if (g > r + 50 || b > r + 50) {
+          const box = c.getBoundingClientRect();
+          return { x: (x / width) * box.width, y: (y / height) * box.height };
+        }
+      }
+    return null;
+  });
+  expect(hit, 'a bar is drawn').not.toBeNull();
+  if (hasTouch) await canvas.tap({ position: hit! });
+  else await canvas.click({ position: hit! });
+
+  const menu = page.locator('.fl-notemenu');
+  await expect(menu).toBeVisible();
+  await tapOrClick(menu.getByRole('button', { name: 'Should be lower' }), hasTouch);
+  const message = `e2e ${unique()}`;
+  await menu.locator('textarea').fill(message);
+  await tapOrClick(menu.getByRole('button', { name: 'Save report' }), hasTouch);
+  await expect(menu).toContainText('Saved');
+
+  const all = await page.evaluate(async () => (await (await fetch('/api/feedback?lesson=twinkle-twinkle')).json()).feedback);
+  const mine = all.find((f: { message: string }) => f.message === message);
+  expect(mine).toMatchObject({ kind: 'lower', status: 'open' });
+  expect(mine.noteId).toMatch(/^n/);
+  expect(mine.note.pitch).toBeGreaterThan(0);
+  await expect(menu).toBeHidden();
+});

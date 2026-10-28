@@ -1,4 +1,4 @@
-import type { FragmentProgress, Lesson, LessonSummary, ProgressStatus } from '@piano-steps/core';
+import type { FeedbackKind, FragmentProgress, Lesson, LessonSummary, ProgressStatus } from '@piano-steps/core';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as api from './api.ts';
 import { LessonPlayer } from './audio/player.ts';
@@ -122,6 +122,14 @@ export default function App() {
       /* ignore */
     }
   }, [lessonRef, variantId]);
+
+  const reportNote = useCallback(
+    async (r: { noteId: string; kind?: FeedbackKind; message?: string }) => {
+      if (!lesson) throw new Error('no lesson');
+      await api.sendFeedback(lesson.slug, { noteId: r.noteId, ...(r.kind ? { kind: r.kind } : {}), message: r.message ?? '' });
+    },
+    [lesson],
+  );
 
   const recordProgress = useCallback(
     (p: { fragmentPosition: number; status?: ProgressStatus; attempt?: boolean }) => {
@@ -305,6 +313,7 @@ export default function App() {
               recordProgress={recordProgress}
               onFragmentChange={onFragmentChange}
               reportState={reportState}
+              reportNote={reportNote}
             />
           </Suspense>
         ) : (
@@ -320,6 +329,7 @@ export default function App() {
           fragmentPosition={fragmentPos}
           fragmentTitle={`${lesson.title} · ${fragTitle}`}
           lang={lang}
+          noteNames={settings.noteNames}
           onClose={() => setDialog(null)}
         />
       )}

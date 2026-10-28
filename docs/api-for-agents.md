@@ -84,11 +84,15 @@ same pitch in one hand (MIDI cannot tell them apart).
 ## The feedback loop ("this fragment sounds wrong")
 
 1. `GET /api/feedback?status=open` — the work queue. Each item has `lessonSlug`, `fragmentPosition`, `message`.
+   A report made by tapping a note also has `noteId`, `kind` (`higher` · `lower` · `extra` · `missing` ·
+   `timing` · `other`) and `note` — a copy of that note as it was, so you know exactly which one even if
+   the fragment changed since. `message` may be empty then: `kind` says it.
 2. `PATCH /api/feedback/{id}` `{"status":"in-progress"}` — claim it.
 3. `GET /api/lessons/{slug}` — read `fragments[fragmentPosition]` (`start`/`end` seconds) and the notes in it.
    Listen to the source (`source.url` + `source.offsetSec`) for that window and re-transcribe.
 4. `PUT /api/lessons/{slug}/fragments/{position}/notes` `{"notes":[…]}` — replaces every note whose
-   onset is inside the fragment (times are lesson-absolute seconds).
+   onset is inside the fragment (times are lesson-absolute seconds). Send the notes you keep with their
+   `id`; new notes get fresh ids.
 5. `PATCH /api/feedback/{id}` `{"status":"resolved","resolution":"bar 6: G4 → A4, LH chord fixed"}`.
 
 ## Other endpoints

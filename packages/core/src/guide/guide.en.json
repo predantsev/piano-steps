@@ -23,7 +23,7 @@
         "• Speed 25–100 %. Start slow.",
         "• Hands: Both, Left, Right — practise one hand, the other stays silent. Green is right, blue is left.",
         "• 👁 Ahead: how many seconds of notes you see in advance (2 / 3 / 5).",
-        "• Tap a falling bar to hear its note.",
+        "• Tap a falling bar: playback pauses, the note sounds and a small menu opens — 🔊 Hear it, ⚑ Sounds wrong (see below), ✎ Fix it myself (coming later).",
         "• At the top: the fragments and \"Whole lesson\"; next to them ✓ Got it."
       ]
     },
@@ -95,12 +95,15 @@
       "id": "feedback",
       "title": "\"Sounds wrong\" — what it does",
       "body": [
-        "Transcribing notes from a video is not perfect. If a fragment sounds unlike the original, tap ⚑ Sounds wrong and say in words what is off (\"the second bar should be a different, lower note\"). The report is tied to the current fragment.",
+        "Transcribing notes from a video is not perfect. There are two ways to report what sounds wrong:",
+        "• One note: tap its falling bar (Falling notes view). In the menu pick what is wrong — Should be higher, Should be lower, Extra note, A note is missing, Wrong timing, Other — add a comment if you like, and tap Save report. The report remembers that exact note.",
+        "• A whole fragment: tap ⚑ Sounds wrong at the top right and describe it in words (\"the second bar should be a different, lower note\").",
         "What happens next, honestly:",
-        "• The app only stores the report in a queue. It does not fix the lesson itself and does not show the reports.",
-        "• An agent fixes it: tell Claude Code \"check the feedback queue\" (the /transcribe skill). It re-transcribes that fragment from the original, replaces only that fragment's notes and marks the report resolved — or says why it could not.",
-        "• Without an agent: fix it by hand — open the original (🎧), find the right notes and import a corrected lesson; the report list is at /api/feedback?status=open.",
-        "So it works best together: you notice the mistake by ear and describe it, the agent fixes it. The more specific (which bar, higher/lower, which hand), the better the fix."
+        "• The app only stores the report in a queue. It does not fix the lesson by itself.",
+        "• An agent fixes it: tell Claude Code \"check the feedback queue\" (the /transcribe skill). It goes to the reported note or fragment, re-transcribes it from the original or corrects it with you listening, and marks the report fixed — or says why it could not.",
+        "• Without an agent: fix it by hand — open the original (🎧), find the right notes and import a corrected lesson.",
+        "Your reports and what became of them (open, in progress, fixed, won't fix, with the agent's note) are listed under the form in ⚑ Sounds wrong.",
+        "The more specific (which note, higher or lower, which hand), the better the fix."
       ]
     },
     {

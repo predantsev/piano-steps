@@ -1,4 +1,4 @@
-import { lessonDuration, slugify, sortNotes, type Fragment, type LessonInputParsed } from './lesson.ts';
+import { lessonDuration, slugify, sortNotes, withNoteIds, type Fragment, type LessonInputParsed } from './lesson.ts';
 import { autoFragments, snapFragments } from './steps.ts';
 
 export interface PreparedLesson extends Omit<LessonInputParsed, 'slug' | 'fragments'> {
@@ -7,9 +7,9 @@ export interface PreparedLesson extends Omit<LessonInputParsed, 'slug' | 'fragme
   fragments: Fragment[];
 }
 
-/** Normalise a validated input for storage: sorted notes, slug, duration, fragments. */
+/** Normalise a validated input for storage: sorted notes with ids, slug, duration, fragments. */
 export function prepareLesson(input: LessonInputParsed): PreparedLesson {
-  const notes = sortNotes(input.notes);
+  const notes = withNoteIds(sortNotes(input.notes));
   const fragments =
     input.fragments && input.fragments.length > 0
       ? snapFragments(

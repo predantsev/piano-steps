@@ -144,3 +144,37 @@
 .help .help-item::before {
   content: '• ';
 }
+
+/* "Sounds wrong": the earlier reports under the form. */
+.sheet.feedback {
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+}
+.reports {
+  margin-top: 16px;
+  border-top: 1px solid var(--bd);
+  padding-top: 8px;
+}
+.reports h4 {
+  margin: 4px 0 8px;
+}
+.report {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--bd);
+  display: grid;
+  gap: 2px;
+}
+.report-st {
+  font-size: 0.8rem;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--bd);
+}
+.report-st.st-resolved {
+  color: var(--ok);
+  border-color: var(--ok);
+}
+.report-st.st-wont-fix {
+  color: var(--bad);
+  border-color: var(--bad);
+}

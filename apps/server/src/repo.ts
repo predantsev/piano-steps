@@ -4,7 +4,9 @@ import {
   notesInRange,
   prepareLesson,
   validateLessonInput,
+  withNoteIds,
   type Feedback,
+  type FeedbackKind,
   type Guide,
   type GuideInput,
   type FeedbackStatus,
@@ -243,6 +245,9 @@ function toFeedback(r: FeedbackRow, slug?: string): Feedback {
     lessonId: r.lessonId,
     ...(slug ? { lessonSlug: slug } : {}),
     ...(r.fragmentPosition !== null ? { fragmentPosition: r.fragmentPosition } : {}),
+    ...(r.noteId ? { noteId: r.noteId } : {}),
+    ...(r.note ? { note: r.note } : {}),
+    ...(r.kind ? { kind: r.kind } : {}),
     message: r.message,
     status: r.status,
     ...(r.resolution ? { resolution: r.resolution } : {}),
@@ -254,12 +259,30 @@ function toFeedback(r: FeedbackRow, slug?: string): Feedback {
 export async function addFeedback(
   db: Db,
   idOrSlug: string,
-  input: { fragmentPosition?: number; message: string },
+  input: { fragmentPosition?: number; noteId?: string; kind?: FeedbackKind; message: string },
 ): Promise<Feedback> {
   const row = await findRow(db, idOrSlug);
+  let fragmentPosition = input.fragmentPosition ?? null;
+  let note: LessonNote | null = null;
+  if (input.noteId) {
+    note = row.notes.find((n) => n.id === input.noteId) ?? null;
+    if (!note) throw new Invalid([`noteId: no note "${input.noteId}" in lesson "${row.slug}"`]);
+    if (fragmentPosition === null) {
+      const frs = await db.select().from(fragments).where(eq(fragments.lessonId, row.id)).orderBy(asc(fragments.position));
+      const at = frs.find((f) => note!.start >= f.startSec - 1e-6 && note!.start < f.endSec);
+      fragmentPosition = at ? at.position : null;
+    }
+  }
   const [f] = await db
     .insert(feedback)
-    .values({ lessonId: row.id, fragmentPosition: input.fragmentPosition ?? null, message: input.message })
+    .values({
+      lessonId: row.id,
+      fragmentPosition,
+      noteId: input.noteId ?? null,
+      note,
+      kind: input.kind ?? null,
+      message: input.message,
+    })
     .returning();
   return toFeedback(f, row.slug);
 }
@@ -297,6 +320,20 @@ export async function updateFeedback(
     .returning();
   if (!f) throw new NotFound(`Feedback "${id}" not found`);
   return toFeedback(f);
+}
+
+// ── note ids ────────────────────────────────────────────────────────────────
+
+/** Give stable ids to the notes of lessons stored before notes had them. Returns how many lessons changed. */
+export async function ensureNoteIds(db: Db): Promise<number> {
+  const rows = await db.select({ id: lessons.id, notes: lessons.notes }).from(lessons);
+  let changed = 0;
+  for (const r of rows) {
+    if (r.notes.every((n) => n.id)) continue;
+    await db.update(lessons).set({ notes: withNoteIds(r.notes) }).where(eq(lessons.id, r.id));
+    changed++;
+  }
+  return changed;
 }
 
 // ── guide ───────────────────────────────────────────────────────────────────

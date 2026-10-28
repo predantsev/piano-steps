@@ -447,3 +447,61 @@ describe('guide API', () => {
     expect((await req('GET', '/api/guide?lang=UK')).status).toBe(400);
   });
 });
+
+describe('note ids and note feedback', () => {
+  it('gives every note a stable id, keeps sent ids, rejects duplicates', async () => {
+    const r = await req('POST', '/api/lessons', {
+      slug: 'ids-test',
+      title: 'Ids',
+      notes: [
+        { pitch: 60, start: 0, duration: 0.5, id: 'keep-me' },
+        { pitch: 62, start: 0.5, duration: 0.5 },
+      ],
+    });
+    expect(r.status).toBe(201);
+    const l = (await r.json()) as { notes: { id?: string; pitch: number }[] };
+    expect(l.notes[0].id).toBe('keep-me');
+    expect(l.notes[1].id).toMatch(/^n[0-9a-z]{10}$/);
+    const again = (await (await req('GET', '/api/lessons/ids-test')).json()) as { notes: { id?: string }[] };
+    expect(again.notes.map((n) => n.id)).toEqual(l.notes.map((n) => n.id));
+
+    const dup = await req('POST', '/api/lessons', {
+      title: 'Dup',
+      notes: [
+        { pitch: 60, start: 0, duration: 0.5, id: 'x' },
+        { pitch: 62, start: 0.5, duration: 0.5, id: 'x' },
+      ],
+    });
+    expect(dup.status).toBe(400);
+  });
+
+  it('backfills ids on lessons stored without them', async () => {
+    const { ensureNoteIds } = await import('./repo.ts');
+    const { lessons } = await import('./db/schema.ts');
+    const { eq } = await import('drizzle-orm');
+    await handle.db.update(lessons).set({ notes: [{ pitch: 60, start: 0, duration: 1 }] }).where(eq(lessons.slug, 'ids-test'));
+    expect(await ensureNoteIds(handle.db)).toBe(1);
+    const l = (await (await req('GET', '/api/lessons/ids-test')).json()) as { notes: { id?: string }[] };
+    expect(l.notes[0].id).toMatch(/^n/);
+    expect(await ensureNoteIds(handle.db)).toBe(0);
+  });
+
+  it('stores a report about one note with a copy of it and its fragment', async () => {
+    const lesson = (await (await req('GET', '/api/lessons/ode-to-joy')).json()) as {
+      notes: { id: string; pitch: number; start: number }[];
+      fragments: { start: number; end: number }[];
+    };
+    const note = lesson.notes.find((n) => n.start >= lesson.fragments[1].start)!;
+    const r = await req('POST', '/api/lessons/ode-to-joy/feedback', { noteId: note.id, kind: 'lower' });
+    expect(r.status).toBe(201);
+    const f = (await r.json()) as { noteId: string; note: { pitch: number }; kind: string; fragmentPosition: number; message: string };
+    expect(f).toMatchObject({ noteId: note.id, kind: 'lower', fragmentPosition: 1, message: '' });
+    expect(f.note.pitch).toBe(note.pitch);
+
+    const listed = (await (await req('GET', '/api/feedback?lesson=ode-to-joy')).json()) as { feedback: { noteId?: string }[] };
+    expect(listed.feedback[0].noteId).toBe(note.id);
+
+    expect((await req('POST', '/api/lessons/ode-to-joy/feedback', { noteId: 'nope', kind: 'lower' })).status).toBe(400);
+    expect((await req('POST', '/api/lessons/ode-to-joy/feedback', { message: '' })).status).toBe(400);
+  });
+});
