@@ -5,11 +5,15 @@ with its issue and PR. Rule and checklist: AGENTS.md § "Change log and the guid
 
 ## 2026-10-29
 
-- **Known transcription flaw written down: held notes split into fast re-strikes** (#37). A
-  knowledge-base note and a sanity check in the `/transcribe` skill: count same-pitch notes that follow
-  each other within ~30–50 ms; if there are many, offer the owner a merged copy to compare by ear.
-  *Why:* on "Люди як кораблі" the owner heard held notes drawn as several presses (681 of 1070 notes
-  had such a neighbour); the next song's session should look for it from the start.
+- **Correction: the gap between same-pitch notes does not reveal split held notes** (#37). The
+  knowledge-base note and the `/transcribe` sanity check written earlier today said "a gap under 30–50 ms
+  = a held note split into re-strikes". An audio check showed those are mostly real repeated notes under
+  the pedal (merging by gap would have deleted 61 % of the notes). Now: look for a missing attack (no
+  energy rise at that pitch) and fix only in a copy, checked by ear. *Why:* the earlier rule would have
+  led the next session to destroy correct notes.
+- **Known transcription flaw written down: held notes drawn as several presses** (#37). A knowledge-base
+  note and a sanity check in the `/transcribe` skill. *Why:* on "Люди як кораблі" the owner heard held
+  notes drawn as several presses; the next song's session should look for it from the start.
 
 ## 2026-10-28
 
