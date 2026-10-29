@@ -246,3 +246,36 @@ test('tapping a falling note opens its menu and saves a report about that exact 
   expect(mine.note.pitch).toBeGreaterThan(0);
   await expect(menu).toBeHidden();
 });
+
+test('a fragment note: hold the number, write, mark "come back later", see it on the number and in the list', async ({ page, hasTouch }) => {
+  await openApp(page, '?lesson=fur-elise-opening&ui=falling');
+  const chip = page.locator('.fl-chip[data-fragment="1"]');
+  await expect(chip).toBeVisible();
+  // Hold ~0.5 s (a long press on the iPad, the same pointer events with a mouse).
+  await chip.dispatchEvent('pointerdown', { pointerType: hasTouch ? 'touch' : 'mouse', isPrimary: true });
+  await page.waitForTimeout(650);
+  await chip.dispatchEvent('pointerup', { pointerType: hasTouch ? 'touch' : 'mouse', isPrimary: true });
+  await chip.dispatchEvent('click');
+
+  const menu = page.locator('.fl-fragmenu');
+  await expect(menu).toBeVisible();
+  const text = `e2e ${unique()}`;
+  await menu.locator('textarea').fill(text);
+  await tapOrClick(menu.getByRole('button', { name: 'Come back later' }), hasTouch);
+  await tapOrClick(menu.getByRole('button', { name: 'Too hard — split it' }), hasTouch);
+  await tapOrClick(menu.getByRole('button', { name: 'Save' }), hasTouch);
+  await expect(menu).toBeHidden();
+  await expect(chip).toHaveAttribute('aria-label', /has a note/);
+  await expect(chip).toHaveAttribute('aria-pressed', 'false'); // holding did not switch the fragment
+
+  const stored = await page.evaluate(async () => (await (await fetch('/api/lessons/fur-elise-opening/fragment-notes')).json()).notes);
+  expect(stored).toEqual([expect.objectContaining({ fragmentPosition: 1, text, later: true, tags: ['split'] })]);
+
+  await tapOrClick(page.getByRole('button', { name: /Sounds wrong/ }), hasTouch);
+  await tapOrClick(page.getByRole('tab', { name: /Notes on fragments/ }), hasTouch);
+  const item = page.locator('.frag-notes .report[data-fragment="1"]');
+  await expect(item).toContainText(text);
+  await tapOrClick(item.getByRole('button', { name: 'Done' }), hasTouch);
+  await expect(item).toBeHidden();
+  await expect(chip).not.toHaveAttribute('aria-label', /has a note/);
+});

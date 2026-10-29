@@ -1,4 +1,4 @@
-import type { FeedbackKind, FragmentProgress, Lesson, LessonSummary, ProgressStatus } from '@piano-steps/core';
+import type { FeedbackKind, FragmentNote, FragmentNoteInput, FragmentProgress, Lesson, LessonSummary, ProgressStatus } from '@piano-steps/core';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as api from './api.ts';
 import { LessonPlayer } from './audio/player.ts';
@@ -40,6 +40,7 @@ export default function App() {
     VARIANTS.some((v) => v.id === initial.current.ui) ? initial.current.ui! : VARIANTS[0].id,
   );
   const [progress, setProgress] = useState<FragmentProgress[]>([]);
+  const [fragmentNotes, setFragmentNotes] = useState<FragmentNote[]>([]);
   const [fragmentPos, setFragmentPos] = useState<number | null>(null);
   const [dialog, setDialog] = useState<null | 'feedback' | 'original' | 'settings' | 'help'>(null);
   const closeDialog = useCallback(() => setDialog(null), []);
@@ -102,6 +103,8 @@ export default function App() {
         player.load(l.notes);
         setLesson(l);
         setFragmentPos(null);
+        setFragmentNotes([]);
+        void api.listFragmentNotes(l.slug).then(setFragmentNotes, () => {});
         setProgress(await api.getProgress(l.slug).catch(() => []));
       })
       .catch((e) => !cancelled && setError(String(e)));
@@ -127,6 +130,18 @@ export default function App() {
     async (r: { noteId: string; kind?: FeedbackKind; message?: string }) => {
       if (!lesson) throw new Error('no lesson');
       await api.sendFeedback(lesson.slug, { noteId: r.noteId, ...(r.kind ? { kind: r.kind } : {}), message: r.message ?? '' });
+    },
+    [lesson],
+  );
+
+  const saveFragmentNote = useCallback(
+    async (position: number, note: FragmentNoteInput) => {
+      if (!lesson) throw new Error('no lesson');
+      const saved = await api.saveFragmentNote(lesson.slug, position, note);
+      setFragmentNotes((ns) => {
+        const rest = ns.filter((n) => n.fragmentPosition !== position);
+        return saved ? [...rest, saved].sort((a, b) => a.fragmentPosition - b.fragmentPosition) : rest;
+      });
     },
     [lesson],
   );
@@ -314,6 +329,8 @@ export default function App() {
               onFragmentChange={onFragmentChange}
               reportState={reportState}
               reportNote={reportNote}
+              fragmentNotes={fragmentNotes}
+              saveFragmentNote={saveFragmentNote}
             />
           </Suspense>
         ) : (
@@ -330,6 +347,9 @@ export default function App() {
           fragmentTitle={`${lesson.title} · ${fragTitle}`}
           lang={lang}
           noteNames={settings.noteNames}
+          notes={fragmentNotes}
+          titleOf={(i) => `${t(lang, 'fragmentShort')} ${lesson.fragments[i]?.title ?? `#${i + 1}`}`}
+          onNoteDone={(i) => saveFragmentNote(i, { text: '', later: false, tags: [] })}
           onClose={() => setDialog(null)}
         />
       )}

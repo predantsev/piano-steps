@@ -7,6 +7,9 @@ import {
   validateLessonInput,
   withNoteIds,
   type Feedback,
+  type FragmentNote,
+  type FragmentNoteTag,
+  isEmptyFragmentNote,
   type FeedbackKind,
   type Guide,
   type GuideInput,
@@ -21,7 +24,7 @@ import {
 } from '@piano-steps/core';
 import { and, asc, desc, eq, sql } from 'drizzle-orm';
 import type { Db } from './db/client.ts';
-import { feedback, fragments, guideOverrides, lessons, progress } from './db/schema.ts';
+import { feedback, fragmentNotes, fragments, guideOverrides, lessons, progress } from './db/schema.ts';
 
 type LessonRow = typeof lessons.$inferSelect;
 type FragmentRow = typeof fragments.$inferSelect;
@@ -234,6 +237,57 @@ export async function recordProgress(
       },
     });
   return getProgress(db, row.id);
+}
+
+// ── fragment notes ──────────────────────────────────────────────────────────
+
+type FragmentNoteRow = typeof fragmentNotes.$inferSelect;
+
+function toFragmentNote(r: FragmentNoteRow): FragmentNote {
+  return { fragmentPosition: r.fragmentPosition, text: r.text, later: r.later, tags: r.tags, updatedAt: r.updatedAt.toISOString() };
+}
+
+export async function listFragmentNotes(db: Db, idOrSlug: string): Promise<FragmentNote[]> {
+  const row = await findRow(db, idOrSlug);
+  const rows = await db
+    .select()
+    .from(fragmentNotes)
+    .where(eq(fragmentNotes.lessonId, row.id))
+    .orderBy(asc(fragmentNotes.fragmentPosition));
+  return rows.map(toFragmentNote);
+}
+
+/** Create or replace the note on one fragment; an empty note removes it (returns null). */
+export async function putFragmentNote(
+  db: Db,
+  idOrSlug: string,
+  position: number,
+  input: { text: string; later: boolean; tags: FragmentNoteTag[] },
+): Promise<FragmentNote | null> {
+  const row = await findRow(db, idOrSlug);
+  const [{ n }] = await db.select({ n: sql<number>`count(*)` }).from(fragments).where(eq(fragments.lessonId, row.id));
+  if (position >= Number(n)) throw new NotFound(`Lesson "${row.slug}" has no fragment ${position}`);
+  if (isEmptyFragmentNote(input)) {
+    await deleteFragmentNote(db, row.id, position);
+    return null;
+  }
+  const values = { text: input.text, later: input.later, tags: [...new Set(input.tags)], updatedAt: new Date() };
+  const [r] = await db
+    .insert(fragmentNotes)
+    .values({ lessonId: row.id, fragmentPosition: position, ...values })
+    .onConflictDoUpdate({ target: [fragmentNotes.lessonId, fragmentNotes.fragmentPosition], set: values })
+    .returning();
+  return toFragmentNote(r);
+}
+
+/** Remove the note on one fragment. False when there was none. */
+export async function deleteFragmentNote(db: Db, idOrSlug: string, position: number): Promise<boolean> {
+  const lessonId = UUID_RE.test(idOrSlug) ? idOrSlug : (await findRow(db, idOrSlug)).id;
+  const gone = await db
+    .delete(fragmentNotes)
+    .where(and(eq(fragmentNotes.lessonId, lessonId), eq(fragmentNotes.fragmentPosition, position)))
+    .returning();
+  return gone.length > 0;
 }
 
 // ── feedback ────────────────────────────────────────────────────────────────

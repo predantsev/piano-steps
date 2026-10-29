@@ -2,6 +2,8 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import {
   FeedbackInput,
   FeedbackKind,
+  FragmentNoteInput,
+  FragmentNoteTag,
   FeedbackStatus,
   Fragment,
   GuideInput,
@@ -108,6 +110,23 @@ const GuideSourceOut = z.enum(['repo', 'override']).openapi({
 });
 const GuideOut = GuideInput.extend({ lang: z.string(), source: GuideSourceOut, updatedAt: z.string().optional() }).openapi('Guide');
 const guideExample = { lang: 'en', source: 'repo', title: BUNDLED_GUIDES.en.title, sections: BUNDLED_GUIDES.en.sections.slice(0, 1) };
+
+const FragmentNoteOut = z
+  .object({
+    fragmentPosition: z.number(),
+    text: z.string(),
+    later: z.boolean(),
+    tags: z.array(FragmentNoteTag),
+    updatedAt: z.string(),
+  })
+  .openapi('FragmentNote');
+const fragmentNoteExample = {
+  fragmentPosition: 5,
+  text: 'Not sure about the middle — too hard, compare with the original',
+  later: true,
+  tags: ['split'],
+  updatedAt: '2026-10-29T12:00:00.000Z',
+};
 
 const ErrorOut = z
   .object({
@@ -553,6 +572,69 @@ export function createApp({ db, dbKind, apiToken }: AppOptions) {
     }),
     async (c) =>
       c.json({ progress: await repo.recordProgress(db, c.req.valid('param').ref, c.req.valid('json')) }, 200),
+  );
+
+  // ── fragment notes ───────────────────────────────────────────────────────
+  const Position = z.coerce.number().int().min(0).openapi({ example: 5, description: 'Fragment index (0-based)' });
+
+  app.openapi(
+    createRoute({
+      method: 'get',
+      path: '/api/lessons/{ref}/fragment-notes',
+      tags: ['practice'],
+      summary: "The user's notes on this lesson's fragments",
+      description:
+        'One entry per fragment that has a note: free text, `later` ("come back to this later") and `tags` — ' +
+        'wishes for re-splitting (split · merge-next · boundary). Agents: read these when asked to "look at my notes".',
+      request: { params: z.object({ ref: Ref }) },
+      responses: { 200: json(z.object({ notes: z.array(FragmentNoteOut) }), 'Notes', { notes: [fragmentNoteExample] }), ...read },
+    }),
+    async (c) => c.json({ notes: await repo.listFragmentNotes(db, c.req.valid('param').ref) }, 200),
+  );
+
+  app.openapi(
+    createRoute({
+      method: 'put',
+      path: '/api/lessons/{ref}/fragments/{position}/note',
+      tags: ['practice'],
+      summary: 'Save the note on one fragment (an empty note removes it)',
+      description:
+        'Replaces the note. Sending no text, `later: false` and no tags deletes it and answers `{ "note": null }`.',
+      request: {
+        params: z.object({ ref: Ref, position: Position }),
+        body: body(FragmentNoteInput, { text: fragmentNoteExample.text, later: true, tags: ['split'] }),
+      },
+      responses: {
+        200: json(z.object({ note: FragmentNoteOut.nullable() }), 'Saved', { note: fragmentNoteExample }),
+        ...write,
+        ...read,
+      },
+    }),
+    async (c) => {
+      const { ref, position } = c.req.valid('param');
+      return c.json({ note: await repo.putFragmentNote(db, ref, position, c.req.valid('json')) }, 200);
+    },
+  );
+
+  app.openapi(
+    createRoute({
+      method: 'delete',
+      path: '/api/lessons/{ref}/fragments/{position}/note',
+      tags: ['practice'],
+      summary: 'Remove the note on one fragment',
+      description: 'For example once the fragment was fixed or re-cut.',
+      request: { params: z.object({ ref: Ref, position: Position }) },
+      responses: {
+        204: { description: 'Deleted' },
+        401: write[401],
+        404: err('No such lesson, or no note on that fragment', ex.errors.notFound),
+      },
+    }),
+    async (c) => {
+      const { ref, position } = c.req.valid('param');
+      if (!(await repo.deleteFragmentNote(db, ref, position))) throw new repo.NotFound(`No note on fragment ${position}`);
+      return c.body(null, 204);
+    },
   );
 
   // ── feedback ─────────────────────────────────────────────────────────────

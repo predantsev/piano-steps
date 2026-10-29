@@ -1,4 +1,4 @@
-import type { FeedbackKind, FragmentProgress, Lesson, ProgressStatus } from '@piano-steps/core';
+import type { FeedbackKind, FragmentNote, FragmentNoteInput, FragmentProgress, Lesson, ProgressStatus } from '@piano-steps/core';
 import type { ComponentType, LazyExoticComponent } from 'react';
 import type { LessonPlayer } from './audio/player.ts';
 import type { NoteInput } from './input/noteInput.ts';
@@ -44,6 +44,10 @@ export interface VariantProps {
    * Rejects with a readable Error (offline, missing token, …).
    */
   reportNote?(report: { noteId: string; kind?: FeedbackKind; message?: string }): Promise<void>;
+  /** The user's notes on this lesson's fragments (text, "come back later", re-split wishes). */
+  fragmentNotes?: FragmentNote[];
+  /** Save the note on a fragment (an empty note removes it). Rejects with a readable Error. */
+  saveFragmentNote?(position: number, note: FragmentNoteInput): Promise<void>;
 }
 
 export interface VariantDef {

@@ -1,5 +1,5 @@
 import type { GuideSection, LessonNote, LessonSource, Tempo } from '@piano-steps/core';
-import { doublePrecision, integer, jsonb, pgTable, text, timestamp, unique, uuid } from 'drizzle-orm/pg-core';
+import { boolean, doublePrecision, integer, jsonb, pgTable, text, timestamp, unique, uuid } from 'drizzle-orm/pg-core';
 
 /**
  * Lessons live here, never in git (the repo is public; transcriptions of songs are not ours
@@ -82,3 +82,20 @@ export const guideOverrides = pgTable('guide_overrides', {
   sections: jsonb('sections').$type<GuideSection[]>().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
+
+/** The user's notes on fragments (keyed by position, like progress): text, "come back later", wishes for re-splitting. */
+export const fragmentNotes = pgTable(
+  'fragment_notes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    lessonId: uuid('lesson_id')
+      .notNull()
+      .references(() => lessons.id, { onDelete: 'cascade' }),
+    fragmentPosition: integer('fragment_position').notNull(),
+    text: text('text').notNull().default(''),
+    later: boolean('later').notNull().default(false),
+    tags: jsonb('tags').$type<('split' | 'merge-next' | 'boundary')[]>().notNull().default([]),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [unique('fragment_notes_lesson_fragment').on(t.lessonId, t.fragmentPosition)],
+);

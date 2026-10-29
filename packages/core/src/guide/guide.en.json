@@ -24,7 +24,8 @@
         "• Hands: Both, Left, Right — practise one hand, the other stays silent. Green is right, blue is left.",
         "• 👁 Ahead: how many seconds of notes you see in advance (2 / 3 / 5).",
         "• Tap a falling bar: playback pauses, the note sounds and a small menu opens — 🔊 Hear it, ⚑ Sounds wrong (see below), ✎ Fix it myself (coming later).",
-        "• At the top: the fragments and \"Whole lesson\"; next to them ✓ Got it."
+        "• At the top: the fragments and \"Whole lesson\"; next to them ✓ Got it.",
+        "• Notes on a fragment: tap Note (next to Got it) for the current fragment, or hold any fragment number for half a second (right-click on a Mac). Write a note, mark \"Come back later\", or tick a wish for re-cutting — Too hard — split it, Merge with the next, Boundary is wrong — and tap Save. The number then shows a pencil (a note) and a bookmark (come back later)."
       ]
     },
     {
@@ -103,6 +104,7 @@
         "• An agent fixes it: tell Claude Code \"check the feedback queue\" (the /transcribe skill). It goes to the reported note or fragment, re-transcribes it from the original or corrects it with you listening, and marks the report fixed — or says why it could not.",
         "• Without an agent: fix it by hand — open the original (🎧), find the right notes and import a corrected lesson.",
         "Your reports and what became of them (open, in progress, fixed, won't fix, with the agent's note) are listed under the form in ⚑ Sounds wrong.",
+        "The same window has a second tab, Notes on fragments: every note of the lesson, with \"Only Come back later\" to filter and Done to remove one. Tell Claude Code \"look at my notes on this lesson\" to go through them together.",
         "The more specific (which note, higher or lower, which hand), the better the fix."
       ]
     },

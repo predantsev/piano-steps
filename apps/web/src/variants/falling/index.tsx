@@ -9,6 +9,7 @@ import { PracticeEngine, type PracticeOptions } from './engine.ts';
 import { fitRange, keyGeometry } from './geometry.ts';
 import { barRect, drawLane, readColors, type LaneColors } from './lane.ts';
 import { keyMarks, marksSignature } from './marks.ts';
+import { FragmentNoteMenu } from './FragmentNoteMenu.tsx';
 import { NoteMenu } from './NoteMenu.tsx';
 import { s } from './strings.ts';
 import { visibleBars, type Bar, type Hands } from './timeline.ts';
@@ -90,6 +91,8 @@ export default function FallingNotes({
   recordProgress,
   onFragmentChange,
   reportNote,
+  fragmentNotes = [],
+  saveFragmentNote,
 }: VariantProps) {
   const [fragIdx, setFragIdx] = useState<number | null>(lesson.fragments.length ? 0 : null);
   const [prefs, setPrefs] = useState<Prefs>(() => readPrefs(settings.speed));
@@ -383,15 +386,62 @@ export default function FallingNotes({
     primaryLabel = s(lang, 'play');
   }
 
+  // Fragment notes: the Note button (current fragment) or holding / right-clicking a fragment number.
+  const [fragMenu, setFragMenu] = useState<{ position: number; x: number; y: number } | null>(null);
+  const closeFragMenu = useCallback(() => setFragMenu(null), []);
+  const holdRef = useRef<{ timer: ReturnType<typeof setTimeout> | null; fired: boolean }>({ timer: null, fired: false });
+  const noteOf = (i: number) => fragmentNotes.find((n) => n.fragmentPosition === i);
+  const openFragMenu = (i: number, el: Element) => {
+    if (!saveFragmentNote) return;
+    const r = el.getBoundingClientRect();
+    setFragMenu({ position: i, x: r.left, y: r.bottom });
+  };
+  const fragTitle = (i: number) => `${s(lang, 'fragNoteTitle')} ${lesson.fragments[i]?.title ?? `#${i + 1}`}`;
+
   const chip = (label: string, i: number | null) => {
     const pr = i === null ? undefined : progressOf(i);
     const isDone = pr?.status === 'mastered';
+    const note = i === null ? undefined : noteOf(i);
+    const hasText = !!note && (note.text.trim() !== '' || note.tags.length > 0);
+    const hold = holdRef.current;
+    const stopHold = () => {
+      if (hold.timer) clearTimeout(hold.timer);
+      hold.timer = null;
+    };
     return (
       <button
         key={i ?? 'all'}
         className={`btn fl-chip ${i === fragIdx ? 'primary' : ''} ${isDone ? 'fl-mastered' : ''}`}
         aria-pressed={i === fragIdx}
-        onClick={() => setFragIdx(i)}
+        aria-label={note ? `${label}, ${s(lang, 'hasNote')}` : undefined}
+        data-fragment={i ?? 'all'}
+        onPointerDown={(e) => {
+          hold.fired = false;
+          stopHold();
+          if (i === null || !saveFragmentNote) return;
+          const el = e.currentTarget;
+          hold.timer = setTimeout(() => {
+            hold.fired = true;
+            openFragMenu(i, el);
+          }, 500);
+        }}
+        onPointerUp={stopHold}
+        onPointerLeave={stopHold}
+        onPointerCancel={stopHold}
+        onContextMenu={(e) => {
+          if (i === null || !saveFragmentNote) return;
+          e.preventDefault();
+          stopHold();
+          hold.fired = true;
+          openFragMenu(i, e.currentTarget);
+        }}
+        onClick={() => {
+          if (hold.fired) {
+            hold.fired = false;
+            return;
+          }
+          setFragIdx(i);
+        }}
       >
         {isDone && <span aria-hidden>✓</span>}
         <span>{label}</span>
@@ -399,6 +449,16 @@ export default function FallingNotes({
           <span className="fl-count" title={`${pr.attempts} ${s(lang, 'runs')}`}>
             ×{pr.attempts}
           </span>
+        )}
+        {hasText && (
+          <svg className="fl-mark" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <path d="M4 20h4L19 9l-4-4L4 16z" />
+          </svg>
+        )}
+        {note?.later && (
+          <svg className="fl-mark fl-mark-later" width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+            <path d="M6 3h12v18l-6-4-6 4z" />
+          </svg>
         )}
       </button>
     );
@@ -437,6 +497,30 @@ export default function FallingNotes({
           >
             ✓ {s(lang, mastered ? 'mastered' : 'gotIt')}
           </button>
+        )}
+        {fragIdx !== null && saveFragmentNote && (
+          <button
+            className="btn fl-notebtn"
+            title={s(lang, 'fragNoteHint')}
+            aria-pressed={!!noteOf(fragIdx)}
+            onClick={(e) => openFragMenu(fragIdx, e.currentTarget)}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M4 20h4L19 9l-4-4L4 16z" />
+            </svg>
+            {s(lang, 'fragNote')}
+          </button>
+        )}
+        {fragMenu && saveFragmentNote && (
+          <FragmentNoteMenu
+            key={fragMenu.position}
+            title={fragTitle(fragMenu.position)}
+            note={noteOf(fragMenu.position)}
+            at={fragMenu}
+            lang={lang}
+            onSave={(n) => saveFragmentNote(fragMenu.position, n)}
+            onClose={closeFragMenu}
+          />
         )}
       </div>
 
