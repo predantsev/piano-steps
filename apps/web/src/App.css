@@ -178,3 +178,27 @@
   color: var(--bad);
   border-color: var(--bad);
 }
+
+.feedback-tabs {
+  margin-top: 16px;
+}
+.frag-notes {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+}
+.frag-notes .report {
+  width: 100%;
+}
+.frag-note-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+.frag-note-head .spacer {
+  flex: 1;
+}
+.report-st.st-later {
+  border-color: var(--accent);
+}

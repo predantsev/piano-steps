@@ -5,6 +5,15 @@ with its issue and PR. Rule and checklist: AGENTS.md § "Change log and the guid
 
 ## 2026-10-29
 
+- **Notes on fragments** (#40). In Falling notes, a **Note** button (current fragment) and holding /
+  right-clicking any fragment number open a note: free text, **Come back later**, and wishes for
+  re-cutting (too hard — split · merge with the next · boundary is wrong). Numbers show a pencil and a
+  bookmark; the ⚑ window gets a **Notes on fragments** tab with a "come back later" filter and Done.
+  Stored in `fragment_notes` (one per fragment, by position), API `GET …/fragment-notes`,
+  `PUT|DELETE …/fragments/{position}/note`. Guide updated in en and uk. *Why:* while checking a lesson
+  fragment by fragment, the owner wants to mark one he is unsure about and come back to it later
+  (with an agent), and to note how fragments should be cut (#33). Picked variant A of a clickable mockup.
+
 - **Correction: the gap between same-pitch notes does not reveal split held notes** (#37). The
   knowledge-base note and the `/transcribe` sanity check written earlier today said "a gap under 30–50 ms
   = a held note split into re-strikes". An audio check showed those are mostly real repeated notes under

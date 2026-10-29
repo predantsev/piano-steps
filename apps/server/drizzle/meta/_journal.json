@@ -36,6 +36,13 @@
       "when": 1793203909542,
       "tag": "0004_guide_overrides",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793270247189,
+      "tag": "0005_fragment_notes",
+      "breakpoints": true
     }
   ]
 }

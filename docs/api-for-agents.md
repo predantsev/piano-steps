@@ -120,3 +120,13 @@ alters what the user sees, update **every** language in the same PR (same sectio
 `CHANGELOG.md` entry. `PUT /api/guide/{lang}` only saves a temporary override (shown at once); if you
 use it, move the text into the file in a PR and `DELETE /api/guide/{lang}`. `GET /api/guides` shows
 unsynced overrides (`source: "override"`). See `docs/guide.md`.
+
+## Notes on fragments
+
+The owner can leave a note on any fragment from the app (hold a fragment number, or the Note button):
+`GET /api/lessons/{ref}/fragment-notes` → `{ notes: [{ fragmentPosition, text, later, tags, updatedAt }] }`.
+`later: true` = "come back to this later"; `tags` are wishes for re-cutting fragments: `split` (too hard),
+`merge-next`, `boundary` (the border is in the wrong place). When asked to "look at my notes", read them,
+work through them with the owner, then remove the done ones: `DELETE /api/lessons/{ref}/fragments/{position}/note`
+(or `PUT` the same path to update one; an empty note removes it). Notes are keyed by fragment position,
+like progress — re-cutting a lesson's fragments shifts them.

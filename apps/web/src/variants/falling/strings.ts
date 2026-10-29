@@ -48,6 +48,19 @@ const STRINGS = {
   handR: { uk: 'права', en: 'right' },
   handL: { uk: 'ліва', en: 'left' },
   close: { uk: 'Закрити', en: 'Close' },
+  fragNote: { uk: 'Нотатка', en: 'Note' },
+  fragNoteTitle: { uk: 'Фрагмент', en: 'Fragment' },
+  fragNotePlaceholder: { uk: 'Наприклад: ліва рука звучить не так, повернутись з агентом', en: 'E.g. the left hand sounds off, come back with an agent' },
+  fragLater: { uk: 'Повернутися пізніше', en: 'Come back later' },
+  fragTagsLabel: { uk: 'Для розбивки на фрагменти (на потім)', en: 'For re-cutting fragments (later)' },
+  tagSplit: { uk: 'Занадто складний — розбити', en: 'Too hard — split it' },
+  tagMerge: { uk: 'Об’єднати з наступним', en: 'Merge with the next' },
+  tagBoundary: { uk: 'Межа не там', en: 'Boundary is wrong' },
+  save: { uk: 'Зберегти', en: 'Save' },
+  cancel: { uk: 'Скасувати', en: 'Cancel' },
+  remove: { uk: 'Видалити', en: 'Delete' },
+  hasNote: { uk: 'є нотатка', en: 'has a note' },
+  fragNoteHint: { uk: 'Утримайте номер фрагмента — нотатка до нього', en: 'Hold a fragment number for its note' },
 } as const;
 
 export type StringKey = keyof typeof STRINGS;

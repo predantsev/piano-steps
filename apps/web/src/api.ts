@@ -4,6 +4,8 @@ import {
   prepareLesson,
   validateLessonInput,
   type Feedback,
+  type FragmentNote,
+  type FragmentNoteInput,
   type FeedbackInput,
   type Guide,
   type FragmentProgress,
@@ -207,4 +209,22 @@ export async function getGuide(lang: string): Promise<Guide> {
   } catch {
     return bundledGuide(lang);
   }
+}
+
+/** The user's notes on a lesson's fragments (empty offline). */
+export async function listFragmentNotes(ref: string): Promise<FragmentNote[]> {
+  if (offline) return [];
+  const { notes } = await call<{ notes: FragmentNote[] }>('GET', `/api/lessons/${encodeURIComponent(ref)}/fragment-notes`);
+  return notes;
+}
+
+/** Save the note on one fragment; an empty note removes it (→ null). */
+export async function saveFragmentNote(ref: string, position: number, input: FragmentNoteInput): Promise<FragmentNote | null> {
+  if (offline) throw new ApiError('offline: notes need the server', 503);
+  const { note } = await call<{ note: FragmentNote | null }>(
+    'PUT',
+    `/api/lessons/${encodeURIComponent(ref)}/fragments/${position}/note`,
+    input,
+  );
+  return note;
 }

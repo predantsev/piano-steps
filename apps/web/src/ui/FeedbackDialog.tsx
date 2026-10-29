@@ -1,4 +1,4 @@
-import { pitchName, type Feedback } from '@piano-steps/core';
+import { pitchName, type Feedback, type FragmentNote } from '@piano-steps/core';
 import { useEffect, useState } from 'react';
 import { listFeedback, sendFeedback } from '../api.ts';
 import { t, type StringKey } from '../i18n.ts';
@@ -19,6 +19,45 @@ const KIND: Record<NonNullable<Feedback['kind']>, StringKey> = {
   other: 'kOther',
 };
 
+const TAG: Record<FragmentNote['tags'][number], StringKey> = { split: 'tSplit', 'merge-next': 'tMerge', boundary: 'tBoundary' };
+
+/** The user's notes on this lesson's fragments; "Done" removes one. */
+function FragmentNotes({ notes, fragmentTitle, lang, onDone }: {
+  notes: FragmentNote[];
+  fragmentTitle(position: number): string;
+  lang: Lang;
+  onDone(position: number): Promise<void>;
+}) {
+  const [laterOnly, setLaterOnly] = useState(false);
+  const shown = notes.filter((n) => !laterOnly || n.later);
+  return (
+    <div className="reports frag-notes">
+      <button className="btn" aria-pressed={laterOnly} onClick={() => setLaterOnly(!laterOnly)}>
+        {t(lang, 'laterOnly')}
+      </button>
+      {notes.length === 0 && <p className="muted">{t(lang, 'noFragNotes')}</p>}
+      {shown.map((n) => (
+        <div key={n.fragmentPosition} className="report" data-fragment={n.fragmentPosition}>
+          <div className="frag-note-head">
+            <b>{fragmentTitle(n.fragmentPosition)}</b>
+            {n.later && <span className="report-st st-later">{t(lang, 'laterBadge')}</span>}
+            <span className="spacer" />
+            <button className="btn" onClick={() => void onDone(n.fragmentPosition)}>
+              {t(lang, 'noteDone')}
+            </button>
+          </div>
+          {n.text && <div>{n.text}</div>}
+          {n.tags.length > 0 && (
+            <div className="muted">
+              {t(lang, 'tagsPrefix')}: {n.tags.map((x) => t(lang, TAG[x])).join(' · ')}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /** Earlier reports on this lesson (from the dialog and from tapped notes), with what became of them. */
 function MyReports({ lessonRef, lang, noteNames }: { lessonRef: string; lang: Lang; noteNames: Settings['noteNames'] }) {
   const [items, setItems] = useState<Feedback[] | null>(null);
@@ -35,7 +74,6 @@ function MyReports({ lessonRef, lang, noteNames }: { lessonRef: string; lang: La
   if (!items) return null;
   return (
     <div className="reports">
-      <h4>{t(lang, 'myReports')}</h4>
       {items.length === 0 && <p className="muted">{t(lang, 'noReports')}</p>}
       {items.map((f) => (
         <div key={f.id} className="report" data-status={f.status}>
@@ -58,14 +96,19 @@ function MyReports({ lessonRef, lang, noteNames }: { lessonRef: string; lang: La
 }
 
 /** "This fragment sounds wrong" → POST /api/lessons/{ref}/feedback; an agent picks it up. */
-export function FeedbackDialog({ lessonRef, fragmentPosition, fragmentTitle, lang, noteNames, onClose }: {
+export function FeedbackDialog({ lessonRef, fragmentPosition, fragmentTitle, lang, noteNames, notes, titleOf, onNoteDone, onClose }: {
   lessonRef: string;
   fragmentPosition: number | null;
   fragmentTitle: string;
   lang: Lang;
   noteNames: Settings['noteNames'];
+  /** The user's notes on this lesson's fragments, shown in the second tab. */
+  notes: FragmentNote[];
+  titleOf(position: number): string;
+  onNoteDone(position: number): Promise<void>;
   onClose: () => void;
 }) {
+  const [tab, setTab] = useState<'reports' | 'notes'>('reports');
   const [text, setText] = useState('');
   const [state, setState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   const [err, setErr] = useState('');
@@ -111,7 +154,19 @@ export function FeedbackDialog({ lessonRef, fragmentPosition, fragmentTitle, lan
             </div>
           </>
         )}
-        <MyReports lessonRef={lessonRef} lang={lang} noteNames={noteNames} />
+        <div className="seg feedback-tabs" role="tablist">
+          <button role="tab" aria-pressed={tab === 'reports'} onClick={() => setTab('reports')}>
+            {t(lang, 'myReports')}
+          </button>
+          <button role="tab" aria-pressed={tab === 'notes'} onClick={() => setTab('notes')}>
+            {t(lang, 'fragNotesTab')} ({notes.length})
+          </button>
+        </div>
+        {tab === 'reports' ? (
+          <MyReports lessonRef={lessonRef} lang={lang} noteNames={noteNames} />
+        ) : (
+          <FragmentNotes notes={notes} fragmentTitle={titleOf} lang={lang} onDone={onNoteDone} />
+        )}
       </div>
     </div>
   );

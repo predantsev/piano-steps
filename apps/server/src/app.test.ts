@@ -503,3 +503,26 @@ describe('note ids and note feedback', () => {
     expect((await req('POST', '/api/lessons/ode-to-joy/feedback', { message: '' })).status).toBe(400);
   });
 });
+
+describe('fragment notes', () => {
+  it('saves, lists, replaces and removes the note on a fragment', async () => {
+    const put = await req('PUT', '/api/lessons/twinkle-twinkle/fragments/1/note', { text: 'too hard', later: true, tags: ['split', 'split'] });
+    expect(put.status).toBe(200);
+    expect(((await put.json()) as { note: { tags: string[] } }).note.tags).toEqual(['split']);
+    await req('PUT', '/api/lessons/twinkle-twinkle/fragments/0/note', { later: true });
+
+    const list = (await (await req('GET', '/api/lessons/twinkle-twinkle/fragment-notes')).json()) as {
+      notes: { fragmentPosition: number; text: string; later: boolean }[];
+    };
+    expect(list.notes.map((n) => n.fragmentPosition)).toEqual([0, 1]);
+    expect(list.notes[1]).toMatchObject({ text: 'too hard', later: true });
+
+    const cleared = await req('PUT', '/api/lessons/twinkle-twinkle/fragments/1/note', { text: '  ', later: false, tags: [] });
+    expect(await cleared.json()).toEqual({ note: null });
+    expect((await req('DELETE', '/api/lessons/twinkle-twinkle/fragments/0/note')).status).toBe(204);
+    expect((await req('DELETE', '/api/lessons/twinkle-twinkle/fragments/0/note')).status).toBe(404);
+
+    expect((await req('PUT', '/api/lessons/twinkle-twinkle/fragments/99/note', { later: true })).status).toBe(404);
+    expect((await req('PUT', '/api/lessons/twinkle-twinkle/fragments/0/note', { tags: ['nope'] })).status).toBe(400);
+  });
+});

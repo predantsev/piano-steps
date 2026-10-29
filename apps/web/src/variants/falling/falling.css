@@ -274,3 +274,55 @@
   color: var(--bad);
   margin: 0;
 }
+
+/* Fragment notes: marks on the numbers, the Note button, the menu. */
+.fl-chip {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.fl-mark {
+  flex: none;
+}
+.fl-chip:not(.primary) .fl-mark-later {
+  color: var(--accent);
+}
+.fl-notebtn {
+  gap: 6px;
+  border-color: var(--accent);
+}
+.fl-notebtn[aria-pressed='true'] {
+  background: color-mix(in srgb, var(--accent) 12%, var(--panel));
+}
+.fl-fragmenu {
+  width: min(420px, calc(100vw - 16px));
+}
+.fl-nm-tags {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.fl-nm-tags .btn {
+  font-size: 0.85rem;
+  padding: 4px 6px;
+  white-space: normal;
+}
+.fl-later {
+  align-self: flex-start;
+  gap: 8px;
+}
+.fl-later[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--panel));
+  font-weight: 600;
+}
+.fl-nm-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+.fl-nm-spacer {
+  flex: 1;
+}
+.fl-nm-del {
+  color: var(--bad);
+  border-color: var(--bad);
+}

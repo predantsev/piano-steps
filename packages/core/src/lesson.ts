@@ -161,6 +161,33 @@ export interface Feedback {
   updatedAt: string;
 }
 
+/** Quick wishes about how a fragment is cut (input for re-splitting, #33). */
+export const FragmentNoteTag = z
+  .enum(['split', 'merge-next', 'boundary'])
+  .describe('split = too hard, cut it smaller; merge-next = join with the next fragment; boundary = the border is in the wrong place');
+export type FragmentNoteTag = z.infer<typeof FragmentNoteTag>;
+
+/** The user's note on one fragment: free text, a "come back later" mark and quick tags. */
+export const FragmentNoteInput = z.object({
+  text: z.string().max(4000).default(''),
+  later: z.boolean().default(false).describe('"Come back to this later"'),
+  tags: z.array(FragmentNoteTag).max(3).default([]),
+});
+export type FragmentNoteInput = z.input<typeof FragmentNoteInput>;
+
+export interface FragmentNote {
+  fragmentPosition: number;
+  text: string;
+  later: boolean;
+  tags: FragmentNoteTag[];
+  updatedAt: string;
+}
+
+/** A note with nothing in it — saving one removes the note. */
+export function isEmptyFragmentNote(n: { text?: string; later?: boolean; tags?: readonly string[] }): boolean {
+  return !(n.text ?? '').trim() && !n.later && !(n.tags ?? []).length;
+}
+
 export const ProgressStatus = z.enum(['new', 'learning', 'mastered']);
 export type ProgressStatus = z.infer<typeof ProgressStatus>;
 
