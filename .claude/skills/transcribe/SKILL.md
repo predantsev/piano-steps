@@ -49,7 +49,12 @@ uv run transcribe youtube "<url>" --title "<Song> — <performer>" [--composer �
 3. **Listen**: open the lesson URL, play fragment 1 (▶ Fragment), then tap 🎧 Original — the video
    must start at the same music (that is `source.offsetSec`). If it is off, the first detected note
    was noise: re-run with `--start` just before the music begins.
-4. Tell the owner what you made: title, URL, fragment count, engine, and the weak spots from the
+4. **Held notes split into re-strikes**: count consecutive same-pitch notes whose gap (end of one →
+   start of the next) is under ~30–50 ms. Many of them mean held notes came out as several fast
+   presses (seen on a real lesson: 681 of 1070 notes). Offer the owner a **copy** with each run merged
+   into one note to compare by ear — never rewrite the original first. See
+   `docs/knowledge-base/re-struck-notes.md`.
+5. Tell the owner what you made: title, URL, fragment count, engine, and the weak spots from the
    lesson's `source.note`. Do not claim it is correct — say it is a transcription to check by ear.
 
 ## 3 · The feedback loop ("this fragment sounds wrong")

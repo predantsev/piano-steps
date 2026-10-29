@@ -3,6 +3,14 @@
 Every change that reaches the app is logged here: **what** changed and **why**, newest first,
 with its issue and PR. Rule and checklist: AGENTS.md § "Change log and the guide".
 
+## 2026-10-29
+
+- **Known transcription flaw written down: held notes split into fast re-strikes** (#37). A
+  knowledge-base note and a sanity check in the `/transcribe` skill: count same-pitch notes that follow
+  each other within ~30–50 ms; if there are many, offer the owner a merged copy to compare by ear.
+  *Why:* on "Люди як кораблі" the owner heard held notes drawn as several presses (681 of 1070 notes
+  had such a neighbour); the next song's session should look for it from the start.
+
 ## 2026-10-28
 
 - **The guide moved back into the repo, in both languages** (#35). `guide.en.json` and
