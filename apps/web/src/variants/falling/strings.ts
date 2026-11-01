@@ -26,6 +26,8 @@ const STRINGS = {
   playThese: { uk: 'Зіграй', en: 'Play' },
   spaceHint: { uk: '· пробіл = «Далі»', en: '· Space = Next' },
   nextFragment: { uk: 'Наступний', en: 'Next' },
+  prevFragment: { uk: 'Попередній', en: 'Previous' },
+  space: { uk: 'пробіл', en: 'Space' },
   fragmentDone: { uk: 'Фрагмент пройдено', en: 'Fragment done' },
   emptyFragment: { uk: 'У цьому фрагменті немає нот', en: 'This fragment has no notes' },
   ahead: { uk: 'Наперед', en: 'Ahead' },

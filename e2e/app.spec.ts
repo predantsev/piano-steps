@@ -279,3 +279,35 @@ test('a fragment note: hold the number, write, mark "come back later", see it on
   await expect(item).toBeHidden();
   await expect(chip).not.toHaveAttribute('aria-label', /has a note/);
 });
+
+test('the falling bar: Space plays / pauses, ⏮ goes back to the start, ‹ › switch fragments', async ({ page, hasTouch }) => {
+  await openApp(page, '?lesson=twinkle-twinkle&ui=falling');
+  await tapOrClick(page.locator('.brand'), hasTouch); // a real gesture: audio may start
+  const main = page.locator('.fl-primary');
+  const player = async () => (await state(page)).player;
+  await expect(main).toContainText('Play');
+
+  await tapOrClick(main, hasTouch);
+  await expect(main).toContainText('Pause');
+  await expect.poll(async () => (await player()).time, { timeout: 8000 }).toBeGreaterThan(1.6);
+  await page.keyboard.press('Space');
+  await expect(main).toContainText('Play'); // paused
+  await page.keyboard.press('Space'); // resume from where it paused — not from the start (which has a lead-in at 0)
+  await expect(main).toContainText('Pause');
+  await expect.poll(async () => (await player()).time, { timeout: 600 }).toBeGreaterThan(1.4);
+
+  await page.keyboard.press('Shift+Space'); // back to the start (with the lead-in), keeps playing
+  await expect(page.locator('.fl-status')).toContainText('Get ready');
+  await expect.poll(async () => (await player()).time, { timeout: 4000 }).toBeLessThan(1);
+  await expect(main).toContainText('Pause');
+  await tapOrClick(main, hasTouch);
+
+  const chip = (i: number) => page.locator(`.fl-chip[data-fragment="${i}"]`);
+  await expect(page.locator('.fl-prev')).toBeDisabled();
+  await tapOrClick(page.locator('.fl-next'), hasTouch);
+  await expect(chip(1)).toHaveAttribute('aria-pressed', 'true');
+  await page.keyboard.press('ArrowLeft');
+  await expect(chip(0)).toHaveAttribute('aria-pressed', 'true');
+  await page.keyboard.press('ArrowLeft'); // no wrap-around to "whole lesson"
+  await expect(chip(0)).toHaveAttribute('aria-pressed', 'true');
+});

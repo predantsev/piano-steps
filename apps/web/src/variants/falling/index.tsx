@@ -166,9 +166,11 @@ export default function FallingNotes({
     [input, player, engine],
   );
 
-  // Space = the big button (play/pause, Next in wait mode, Next fragment at the end); ← / → = fragments.
+  // Space = the big button (play / pause; the next step in wait mode); Shift+Space = back to the start;
+  // ← / → = previous / next fragment.
   const fragCount = lesson.fragments.length;
   const mainActionRef = useRef<() => void>(() => {});
+  const restartRef = useRef<() => void>(() => {});
   useEffect(() => {
     const typing = (ev: KeyboardEvent) => {
       const el = ev.target as HTMLElement | null;
@@ -180,15 +182,15 @@ export default function FallingNotes({
         ev.preventDefault();
         if (!ev.repeat) {
           void player.unlock();
-          mainActionRef.current();
+          (ev.shiftKey ? restartRef : mainActionRef).current();
         }
       } else if (ev.key === 'ArrowRight' || ev.key === 'ArrowLeft') {
         ev.preventDefault();
         const dir = ev.key === 'ArrowRight' ? 1 : -1;
         setFragIdx((i) => {
-          const total = fragCount + 1; // fragments + "whole lesson" (null)
+          // fragments, then "whole lesson" (null); stops at both ends, like the ‹ › buttons
           const cur = i === null ? fragCount : i;
-          const nxt = (cur + dir + total) % total;
+          const nxt = Math.max(0, Math.min(fragCount, cur + dir));
           return nxt === fragCount ? null : nxt;
         });
       }
@@ -352,35 +354,26 @@ export default function FallingNotes({
   const empty = engine.notes.length === 0;
   const canPlay = prefs.wait ? !noSteps : !empty;
 
-  // After the last fragment comes the whole lesson; after the whole lesson, nothing.
-  const nextFrag: number | null | undefined =
-    fragIdx === null ? undefined : fragIdx + 1 < fragCount ? fragIdx + 1 : null;
-  const nextFragTitle =
-    nextFrag === undefined ? '' : nextFrag === null ? s(lang, 'wholeLesson') : (lesson.fragments[nextFrag].title ?? `#${nextFrag + 1}`);
-  const goNextFrag = () => {
-    if (nextFrag !== undefined) setFragIdx(nextFrag);
-  };
+  // Fragments in order, then the whole lesson: ‹ Previous / Next › walk this list (no wrap-around).
+  const order: (number | null)[] = [...lesson.fragments.map((_, i) => i), null];
+  const at = order.indexOf(fragIdx);
+  const prevFrag = at > 0 ? order[at - 1] : undefined;
+  const nextFrag = at >= 0 && at < order.length - 1 ? order[at + 1] : undefined;
+  const fragName = (i: number | null | undefined) =>
+    i === undefined ? '' : i === null ? s(lang, 'wholeLesson') : (lesson.fragments[i].title ?? `#${i + 1}`);
   const done = phase === 'done';
-  const nextIsMain = done && nextFrag !== undefined;
-  mainActionRef.current = () => (nextIsMain ? goNextFrag() : engine.primary());
+  // The big button is always the same thing: play / pause (Space); in wait mode it is the next step.
+  mainActionRef.current = () => engine.primary();
+  restartRef.current = () => engine.restart();
 
   let primaryLabel: string;
   let primaryIcon: string;
-  if (nextIsMain) {
-    primaryIcon = '›';
-    primaryLabel = `${s(lang, 'nextFragment')}: ${nextFragTitle}`;
-  } else if (done) {
-    primaryIcon = '↻';
-    primaryLabel = s(lang, 'again');
-  } else if (prefs.wait) {
+  if (prefs.wait && !done) {
     primaryIcon = '›';
     primaryLabel = s(lang, 'next');
   } else if (phase === 'playing' || phase === 'preroll') {
     primaryIcon = '❚❚';
     primaryLabel = s(lang, 'pause');
-  } else if (phase === 'paused') {
-    primaryIcon = '▶';
-    primaryLabel = s(lang, 'resume');
   } else {
     primaryIcon = '▶';
     primaryLabel = s(lang, 'play');
@@ -525,9 +518,6 @@ export default function FallingNotes({
       </div>
 
       <div className="fl-controls">
-        <button className="btn" onClick={() => engine.restart()}>
-          ⏮ {s(lang, 'restart')}
-        </button>
         <button className="btn fl-toggle" aria-pressed={prefs.loop} onClick={() => set({ loop: !prefs.loop })}>
           🔁 {s(lang, 'loop')}
         </button>
@@ -616,34 +606,58 @@ export default function FallingNotes({
           }}
         />
 
-        {/* The bar at the bottom edge, nearest the hands: what to play now and the one big button. */}
+        {/* The bar at the bottom edge, nearest the hands: ‹ previous · what to play now · ⏮ + the big button · next ›. */}
         <div className="fl-bar">
-          <div className="fl-status">{status}</div>
-          {done && nextIsMain && (
-            <button className="btn fl-again" onClick={() => engine.primary()}>
-              ↻ {s(lang, 'again')}
-            </button>
-          )}
-          {!done && nextFrag !== undefined && (
-            <button className="btn fl-nextfrag" onClick={goNextFrag} title={`${s(lang, 'nextFragment')}: ${nextFragTitle}`}>
-              {nextFragTitle} ›
-            </button>
-          )}
           <button
-            className="btn big primary fl-primary"
-            onClick={() => mainActionRef.current()}
-            disabled={!nextIsMain && !canPlay}
-            aria-keyshortcuts="Space"
+            className="btn fl-prev"
+            disabled={prevFrag === undefined}
+            onClick={() => prevFrag !== undefined && setFragIdx(prevFrag)}
+            aria-keyshortcuts="ArrowLeft"
+            aria-label={`${s(lang, 'prevFragment')}: ${fragName(prevFrag)}`}
           >
-            {primaryIcon === '›' ? (
-              <>
-                {primaryLabel} <span aria-hidden>›</span>
-              </>
-            ) : (
-              <>
-                <span aria-hidden>{primaryIcon}</span> {primaryLabel}
-              </>
-            )}
+            <span className="fl-nav-main">‹ {s(lang, 'prevFragment')}</span>
+            <span className="fl-nav-sub">{fragName(prevFrag) || '—'}</span>
+          </button>
+          <div className="fl-status">{status}</div>
+          <div className="fl-play">
+            <button
+              className="btn primary fl-restart"
+              onClick={() => engine.restart()}
+              disabled={!canPlay}
+              aria-label={s(lang, 'restart')}
+              title={`${s(lang, 'restart')} (Shift + ${s(lang, 'space')})`}
+              aria-keyshortcuts="Shift+Space"
+            >
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                <path d="M6 5h2v14H6zM9.5 12 19 5v14z" />
+              </svg>
+            </button>
+            <button
+              className="btn big primary fl-primary"
+              onClick={() => mainActionRef.current()}
+              disabled={!canPlay}
+              aria-keyshortcuts="Space"
+            >
+              {primaryIcon === '›' ? (
+                <>
+                  {primaryLabel} <span aria-hidden>›</span>
+                </>
+              ) : (
+                <>
+                  <span aria-hidden>{primaryIcon}</span> {primaryLabel}
+                </>
+              )}
+            </button>
+          </div>
+          <button
+            className="btn fl-next"
+            disabled={nextFrag === undefined}
+            onClick={() => nextFrag !== undefined && setFragIdx(nextFrag)}
+            aria-keyshortcuts="ArrowRight"
+            aria-label={`${s(lang, 'nextFragment')}: ${fragName(nextFrag)}`}
+          >
+            <span className="fl-nav-main">{s(lang, 'nextFragment')} ›</span>
+            <span className="fl-nav-sub">{fragName(nextFrag) || '—'}</span>
           </button>
         </div>
       </div>
