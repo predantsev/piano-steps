@@ -53,16 +53,28 @@
 .fl-controls > .btn:not(.big) {
   padding: 0 0.7rem;
 }
-/* Bottom bar under the keyboard — the edge nearest the hands on a music stand. */
+/* Bottom bar under the keyboard — the edge nearest the hands on a music stand:
+   ‹ previous at the left edge, next › at the right, ⏮|play in the middle, the status left of it. */
 .fl-bar {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 2fr) auto minmax(0, 1fr) auto; /* the status (step to play) gets the room */
+  grid-template-areas: 'prev status play . next';
   align-items: center;
   gap: 10px;
   padding-top: 10px;
   min-height: 72px;
 }
+.fl-prev {
+  grid-area: prev;
+}
+.fl-next {
+  grid-area: next;
+}
+.fl-play {
+  grid-area: play;
+}
 .fl-status {
-  flex: 1 1 auto;
+  grid-area: status;
   min-width: 0;
   display: flex;
   align-items: center;
@@ -86,11 +98,44 @@
   flex: none;
   border-radius: 999px;
 }
-.fl-nextfrag,
-.fl-again {
+.fl-prev,
+.fl-next {
   flex: none;
   min-height: 56px;
+  min-width: 9rem;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0;
   white-space: nowrap;
+}
+.fl-next {
+  align-items: flex-end;
+}
+.fl-nav-main {
+  font-weight: 600;
+}
+.fl-nav-sub {
+  font-size: 0.8rem;
+  color: var(--fg);
+  max-width: 10rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* ⏮ and the big button read as one control: two halves of one pill. */
+.fl-play {
+  display: flex;
+  min-width: 0;
+}
+.fl-restart {
+  min-height: 64px;
+  min-width: 64px;
+  border-radius: var(--radius) 0 0 var(--radius);
+  border-right: 1px solid color-mix(in srgb, var(--accent-fg) 45%, transparent);
+  filter: brightness(0.9);
+}
+.fl-play .fl-primary {
+  border-radius: 0 var(--radius) var(--radius) 0;
 }
 .fl-primary {
   flex: none;
@@ -202,12 +247,12 @@
 /* Narrow (portrait): the step text gets its own line above the buttons. */
 @media (max-width: 900px) {
   .fl-bar {
-    flex-wrap: wrap;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      'status status status'
+      'prev play next';
   }
-  .fl-status {
-    flex-basis: 100%;
-  }
-  .fl-primary {
+  .fl-play .fl-primary {
     flex: 1 1 auto;
     min-width: 0;
   }

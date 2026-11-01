@@ -3,6 +3,17 @@
 Every change that reaches the app is logged here: **what** changed and **why**, newest first,
 with its issue and PR. Rule and checklist: AGENTS.md § "Change log and the guide".
 
+## 2026-11-01
+
+- **Falling notes: a steady bottom bar** (#34). The big button is now always **Play / Pause** (Space) —
+  after a pause it goes on from the same place, at the end it plays the fragment again; it no longer
+  turns into "Next fragment" or "Again". **‹ Previous** and **Next ›** sit at the left and right edges
+  (← / → too, no wrap-around), and a **⏮** glued to the big button goes back to the start of the
+  fragment (Shift + Space). The ⏮ From the start button left the top row. Wait for me keeps Next on the
+  big button. Guide updated in en and uk. *Why:* the owner learns by listening to one fragment over and
+  over and wants the same button in the same place to always do the same thing; picked variant B2 of a
+  clickable mockup.
+
 ## 2026-10-29
 
 - **Notes on fragments** (#40). In Falling notes, a **Note** button (current fragment) and holding /
