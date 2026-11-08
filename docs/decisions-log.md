@@ -19,3 +19,4 @@ Chronological; one line per settled question, newest last.
 - **2026-11-01** — Falling-notes bottom bar: one steady Play / Pause on Space, ⏮ glued to it, ‹ Previous / Next › at the edges.
 - **2026-11-08** — ‹ › are two-part buttons (switch / switch and play). CI e2e pinned to ubuntu-24.04 until Playwright WebKit runs on 26.04.
 - **2026-11-08** — Falling notes keys: ← / → seek 3 s inside the fragment, Shift + ← / → switch fragment, ⌥ + ← / → switch and play (#46).
+- **2026-11-08** — Touch seek in falling notes: a sideways swipe on the lane = ±3 s (option C of four); 👁 Ahead stays a view setting (#48).

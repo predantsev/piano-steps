@@ -5,6 +5,10 @@ with its issue and PR. Rule and checklist: AGENTS.md § "Change log and the guid
 
 ## 2026-11-08
 
+- **Falling notes: swipe sideways on the lane to move 3 s** (#48). Right = 3 s forward, left = 3 s
+  back, the same as ← / →. A tap on a bar now opens its menu on release, so a swipe that starts on a
+  bar does not open it. Guide updated in en and uk. *Why:* on an iPad without a keyboard there was no
+  way to seek; the owner picked the swipe (option C) from a mockup of four touch options.
 - **Falling notes: ← / → move 3 s back / forward inside the fragment** (#46). Plain arrows now seek
   3 seconds of lesson time (playing keeps playing, paused or at rest only moves the position; past
   the end it starts over when looping; in Wait for me it jumps to the step about 3 s away). Fragment
