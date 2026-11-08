@@ -5,6 +5,12 @@ with its issue and PR. Rule and checklist: AGENTS.md § "Change log and the guid
 
 ## 2026-11-08
 
+- **Falling notes: ← / → move 3 s back / forward inside the fragment** (#46). Plain arrows now seek
+  3 seconds of lesson time (playing keeps playing, paused or at rest only moves the position; past
+  the end it starts over when looping; in Wait for me it jumps to the step about 3 s away). Fragment
+  switching moved to Shift + ← / →, and "switch and play" to ⌥ (Alt) + ← / →. Guide updated in en and
+  uk. *Why:* the owner wants to move quickly inside the fragment he is practising, the way the lane
+  already shows 3 s ahead; switching fragments is the rarer move.
 - **Falling notes: ‹ Previous / Next › as two-part buttons** (#44). The big half switches the fragment
   (it waits at the start, silent); the small ‹▶ / ›▶ half at the outer edge switches and starts playing
   at once. Keys: ← / → switch, Shift + ← / → switch and play. Guide updated in en and uk. *Why:* the

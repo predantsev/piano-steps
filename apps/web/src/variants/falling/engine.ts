@@ -285,6 +285,42 @@ export class PracticeEngine {
     else this.setPhase('idle');
   }
 
+  /**
+   * Move by `delta` seconds of lesson time inside the fragment (← / →). Keeps playing if it was
+   * playing; at rest or paused it only moves the position. Past the end: from the top when looping,
+   * else back to the start, ready to go. Wait mode jumps to the step at the new time, at least one
+   * step in the asked direction.
+   */
+  seek(delta: number) {
+    if (!this.notes.length || !delta) return;
+    const v = this.phase === 'preroll' ? this.span.start : this.visualTime();
+    const target = this.clampToSpan(v + delta);
+
+    if (this.opts.wait) {
+      const n = this.steps.length;
+      if (!n) return;
+      let i = stepAtOrAfter(this.steps, target);
+      if (delta > 0 && target >= this.span.end - EPS) i = this.opts.loop ? 0 : n - 1;
+      else if (delta > 0 && i <= this.stepIdx) i = Math.min(n - 1, this.stepIdx + 1);
+      else if (delta < 0 && i >= this.stepIdx) i = Math.max(0, this.stepIdx - 1);
+      this.halt();
+      return this.waitAt(i);
+    }
+
+    const running = this.phase === 'playing' || this.phase === 'preroll';
+    const pastEnd = target >= this.span.end - EPS;
+    this.halt();
+    if (running) {
+      if (pastEnd && !this.opts.loop) {
+        this.cursor = this.span.start;
+        return this.setPhase('done');
+      }
+      return this.startRun(pastEnd ? this.span.start : target);
+    }
+    this.cursor = pastEnd ? this.span.start : target;
+    this.setPhase(this.cursor <= this.span.start + EPS ? 'idle' : 'paused');
+  }
+
   /** Wait mode: "I played it — go on". */
   next() {
     switch (this.phase) {

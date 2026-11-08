@@ -11,3 +11,11 @@ Chronological; one line per settled question, newest last.
 - **2026-10-23** — Transcription (YouTube/audio/sheet → lesson) is a separate module that talks to the app only via the API.
 - **2026-10-23** — Practice UI is not decided up front: three variants (falling / cards / sheet) are built in parallel and compared in the app.
 - **2026-10-23** — Public repo `predantsev/piano-steps` (owner's choice; canon default is private). Port block `9xxx`.
+- **2026-10-28** — Every change gets a `CHANGELOG.md` entry (what + why); a user-visible change updates the in-app guide in every language in the same PR (AGENTS.md).
+- **2026-10-28** — Lesson notes have stable ids (`LessonNote.id`), so reports and agents can point at one exact note.
+- **2026-10-28** — The in-app guide lives in the repo (`packages/core/src/guide/guide.{en,uk}.json`); `PUT /api/guide/{lang}` is only a temporary override (reverses the DB-first choice of the same day).
+- **2026-10-29** — Notes on fragments (text, "come back later", re-cut wishes) stored per fragment position; Cards and Sheet + keys untouched for now.
+- **2026-10-30** — Transcription rule: repeated strikes of one key are melody; merge re-onsets only where the audio shows no new attack, never by gap alone.
+- **2026-11-01** — Falling-notes bottom bar: one steady Play / Pause on Space, ⏮ glued to it, ‹ Previous / Next › at the edges.
+- **2026-11-08** — ‹ › are two-part buttons (switch / switch and play). CI e2e pinned to ubuntu-24.04 until Playwright WebKit runs on 26.04.
+- **2026-11-08** — Falling notes keys: ← / → seek 3 s inside the fragment, Shift + ← / → switch fragment, ⌥ + ← / → switch and play (#46).

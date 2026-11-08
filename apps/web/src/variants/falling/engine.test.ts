@@ -355,3 +355,69 @@ describe('wait mode', () => {
     expect(player.plays.at(-1)).toMatchObject({ from: 0.5 });
   });
 });
+
+describe('seek (← / →, #46)', () => {
+  it('at rest or paused it only moves the position; back to the start is idle again', () => {
+    const e = make();
+    e.seek(0.7);
+    expect(e.phase).toBe('paused');
+    expect(e.visualTime()).toBeCloseTo(0.7);
+    expect(player.plays).toEqual([]);
+    e.seek(-3);
+    expect(e.phase).toBe('idle');
+    expect(e.visualTime()).toBe(0);
+  });
+
+  it('while playing it keeps playing from the new place', () => {
+    const e = make();
+    e.primary();
+    advance(e, 2000);
+    player.time = 0.6;
+    e.seek(0.7);
+    expect(e.phase).toBe('playing');
+    expect(player.plays.at(-1)).toMatchObject({ from: expect.closeTo(1.3), loop: false });
+    player.time = 1.3;
+    e.seek(-3); // clamps to the fragment start, and from there the player loops
+    expect(player.plays.at(-1)).toMatchObject({ from: 0, loop: true });
+  });
+
+  it('past the end: from the top when looping, else back to the start, done', () => {
+    const e = make();
+    e.primary();
+    advance(e, 2000);
+    player.time = 1.5;
+    e.seek(3);
+    expect(e.phase).toBe('playing');
+    expect(player.plays.at(-1)).toMatchObject({ from: 0, loop: true });
+
+    const f = make({ loop: false });
+    f.primary();
+    advance(f, 2000);
+    player.time = 1.5;
+    f.seek(3);
+    expect(f.phase).toBe('done');
+    expect(f.visualTime()).toBe(0);
+  });
+
+  it('during the lead-in it starts the run at the new place', () => {
+    const e = make();
+    e.primary();
+    expect(e.phase).toBe('preroll');
+    e.seek(0.7);
+    expect(e.phase).toBe('playing');
+    expect(player.plays.at(-1)).toMatchObject({ from: 0.7 });
+  });
+
+  it('wait mode jumps by steps, at least one in the asked direction', () => {
+    const e = make({ wait: true });
+    e.seek(0.2); // no step within 0.2 s — still moves one step on
+    expect(e.stepIdx).toBe(1);
+    e.seek(0.9); // 0.5 + 0.9 = 1.4 → the step at 1.5
+    expect(e.stepIdx).toBe(3);
+    e.seek(-0.2);
+    expect(e.stepIdx).toBe(2);
+    e.seek(-3);
+    expect(e.stepIdx).toBe(0);
+    expect(e.phase).toBe('waiting');
+  });
+});

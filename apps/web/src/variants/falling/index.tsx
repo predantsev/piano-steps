@@ -17,6 +17,8 @@ import './falling.css';
 
 const SPEEDS = [0.25, 0.5, 0.75, 1] as const;
 const LOOK_AHEADS = [2, 3, 5] as const;
+/** ← / → move this many seconds of lesson time back / forward (#46). */
+const SEEK_SEC = 3;
 const PREFS_KEY = 'piano-steps-falling';
 
 interface Prefs {
@@ -174,7 +176,7 @@ export default function FallingNotes({
   );
 
   // Space = the big button (play / pause; the next step in wait mode); Shift+Space = back to the start;
-  // ← / → = previous / next fragment.
+  // ← / → = 3 s back / forward; Shift + ← / → = previous / next fragment; ⌥ + ← / → = switch and play.
   const fragCount = lesson.fragments.length;
   const mainActionRef = useRef<() => void>(() => {});
   const restartRef = useRef<() => void>(() => {});
@@ -184,17 +186,25 @@ export default function FallingNotes({
       return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable);
     };
     const down = (ev: KeyboardEvent) => {
-      if (ev.metaKey || ev.ctrlKey || ev.altKey || typing(ev) || document.querySelector('.sheet-backdrop, .fl-menu-backdrop')) return;
+      if (ev.metaKey || ev.ctrlKey || typing(ev) || document.querySelector('.sheet-backdrop, .fl-menu-backdrop')) return;
+      const arrow = ev.key === 'ArrowRight' || ev.key === 'ArrowLeft';
+      if (ev.altKey && !arrow) return;
       if (ev.code === 'Space' || ev.key === ' ') {
         ev.preventDefault();
         if (!ev.repeat) {
           void player.unlock();
           (ev.shiftKey ? restartRef : mainActionRef).current();
         }
-      } else if (ev.key === 'ArrowRight' || ev.key === 'ArrowLeft') {
+      } else if (arrow) {
         ev.preventDefault();
         const dir = ev.key === 'ArrowRight' ? 1 : -1;
-        const andPlay = ev.shiftKey; // Shift + arrow = switch and play
+        if (!ev.shiftKey && !ev.altKey) {
+          // plain arrow = 3 s back / forward inside the fragment
+          void player.unlock();
+          engine.seek(dir * SEEK_SEC);
+          return;
+        }
+        const andPlay = ev.altKey; // ⌥ + arrow = switch and play; Shift + arrow = just switch
         if (andPlay) void player.unlock();
         setFragIdx((i) => {
           // fragments, then "whole lesson" (null); stops at both ends, like the ‹ › buttons
@@ -632,9 +642,9 @@ export default function FallingNotes({
               className="btn fl-goplay"
               disabled={prevFrag === undefined}
               onClick={() => goTo(prevFrag, true)}
-              aria-keyshortcuts="Shift+ArrowLeft"
+              aria-keyshortcuts="Alt+ArrowLeft"
               aria-label={`${s(lang, 'prevFragment')} ${s(lang, 'andPlay')}: ${fragName(prevFrag)}`}
-              title={`${s(lang, 'prevFragment')} ${s(lang, 'andPlay')} (Shift + ←)`}
+              title={`${s(lang, 'prevFragment')} ${s(lang, 'andPlay')} (⌥ + ←)`}
             >
               ‹▶
             </button>
@@ -642,7 +652,8 @@ export default function FallingNotes({
               className="btn fl-prev"
               disabled={prevFrag === undefined}
               onClick={() => goTo(prevFrag, false)}
-              aria-keyshortcuts="ArrowLeft"
+              aria-keyshortcuts="Shift+ArrowLeft"
+              title={`${s(lang, 'prevFragment')} (Shift + ←)`}
               aria-label={`${s(lang, 'prevFragment')}: ${fragName(prevFrag)}`}
             >
               <span className="fl-nav-main">‹ {s(lang, 'prevFragment')}</span>
@@ -685,7 +696,8 @@ export default function FallingNotes({
               className="btn fl-next"
               disabled={nextFrag === undefined}
               onClick={() => goTo(nextFrag, false)}
-              aria-keyshortcuts="ArrowRight"
+              aria-keyshortcuts="Shift+ArrowRight"
+              title={`${s(lang, 'nextFragment')} (Shift + →)`}
               aria-label={`${s(lang, 'nextFragment')}: ${fragName(nextFrag)}`}
             >
               <span className="fl-nav-main">{s(lang, 'nextFragment')} ›</span>
@@ -695,9 +707,9 @@ export default function FallingNotes({
               className="btn fl-goplay"
               disabled={nextFrag === undefined}
               onClick={() => goTo(nextFrag, true)}
-              aria-keyshortcuts="Shift+ArrowRight"
+              aria-keyshortcuts="Alt+ArrowRight"
               aria-label={`${s(lang, 'nextFragment')} ${s(lang, 'andPlay')}: ${fragName(nextFrag)}`}
-              title={`${s(lang, 'nextFragment')} ${s(lang, 'andPlay')} (Shift + →)`}
+              title={`${s(lang, 'nextFragment')} ${s(lang, 'andPlay')} (⌥ + →)`}
             >
               ›▶
             </button>

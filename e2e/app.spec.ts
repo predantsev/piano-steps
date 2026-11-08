@@ -280,7 +280,7 @@ test('a fragment note: hold the number, write, mark "come back later", see it on
   await expect(chip).not.toHaveAttribute('aria-label', /has a note/);
 });
 
-test('the falling bar: Space plays / pauses, ⏮ goes back to the start, ‹ › switch fragments', async ({ page, hasTouch }) => {
+test('the falling bar: Space plays / pauses, ← / → move 3 s, ⏮ goes back to the start, ‹ › switch fragments', async ({ page, hasTouch }) => {
   await openApp(page, '?lesson=twinkle-twinkle&ui=falling');
   await tapOrClick(page.locator('.brand'), hasTouch); // a real gesture: audio may start
   const main = page.locator('.fl-primary');
@@ -296,6 +296,16 @@ test('the falling bar: Space plays / pauses, ⏮ goes back to the start, ‹ ›
   await expect(main).toContainText('Pause');
   await expect.poll(async () => (await player()).time, { timeout: 600 }).toBeGreaterThan(1.4);
 
+  // ← / → = 3 s back / forward inside the fragment, and it keeps playing (#46).
+  await page.keyboard.press('ArrowLeft'); // ~1.5 s − 3 s → the fragment start
+  await expect.poll(async () => (await player()).time, { timeout: 2000 }).toBeLessThan(1);
+  await expect(main).toContainText('Pause');
+  const before = (await player()).time;
+  await page.keyboard.press('ArrowRight');
+  await expect.poll(async () => (await player()).from, { timeout: 2000 }).toBeGreaterThan(before + 2.5);
+  await expect(main).toContainText('Pause');
+  await expect(page.locator('.fl-chip[data-fragment="0"]')).toHaveAttribute('aria-pressed', 'true'); // same fragment
+
   await page.keyboard.press('Shift+Space'); // back to the start (with the lead-in), keeps playing
   await expect(page.locator('.fl-status')).toContainText('Get ready');
   await expect.poll(async () => (await player()).time, { timeout: 4000 }).toBeLessThan(1);
@@ -306,9 +316,10 @@ test('the falling bar: Space plays / pauses, ⏮ goes back to the start, ‹ ›
   await expect(page.locator('.fl-prev')).toBeDisabled();
   await tapOrClick(page.locator('.fl-next'), hasTouch);
   await expect(chip(1)).toHaveAttribute('aria-pressed', 'true');
-  await page.keyboard.press('ArrowLeft');
+  await page.keyboard.press('Shift+ArrowLeft'); // Shift + arrow = just switch
   await expect(chip(0)).toHaveAttribute('aria-pressed', 'true');
-  await page.keyboard.press('ArrowLeft'); // no wrap-around to "whole lesson"
+  await expect(main).toContainText('Play');
+  await page.keyboard.press('Shift+ArrowLeft'); // no wrap-around to "whole lesson"
   await expect(chip(0)).toHaveAttribute('aria-pressed', 'true');
 
   // The small ▶ half: switch AND play; the big half only switches.
@@ -318,7 +329,7 @@ test('the falling bar: Space plays / pauses, ⏮ goes back to the start, ‹ ›
   await tapOrClick(page.locator('.fl-next'), hasTouch);
   await expect(chip(2)).toHaveAttribute('aria-pressed', 'true');
   await expect(main).toContainText('Play'); // waits at the start, silent
-  await page.keyboard.press('Shift+ArrowLeft');
+  await page.keyboard.press('Alt+ArrowLeft'); // ⌥ + arrow = switch and play
   await expect(chip(1)).toHaveAttribute('aria-pressed', 'true');
   await expect(main).toContainText('Pause');
   await tapOrClick(main, hasTouch);
