@@ -263,7 +263,12 @@ function audioState(): string {
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
-/** Let React commit and the variant draw: two animation frames, or 120 ms if frames are paused (hidden tab). */
+/**
+ * Let the variant draw and React commit: two animation frames, then one task — a view that updates its
+ * highlights inside its own frame loop (falling) calls setState there, and React commits that in a later
+ * task, so returning right after the frames read stale keys on a slow CI machine. 400 ms is the fallback
+ * for paused frames (hidden tab); it must not beat a live frame loop.
+ */
 function settle(): Promise<void> {
   return new Promise((resolve) => {
     let done = false;
@@ -273,8 +278,8 @@ function settle(): Promise<void> {
         resolve();
       }
     };
-    requestAnimationFrame(() => requestAnimationFrame(finish));
-    setTimeout(finish, 120);
+    requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(finish, 0)));
+    setTimeout(finish, 400);
   });
 }
 

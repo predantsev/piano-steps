@@ -12,6 +12,10 @@ with its issue and PR. Rule and checklist: AGENTS.md § "Change log and the guid
   the bottom-bar mockup.
 - **CI: e2e pinned to ubuntu-24.04** (#44). *Why:* `ubuntu-latest` became 26.04, where Playwright's
   WebKit crashes on page load and every iPad test failed; see `docs/knowledge-base/ci-webkit-ubuntu-26.md`.
+- **Dev API: `press()` / `release()` wait for React to commit** (#44). `settle()` now waits two frames
+  plus one task (fallback 400 ms instead of 120 ms). *Why:* the falling view sets its key highlights
+  inside its frame loop; on a slow CI machine the 120 ms fallback returned before React committed them,
+  so "pressed keys are lit" flaked (seen 2026-10-24 and twice on 2026-11-08).
 
 ## 2026-11-01
 
