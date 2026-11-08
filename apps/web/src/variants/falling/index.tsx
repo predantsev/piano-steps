@@ -229,6 +229,39 @@ export default function FallingNotes({
     };
   }, [engine, player, fragCount]);
 
+  // Fragment chips stay on one line (#50); when they overflow, ‹ › at the ends scroll the row and the
+  // current chip is scrolled into view.
+  const fragsRef = useRef<HTMLDivElement>(null);
+  const [fragsScroll, setFragsScroll] = useState({ over: false, left: false, right: false });
+  const measureFrags = useCallback(() => {
+    const el = fragsRef.current;
+    if (!el) return;
+    const over = el.scrollWidth > el.clientWidth + 1;
+    const next = { over, left: over && el.scrollLeft > 1, right: over && el.scrollLeft + el.clientWidth < el.scrollWidth - 1 };
+    setFragsScroll((p) => (p.over === next.over && p.left === next.left && p.right === next.right ? p : next));
+  }, []);
+  useEffect(() => {
+    const el = fragsRef.current;
+    if (!el) return;
+    measureFrags();
+    const ro = new ResizeObserver(measureFrags);
+    ro.observe(el);
+    for (const c of Array.from(el.children)) ro.observe(c);
+    return () => ro.disconnect();
+  }, [measureFrags, lesson]);
+  useEffect(() => {
+    const el = fragsRef.current;
+    const cur = el?.querySelector<HTMLElement>(`[data-fragment="${fragIdx ?? 'all'}"]`);
+    if (!el || !cur) return;
+    const l = cur.offsetLeft - el.offsetLeft;
+    if (l < el.scrollLeft || l + cur.offsetWidth > el.scrollLeft + el.clientWidth)
+      el.scrollTo({ left: l - (el.clientWidth - cur.offsetWidth) / 2, behavior: 'smooth' });
+  }, [fragIdx, fragsScroll.over]);
+  const scrollFrags = (dir: number) => {
+    const el = fragsRef.current;
+    if (el) el.scrollBy({ left: dir * el.clientWidth * 0.8, behavior: 'smooth' });
+  };
+
   // Keep the top row clear of the shell's floating buttons (🎧 / ⚑ at the stage's top-right).
   const topRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -535,9 +568,33 @@ export default function FallingNotes({
   return (
     <div className="fl">
       <div className="fl-top" ref={topRef}>
-        <div className="fl-frags" role="toolbar" aria-label={s(lang, 'fragments')}>
-          {lesson.fragments.map((f, i) => chip(f.title ?? `#${i + 1}`, i))}
-          {chip(s(lang, 'wholeLesson'), null)}
+        <div className={`fl-fragsbox ${fragsScroll.over ? 'fl-over' : ''}`}>
+          {fragsScroll.over && (
+            <button
+              className="btn fl-fragsarrow fl-fragsarrow-l"
+              disabled={!fragsScroll.left}
+              onClick={() => scrollFrags(-1)}
+              aria-label={s(lang, 'fragsEarlier')}
+              title={s(lang, 'fragsEarlier')}
+            >
+              ‹
+            </button>
+          )}
+          <div className="fl-frags" ref={fragsRef} onScroll={measureFrags} role="toolbar" aria-label={s(lang, 'fragments')}>
+            {lesson.fragments.map((f, i) => chip(f.title ?? `#${i + 1}`, i))}
+            {chip(s(lang, 'wholeLesson'), null)}
+          </div>
+          {fragsScroll.over && (
+            <button
+              className="btn fl-fragsarrow fl-fragsarrow-r"
+              disabled={!fragsScroll.right}
+              onClick={() => scrollFrags(1)}
+              aria-label={s(lang, 'fragsLater')}
+              title={s(lang, 'fragsLater')}
+            >
+              ›
+            </button>
+          )}
         </div>
         {fragIdx !== null && (
           <button

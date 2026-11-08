@@ -19,6 +19,7 @@
       "body": [
         "Notes fall onto the keys, Synthesia-style. A bar touches its key exactly when the note sounds.",
         "• The bottom bar: ‹ Previous on the left, Next › on the right (fragments, then the whole lesson), and in the middle the big button — always Play / Pause (Space); after a pause it goes on from the same place. The ⏮ glued to its left goes back to the start of the fragment (Shift + Space). A short \"Get ready…\" comes before the start.",
+        "• The fragment chips stay on one line at the top; when there are too many to fit, ‹ › at the ends (or a finger) scroll the row, and the current one is always brought into view.",
         "• ‹ Previous and Next › have two halves: the big one just switches (the fragment waits at the start), the small ‹▶ / ›▶ at the very edge switches and starts playing at once. Keys: Shift + ← / → switch, ⌥ (Alt) + ← / → switch and play; plain ← / → move 3 seconds back / forward inside the fragment (while playing it keeps playing). Without a keyboard, swipe sideways across the falling notes: right = 3 s forward, left = 3 s back.",
         "• 🔁 Loop (the fragment repeats), 🔊/🔇 sound.",
         "• Speed 25–100 %. Start slow.",

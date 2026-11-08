@@ -18,12 +18,33 @@
   padding-right: var(--fl-fab-clear, 16rem);
   min-width: 0;
 }
-.fl-frags {
+.fl-fragsbox {
   display: flex;
-  flex-wrap: wrap; /* a narrow window wraps the chips instead of hiding the last ones */
-  gap: 8px;
+  align-items: center;
+  gap: 4px;
   flex: 0 1 auto;
   min-width: 0;
+}
+/* One line, always (#50): too many chips scroll sideways (finger, wheel or the ‹ › arrows). */
+.fl-frags {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 8px;
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  padding-block: 2px; /* room for the focus ring */
+}
+.fl-frags::-webkit-scrollbar {
+  display: none;
+}
+.fl-fragsarrow {
+  flex: none;
+  min-width: 44px;
+  padding-inline: 0;
+  font-size: 1.3rem;
+  line-height: 1;
 }
 .fl-gotit {
   flex: none;
@@ -358,6 +379,7 @@
   color: var(--accent);
 }
 .fl-notebtn {
+  flex: none;
   gap: 6px;
   border-color: var(--accent);
 }
