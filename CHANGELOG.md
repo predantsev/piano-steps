@@ -10,6 +10,8 @@ with its issue and PR. Rule and checklist: AGENTS.md § "Change log and the guid
   at once. Keys: ← / → switch, Shift + ← / → switch and play. Guide updated in en and uk. *Why:* the
   owner often wants to hear the next fragment straight away and sometimes only to move on; picked N2 of
   the bottom-bar mockup.
+- **CI: e2e pinned to ubuntu-24.04** (#44). *Why:* `ubuntu-latest` became 26.04, where Playwright's
+  WebKit crashes on page load and every iPad test failed; see `docs/knowledge-base/ci-webkit-ubuntu-26.md`.
 
 ## 2026-11-01
 
