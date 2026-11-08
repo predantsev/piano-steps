@@ -280,7 +280,7 @@ test('a fragment note: hold the number, write, mark "come back later", see it on
   await expect(chip).not.toHaveAttribute('aria-label', /has a note/);
 });
 
-test('the falling bar: Space plays / pauses, ← / → move 3 s, ⏮ goes back to the start, ‹ › switch fragments', async ({ page, hasTouch }) => {
+test('the falling bar: Space plays / pauses, ← / → and a swipe move 3 s, ⏮ goes back to the start, ‹ › switch fragments', async ({ page, hasTouch }) => {
   await openApp(page, '?lesson=twinkle-twinkle&ui=falling');
   await tapOrClick(page.locator('.brand'), hasTouch); // a real gesture: audio may start
   const main = page.locator('.fl-primary');
@@ -305,6 +305,23 @@ test('the falling bar: Space plays / pauses, ← / → move 3 s, ⏮ goes back t
   await expect.poll(async () => (await player()).from, { timeout: 2000 }).toBeGreaterThan(before + 2.5);
   await expect(main).toContainText('Pause');
   await expect(page.locator('.fl-chip[data-fragment="0"]')).toHaveAttribute('aria-pressed', 'true'); // same fragment
+
+  // A sideways swipe on the lane does the same with a finger (#48): left = back, right = forward.
+  const lane = await page.locator('.fl-lane canvas').boundingBox();
+  const swipe = async (from: number, to: number) => {
+    const y = lane!.y + lane!.height * 0.4;
+    await page.mouse.move(lane!.x + lane!.width * from, y);
+    await page.mouse.down();
+    await page.mouse.move(lane!.x + lane!.width * to, y, { steps: 5 });
+    await page.mouse.up();
+  };
+  await swipe(0.7, 0.3); // left → back to the fragment start
+  await expect.poll(async () => (await player()).time, { timeout: 2000 }).toBeLessThan(1);
+  const atStart = (await player()).time;
+  await swipe(0.3, 0.7); // right → 3 s on
+  await expect.poll(async () => (await player()).from, { timeout: 2000 }).toBeGreaterThan(atStart + 2.5);
+  await expect(main).toContainText('Pause');
+  await expect(page.locator('.fl-menu-backdrop')).toHaveCount(0); // a swipe never opens the note menu
 
   await page.keyboard.press('Shift+Space'); // back to the start (with the lead-in), keeps playing
   await expect(page.locator('.fl-status')).toContainText('Get ready');

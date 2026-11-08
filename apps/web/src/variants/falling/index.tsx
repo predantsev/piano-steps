@@ -19,6 +19,9 @@ const SPEEDS = [0.25, 0.5, 0.75, 1] as const;
 const LOOK_AHEADS = [2, 3, 5] as const;
 /** ← / → move this many seconds of lesson time back / forward (#46). */
 const SEEK_SEC = 3;
+/** A lane swipe needs this much sideways travel; a tap moves at most TAP_SLOP_PX. */
+const SWIPE_MIN_PX = 40;
+const TAP_SLOP_PX = 10;
 const PREFS_KEY = 'piano-steps-falling';
 
 interface Prefs {
@@ -344,10 +347,35 @@ export default function FallingNotes({
   // Tap a falling bar: it pauses, sounds, and opens the note menu (hear / report / fix later).
   const [menu, setMenu] = useState<{ note: LessonNote; x: number; y: number } | null>(null);
   const closeMenu = useCallback(() => setMenu(null), []);
+  // A horizontal swipe on the lane seeks (right = 3 s forward, left = back, #48); a tap — decided on
+  // release, so a swipe that starts on a bar does not open its menu — hits a bar.
+  const swipeRef = useRef<{ id: number; x: number; y: number } | null>(null);
   const onLanePointerDown = (e: ReactPointerEvent<HTMLCanvasElement>) => {
-    const box = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - box.left;
-    const y = e.clientY - box.top;
+    if (e.button > 0) return;
+    swipeRef.current = { id: e.pointerId, x: e.clientX, y: e.clientY };
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      /* synthetic events have no active pointer */
+    }
+  };
+  const onLanePointerUp = (e: ReactPointerEvent<HTMLCanvasElement>) => {
+    const start = swipeRef.current;
+    swipeRef.current = null;
+    if (!start || start.id !== e.pointerId) return;
+    const dx = e.clientX - start.x;
+    const dy = e.clientY - start.y;
+    if (Math.abs(dx) >= SWIPE_MIN_PX && Math.abs(dx) > Math.abs(dy) * 1.5) {
+      void player.unlock();
+      engine.seek(Math.sign(dx) * SEEK_SEC);
+      return;
+    }
+    if (Math.hypot(dx, dy) <= TAP_SLOP_PX) tapLane(e.currentTarget, start.x, start.y);
+  };
+  const tapLane = (canvas: HTMLCanvasElement, clientX: number, clientY: number) => {
+    const box = canvas.getBoundingClientRect();
+    const x = clientX - box.left;
+    const y = clientY - box.top;
     const { bars, now } = frameRef.current;
     const geo = { width: box.width, height: box.height, keys, now, lookAhead: prefs.lookAhead };
     let hit: Bar | null = null;
@@ -360,7 +388,7 @@ export default function FallingNotes({
       void player.unlock();
       if (engine.phase === 'playing' || engine.phase === 'preroll') engine.pause();
       player.playChord([hit.note.pitch], Math.min(2, Math.max(0.3, hit.note.duration / prefs.rate)), hit.note.velocity ?? 0.8);
-      setMenu({ note: hit.note, x: e.clientX, y: e.clientY });
+      setMenu({ note: hit.note, x: clientX, y: clientY });
     }
   };
 
@@ -594,7 +622,14 @@ export default function FallingNotes({
 
       <div className="fl-stage">
         <div className="fl-lane" ref={laneRef}>
-          <canvas ref={canvasRef} onPointerDown={onLanePointerDown} aria-label={s(lang, 'tapBar')} role="img" />
+          <canvas
+            ref={canvasRef}
+            onPointerDown={onLanePointerDown}
+            onPointerUp={onLanePointerUp}
+            onPointerCancel={() => (swipeRef.current = null)}
+            aria-label={s(lang, 'tapBar')}
+            role="img"
+          />
           {menu && (
             <NoteMenu
               note={menu.note}
