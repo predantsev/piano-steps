@@ -13,3 +13,6 @@ fragment being practised; switching fragments moves to Shift + ← / →.
 - 2026-11-08 Committed the previous session's journal + decisions, and the feature (`PracticeEngine.seek`, guide en+uk, CHANGELOG, unit + e2e tests) on `feat/46-arrow-seek`.
 - 2026-11-08 PR #47 squash-merged after green CI (`87301f0`); container rebuilt from `main`. Not checked on a real iPad.
 - 2026-11-08 Owner asked for touch seeking on the iPad; clarified that 👁 Ahead only sets how far ahead you see. Interactive mockup of four options (claude.ai/artifact/JZiDSbbRaY8pKgTbR13W7g), owner picked C (swipe). Opened #48.
+- 2026-11-08 Committed the swipe seek (#48) on `feat/48-swipe-seek`: sideways swipe on the lane = ±3 s, bar tap decided on release.
+- 2026-11-08 PR #49 squash-merged after green CI (`b02f148`); container rebuilt from `main`. Not checked on a real iPad.
+- 2026-11-08 Owner: 29 fragments wrapped the chips over several lines on the iPad. Opened #50 — chips on one line, ‹ › scroll when they overflow.

@@ -5,6 +5,10 @@ with its issue and PR. Rule and checklist: AGENTS.md § "Change log and the guid
 
 ## 2026-11-08
 
+- **Falling notes: fragment chips stay on one line** (#50). When they don't fit, ‹ › at the ends
+  scroll the row (a finger or a wheel does too), and the current fragment is scrolled into view. The
+  Note button no longer shrinks. Guide updated in en and uk. *Why:* a lesson with 29 fragments wrapped
+  the chips over several lines on the iPad (two on the Mac) and squeezed the falling notes.
 - **Falling notes: swipe sideways on the lane to move 3 s** (#48). Right = 3 s forward, left = 3 s
   back, the same as ← / →. A tap on a bar now opens its menu on release, so a swipe that starts on a
   bar does not open it. Guide updated in en and uk. *Why:* on an iPad without a keyboard there was no

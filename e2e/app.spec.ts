@@ -352,3 +352,42 @@ test('the falling bar: Space plays / pauses, ← / → and a swipe move 3 s, ⏮
   await tapOrClick(main, hasTouch);
   await expect(page.locator('.fl-nav-prev .fl-goplay')).toBeEnabled();
 });
+
+test('many fragments stay on one line and scroll with ‹ ›', async ({ page, hasTouch }, testInfo) => {
+  await openApp(page, '?ui=falling');
+  const slug = `e2e-many-frags-${testInfo.project.name}-${unique()}`;
+  const notes = Array.from({ length: 58 }, (_, i) => ({ pitch: 60 + (i % 8), start: i * 0.5, duration: 0.45, hand: 'R' }));
+  const fragments = Array.from({ length: 29 }, (_, i) => ({ title: `Episode ${i + 1}`, start: i, end: i + 1 }));
+  await page.locator('input[type=file]').setInputFiles({
+    name: `${slug}.json`,
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify({ slug, title: `E2E many fragments ${unique()}`, notes, fragments })),
+  });
+  await expect.poll(async () => (await state(page)).lesson?.slug).toBe(slug);
+
+  const chips = page.locator('.fl-frags .fl-chip');
+  await expect(chips).toHaveCount(30); // 29 + whole lesson
+  const tops = await chips.evaluateAll((els) => new Set(els.map((e) => Math.round(e.getBoundingClientRect().top))).size);
+  expect(tops).toBe(1); // one line, never wrapped
+
+  const left = page.locator('.fl-fragsarrow-l');
+  const right = page.locator('.fl-fragsarrow-r');
+  await expect(left).toBeDisabled();
+  await expect(right).toBeEnabled();
+  const scroll = () => page.locator('.fl-frags').evaluate((e) => e.scrollLeft);
+  await tapOrClick(right, hasTouch);
+  await expect.poll(scroll).toBeGreaterThan(50);
+  await expect(left).toBeEnabled();
+
+  // Moving to a far fragment brings its chip into view.
+  for (let i = 0; i < 27; i++) await page.keyboard.press('Shift+ArrowRight');
+  const chip = page.locator('.fl-chip[data-fragment="27"]');
+  await expect(chip).toHaveAttribute('aria-pressed', 'true');
+  await expect
+    .poll(async () => {
+      const [c, r] = await Promise.all([chip.boundingBox(), page.locator('.fl-frags').boundingBox()]);
+      return c!.x >= r!.x - 1 && c!.x + c!.width <= r!.x + r!.width + 1;
+    })
+    .toBe(true);
+  expect((await page.request.delete(`/api/lessons/${slug}`)).status()).toBe(204);
+});

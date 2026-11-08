@@ -3,6 +3,8 @@ import type { Lang } from '../../settings.ts';
 /** Strings of the falling-notes variant (kept here so parallel work never collides on i18n.ts). */
 const STRINGS = {
   fragments: { uk: 'Фрагменти', en: 'Fragments' },
+  fragsEarlier: { uk: 'Попередні фрагменти', en: 'Earlier fragments' },
+  fragsLater: { uk: 'Наступні фрагменти', en: 'Later fragments' },
   wholeLesson: { uk: 'Увесь урок', en: 'Whole lesson' },
   play: { uk: 'Грати', en: 'Play' },
   resume: { uk: 'Продовжити', en: 'Resume' },
