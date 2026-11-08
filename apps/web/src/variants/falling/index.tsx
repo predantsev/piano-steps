@@ -95,6 +95,7 @@ export default function FallingNotes({
   saveFragmentNote,
 }: VariantProps) {
   const [fragIdx, setFragIdx] = useState<number | null>(lesson.fragments.length ? 0 : null);
+  const playAfterSwitch = useRef(false);
   const [prefs, setPrefs] = useState<Prefs>(() => readPrefs(settings.speed));
   const [, rerender] = useReducer((x: number) => x + 1, 0);
   const [highlights, setHighlights] = useState<Map<number, KeyHighlight>>(() => new Map());
@@ -144,6 +145,12 @@ export default function FallingNotes({
     const f: Fragment | undefined = fragIdx === null ? undefined : lesson.fragments[fragIdx];
     engine.setSpan(f ? { start: f.start, end: f.end } : { start: 0, end: lessonEnd });
     onFragmentChange(fragIdx);
+    // "Go and play" (the small ▶ half of ‹ › or Shift + arrow): start the new fragment right away.
+    // In wait mode it is already waiting on its first step, which is the same thing.
+    if (playAfterSwitch.current) {
+      playAfterSwitch.current = false;
+      if (engine.phase === 'idle') engine.start();
+    }
   }, [engine, fragIdx, lesson, lessonEnd, onFragmentChange]);
 
   useEffect(() => {
@@ -187,10 +194,13 @@ export default function FallingNotes({
       } else if (ev.key === 'ArrowRight' || ev.key === 'ArrowLeft') {
         ev.preventDefault();
         const dir = ev.key === 'ArrowRight' ? 1 : -1;
+        const andPlay = ev.shiftKey; // Shift + arrow = switch and play
+        if (andPlay) void player.unlock();
         setFragIdx((i) => {
           // fragments, then "whole lesson" (null); stops at both ends, like the ‹ › buttons
           const cur = i === null ? fragCount : i;
           const nxt = Math.max(0, Math.min(fragCount, cur + dir));
+          if (andPlay && nxt !== cur) playAfterSwitch.current = true;
           return nxt === fragCount ? null : nxt;
         });
       }
@@ -361,6 +371,15 @@ export default function FallingNotes({
   const nextFrag = at >= 0 && at < order.length - 1 ? order[at + 1] : undefined;
   const fragName = (i: number | null | undefined) =>
     i === undefined ? '' : i === null ? s(lang, 'wholeLesson') : (lesson.fragments[i].title ?? `#${i + 1}`);
+  /** ‹ › halves: switch to a fragment; `play` = start it at once ("go and play"). */
+  const goTo = (target: number | null | undefined, play: boolean) => {
+    if (target === undefined) return;
+    if (play) {
+      void player.unlock();
+      playAfterSwitch.current = true;
+    }
+    setFragIdx(target);
+  };
   const done = phase === 'done';
   // The big button is always the same thing: play / pause (Space); in wait mode it is the next step.
   mainActionRef.current = () => engine.primary();
@@ -608,16 +627,28 @@ export default function FallingNotes({
 
         {/* The bar at the bottom edge, nearest the hands: ‹ previous · what to play now · ⏮ + the big button · next ›. */}
         <div className="fl-bar">
-          <button
-            className="btn fl-prev"
-            disabled={prevFrag === undefined}
-            onClick={() => prevFrag !== undefined && setFragIdx(prevFrag)}
-            aria-keyshortcuts="ArrowLeft"
-            aria-label={`${s(lang, 'prevFragment')}: ${fragName(prevFrag)}`}
-          >
-            <span className="fl-nav-main">‹ {s(lang, 'prevFragment')}</span>
-            <span className="fl-nav-sub">{fragName(prevFrag) || '—'}</span>
-          </button>
+          <div className="fl-nav fl-nav-prev">
+            <button
+              className="btn fl-goplay"
+              disabled={prevFrag === undefined}
+              onClick={() => goTo(prevFrag, true)}
+              aria-keyshortcuts="Shift+ArrowLeft"
+              aria-label={`${s(lang, 'prevFragment')} ${s(lang, 'andPlay')}: ${fragName(prevFrag)}`}
+              title={`${s(lang, 'prevFragment')} ${s(lang, 'andPlay')} (Shift + ←)`}
+            >
+              ‹▶
+            </button>
+            <button
+              className="btn fl-prev"
+              disabled={prevFrag === undefined}
+              onClick={() => goTo(prevFrag, false)}
+              aria-keyshortcuts="ArrowLeft"
+              aria-label={`${s(lang, 'prevFragment')}: ${fragName(prevFrag)}`}
+            >
+              <span className="fl-nav-main">‹ {s(lang, 'prevFragment')}</span>
+              <span className="fl-nav-sub">{fragName(prevFrag) || '—'}</span>
+            </button>
+          </div>
           <div className="fl-status">{status}</div>
           <div className="fl-play">
             <button
@@ -649,16 +680,28 @@ export default function FallingNotes({
               )}
             </button>
           </div>
-          <button
-            className="btn fl-next"
-            disabled={nextFrag === undefined}
-            onClick={() => nextFrag !== undefined && setFragIdx(nextFrag)}
-            aria-keyshortcuts="ArrowRight"
-            aria-label={`${s(lang, 'nextFragment')}: ${fragName(nextFrag)}`}
-          >
-            <span className="fl-nav-main">{s(lang, 'nextFragment')} ›</span>
-            <span className="fl-nav-sub">{fragName(nextFrag) || '—'}</span>
-          </button>
+          <div className="fl-nav fl-nav-next">
+            <button
+              className="btn fl-next"
+              disabled={nextFrag === undefined}
+              onClick={() => goTo(nextFrag, false)}
+              aria-keyshortcuts="ArrowRight"
+              aria-label={`${s(lang, 'nextFragment')}: ${fragName(nextFrag)}`}
+            >
+              <span className="fl-nav-main">{s(lang, 'nextFragment')} ›</span>
+              <span className="fl-nav-sub">{fragName(nextFrag) || '—'}</span>
+            </button>
+            <button
+              className="btn fl-goplay"
+              disabled={nextFrag === undefined}
+              onClick={() => goTo(nextFrag, true)}
+              aria-keyshortcuts="Shift+ArrowRight"
+              aria-label={`${s(lang, 'nextFragment')} ${s(lang, 'andPlay')}: ${fragName(nextFrag)}`}
+              title={`${s(lang, 'nextFragment')} ${s(lang, 'andPlay')} (Shift + →)`}
+            >
+              ›▶
+            </button>
+          </div>
         </div>
       </div>
     </div>

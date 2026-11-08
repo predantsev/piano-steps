@@ -3,6 +3,14 @@
 Every change that reaches the app is logged here: **what** changed and **why**, newest first,
 with its issue and PR. Rule and checklist: AGENTS.md § "Change log and the guide".
 
+## 2026-11-08
+
+- **Falling notes: ‹ Previous / Next › as two-part buttons** (#44). The big half switches the fragment
+  (it waits at the start, silent); the small ‹▶ / ›▶ half at the outer edge switches and starts playing
+  at once. Keys: ← / → switch, Shift + ← / → switch and play. Guide updated in en and uk. *Why:* the
+  owner often wants to hear the next fragment straight away and sometimes only to move on; picked N2 of
+  the bottom-bar mockup.
+
 ## 2026-11-01
 
 - **Falling notes: a steady bottom bar** (#34). The big button is now always **Play / Pause** (Space) —

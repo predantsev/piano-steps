@@ -64,11 +64,36 @@
   padding-top: 10px;
   min-height: 72px;
 }
-.fl-prev {
+.fl-nav-prev {
   grid-area: prev;
 }
-.fl-next {
+.fl-nav-next {
   grid-area: next;
+}
+/* ‹ › are two halves of one control: the big half switches, the small outer ▶ half switches and plays. */
+.fl-nav {
+  display: flex;
+}
+.fl-nav-prev .fl-goplay {
+  border-radius: var(--radius) 0 0 var(--radius);
+  border-right: 0;
+}
+.fl-nav-prev .fl-prev {
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+.fl-nav-next .fl-next {
+  border-radius: var(--radius) 0 0 var(--radius);
+}
+.fl-nav-next .fl-goplay {
+  border-radius: 0 var(--radius) var(--radius) 0;
+  border-left: 0;
+}
+.fl-goplay {
+  min-height: 56px;
+  min-width: 56px;
+  padding: 0 10px;
+  font-size: 1.05rem;
+  background: color-mix(in srgb, var(--accent) 14%, var(--panel));
 }
 .fl-play {
   grid-area: play;
@@ -102,7 +127,7 @@
 .fl-next {
   flex: none;
   min-height: 56px;
-  min-width: 9rem;
+  min-width: 8rem;
   flex-direction: column;
   align-items: flex-start;
   justify-content: center;
