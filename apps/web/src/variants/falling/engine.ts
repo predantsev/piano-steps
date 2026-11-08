@@ -43,6 +43,8 @@ export interface PracticeOptions {
   wait: boolean;
   /** Sound on (off = watch only). */
   sound: boolean;
+  /** Ids of notes switched off by the user (#52): silent and never required. */
+  skip?: ReadonlySet<string>;
 }
 
 export interface EngineHooks {
@@ -138,7 +140,7 @@ export class PracticeEngine {
     // end <= start, is an empty span: no notes, no steps, and Play stays off.
     this.span = { start: span.start, end: Math.max(span.start, Math.min(span.end, this.lessonEnd)) };
     this.notes = windowNotes(this.lessonNotes, this.span);
-    this.steps = waitSteps(this.notes, this.opts.hands);
+    this.steps = waitSteps(this.notes, this.opts.hands, this.opts.skip);
     this.cursor = this.span.start;
     if (this.opts.wait) this.waitAt(0);
     else this.setPhase('idle');
@@ -151,7 +153,8 @@ export class PracticeEngine {
     const v = this.visualTime();
     this.opts = next;
 
-    if (changed('hands')) this.steps = waitSteps(this.notes, next.hands);
+    const handsOrSkip = changed('hands') || changed('skip');
+    if (handsOrSkip) this.steps = waitSteps(this.notes, next.hands, next.skip);
 
     if (changed('wait')) {
       // at rest, or already past the end (wait mode's fall into the next pass): start from the top
@@ -167,11 +170,11 @@ export class PracticeEngine {
 
     switch (this.phase) {
       case 'playing':
-        if (changed('hands') || changed('sound') || changed('loop')) this.startRun(v);
+        if (handsOrSkip || changed('sound') || changed('loop')) this.startRun(v);
         else if (changed('rate')) this.player.setRate(next.rate);
         break;
       case 'falling':
-        if (changed('hands')) {
+        if (handsOrSkip) {
           this.halt();
           this.waitAt(stepAtOrAfter(this.steps, this.clampToSpan(v)));
         } else if (changed('rate') && this.fall) {
@@ -180,7 +183,7 @@ export class PracticeEngine {
         }
         break;
       case 'waiting':
-        if (changed('hands')) this.waitAt(stepAtOrAfter(this.steps, this.cursor));
+        if (handsOrSkip) this.waitAt(stepAtOrAfter(this.steps, this.cursor));
         break;
       case 'preroll':
         if (changed('rate') && this.preroll) {
@@ -389,6 +392,7 @@ export class PracticeEngine {
       loop: this.opts.loop && fromStart,
       rate: this.opts.rate,
       hands: playerHands(this.opts.hands),
+      skip: this.opts.skip,
       muted: !this.opts.sound,
     });
   }

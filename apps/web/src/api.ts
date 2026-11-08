@@ -218,6 +218,19 @@ export async function listFragmentNotes(ref: string): Promise<FragmentNote[]> {
   return notes;
 }
 
+/** Ids of the notes switched off in a lesson (#52; empty offline). */
+export async function listMutedNotes(ref: string): Promise<string[]> {
+  if (offline) return [];
+  const { noteIds } = await call<{ noteIds: string[] }>('GET', `/api/lessons/${encodeURIComponent(ref)}/muted-notes`);
+  return noteIds;
+}
+
+/** Switch one note off (muted = true) or back on. */
+export async function setNoteMuted(ref: string, noteId: string, muted: boolean): Promise<void> {
+  if (offline) throw new ApiError('offline: switching notes off needs the server', 503);
+  await call<unknown>(muted ? 'PUT' : 'DELETE', `/api/lessons/${encodeURIComponent(ref)}/notes/${encodeURIComponent(noteId)}/muted`);
+}
+
 /** Save the note on one fragment; an empty note removes it (→ null). */
 export async function saveFragmentNote(ref: string, position: number, input: FragmentNoteInput): Promise<FragmentNote | null> {
   if (offline) throw new ApiError('offline: notes need the server', 503);

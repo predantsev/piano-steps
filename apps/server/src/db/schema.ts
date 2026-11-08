@@ -99,3 +99,20 @@ export const fragmentNotes = pgTable(
   },
   (t) => [unique('fragment_notes_lesson_fragment').on(t.lessonId, t.fragmentPosition)],
 );
+
+/**
+ * Notes the user switched off to learn a lighter version first (#52): they stay on screen as ghosts
+ * but do not sound and are not required. Keyed by the note's stable id (`LessonNote.id`).
+ */
+export const mutedNotes = pgTable(
+  'muted_notes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    lessonId: uuid('lesson_id')
+      .notNull()
+      .references(() => lessons.id, { onDelete: 'cascade' }),
+    noteId: text('note_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [unique('muted_notes_lesson_note').on(t.lessonId, t.noteId)],
+);

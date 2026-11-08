@@ -526,3 +526,21 @@ describe('fragment notes', () => {
     expect((await req('PUT', '/api/lessons/twinkle-twinkle/fragments/0/note', { tags: ['nope'] })).status).toBe(400);
   });
 });
+
+describe('muted notes (#52)', () => {
+  it('switches notes off and on by their stable id, idempotently', async () => {
+    const lesson = (await (await req('GET', '/api/lessons/twinkle-twinkle')).json()) as { notes: { id: string }[] };
+    const [a, b] = [lesson.notes[3].id, lesson.notes[1].id];
+    expect((await req('PUT', `/api/lessons/twinkle-twinkle/notes/${a}/muted`)).status).toBe(204);
+    expect((await req('PUT', `/api/lessons/twinkle-twinkle/notes/${b}/muted`)).status).toBe(204);
+    expect((await req('PUT', `/api/lessons/twinkle-twinkle/notes/${b}/muted`)).status).toBe(204);
+    const list = async () => ((await (await req('GET', '/api/lessons/twinkle-twinkle/muted-notes')).json()) as { noteIds: string[] }).noteIds;
+    expect(await list()).toEqual([b, a]); // lesson order
+    expect((await req('DELETE', `/api/lessons/twinkle-twinkle/notes/${b}/muted`)).status).toBe(204);
+    expect((await req('DELETE', `/api/lessons/twinkle-twinkle/notes/${b}/muted`)).status).toBe(204);
+    expect(await list()).toEqual([a]);
+    expect((await req('PUT', '/api/lessons/twinkle-twinkle/notes/nope/muted')).status).toBe(404);
+    expect((await req('GET', '/api/lessons/no-such-lesson/muted-notes')).status).toBe(404);
+    await req('DELETE', `/api/lessons/twinkle-twinkle/notes/${a}/muted`);
+  });
+});

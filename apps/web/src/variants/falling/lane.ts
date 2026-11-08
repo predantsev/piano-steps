@@ -112,6 +112,18 @@ export function drawLane(ctx: CanvasRenderingContext2D, f: LaneFrame) {
     if (!r) continue;
     const colour = b.note.hand === 'L' ? c.handL : c.handR;
     const h = r.bottom - r.top;
+    if (b.muted) {
+      // switched off (#52): a dashed outline in the hand's colour — there, but empty
+      ctx.globalAlpha = 0.85;
+      ctx.lineWidth = 1.6;
+      ctx.setLineDash([5, 4]);
+      ctx.strokeStyle = colour;
+      roundRect(ctx, r.x + 0.8, r.top + 0.8, r.w - 1.6, h - 1.6, Math.min(6, r.w / 3, h / 2));
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.globalAlpha = 1;
+      continue;
+    }
     ctx.globalAlpha = b.active ? 1 : 0.22;
     ctx.fillStyle = colour;
     roundRect(ctx, r.x, r.top, r.w, h, Math.min(6, r.w / 3, h / 2));

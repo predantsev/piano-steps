@@ -421,3 +421,38 @@ describe('seek (← / →, #46)', () => {
     expect(e.phase).toBe('waiting');
   });
 });
+
+describe('switched-off notes (#52)', () => {
+  const withIds = notes.map((x, i) => ({ ...x, id: `n${i}` }));
+  const mk = (opts: Partial<PracticeOptions>) => {
+    const e = new PracticeEngine(
+      player,
+      withIds,
+      { rate: 1, hands: 'both', loop: true, wait: false, sound: true, ...opts },
+      { onAttempt: () => attempts++, onChange: () => {}, now: () => clock, audioLead: () => lag },
+    );
+    e.attach();
+    e.setSpan({ start: 0, end: 2 });
+    return e;
+  };
+
+  it('wait mode: a muted note is not required; a step of only muted notes is skipped', () => {
+    const e = mk({ wait: true, skip: new Set(['n0', 'n2']) }); // 64 of the first chord, the whole 0.5 step
+    expect(e.steps.map((s) => s.pitches)).toEqual([[48], [60], [62]]);
+    e.setOptions({ skip: new Set() });
+    expect(e.steps).toHaveLength(4);
+    expect(e.phase).toBe('waiting');
+  });
+
+  it('continuous mode hands the ids to the player and restarts the run when they change', () => {
+    const e = mk({ skip: new Set(['n3']) });
+    e.primary();
+    advance(e, 2000);
+    expect(player.plays.at(-1)?.skip?.has('n3')).toBe(true);
+    player.time = 0.8;
+    e.setOptions({ skip: new Set(['n3', 'n4']) });
+    expect(e.phase).toBe('playing');
+    expect(player.plays.at(-1)).toMatchObject({ from: 0.8 });
+    expect(player.plays.at(-1)?.skip?.has('n4')).toBe(true);
+  });
+});

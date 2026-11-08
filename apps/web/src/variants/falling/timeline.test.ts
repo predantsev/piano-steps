@@ -192,3 +192,21 @@ describe('demo lessons after core snapping (#8)', () => {
     });
   }
 });
+
+describe('switched-off notes (#52)', () => {
+  const span = { start: 0, end: 2 };
+  const win = windowNotes(notes, span).map((x) => ({ ...x, id: `${x.pitch}@${x.start}` }));
+  const skip = new Set(['60@1']);
+
+  it('are still drawn, but muted and never active (not lit, not next)', () => {
+    const bars = visibleBars(win, span, 0.6, 1, false, 'both', skip);
+    const off = bars.find((b) => b.note.pitch === 60)!;
+    expect(off).toMatchObject({ muted: true, active: false });
+    expect(nextOnsetBars(bars, 0.6).map((b) => b.note.pitch)).toEqual([62]);
+    expect(bars.filter((b) => b.note.pitch !== 60).every((b) => !b.muted)).toBe(true);
+  });
+
+  it('are left out of wait-mode steps', () => {
+    expect(waitSteps(win, 'both', skip).map((s) => s.time)).toEqual([0, 0.5, 1.5]);
+  });
+});

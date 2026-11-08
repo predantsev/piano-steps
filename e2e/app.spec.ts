@@ -247,6 +247,45 @@ test('tapping a falling note opens its menu and saves a report about that exact 
   await expect(menu).toBeHidden();
 });
 
+test('a note switched off from its menu: stored, counted on the fragment, switched back on (#52)', async ({ page, hasTouch }, testInfo) => {
+  const slug = testInfo.project.name.includes('ipad') ? 'fur-elise-opening' : 'ode-to-joy'; // projects run in parallel
+  const muted = async (): Promise<string[]> =>
+    page.evaluate(async (s) => (await (await fetch(`/api/lessons/${s}/muted-notes`)).json()).noteIds, slug);
+  await openApp(page, `?lesson=${slug}&ui=falling`);
+  const before = await muted();
+  const canvas = page.locator('.fl-lane canvas');
+  await expect(canvas).toBeVisible();
+  const hit = await canvas.evaluate((c: HTMLCanvasElement) => {
+    const ctx = c.getContext('2d')!;
+    const { width, height } = c;
+    const data = ctx.getImageData(0, 0, width, height).data;
+    for (let y = height - 4; y > 0; y -= 4)
+      for (let x = 2; x < width; x += 4) {
+        const i = (y * width + x) * 4;
+        const [r, g, b] = [data[i], data[i + 1], data[i + 2]];
+        if (g > r + 50 || b > r + 50) {
+          const box = c.getBoundingClientRect();
+          return { x: (x / width) * box.width, y: (y / height) * box.height };
+        }
+      }
+    return null;
+  });
+  expect(hit, 'a bar is drawn').not.toBeNull();
+  const tapBar = () => (hasTouch ? canvas.tap({ position: hit! }) : canvas.click({ position: hit! }));
+
+  await tapBar();
+  const menu = page.locator('.fl-notemenu');
+  await tapOrClick(menu.getByRole('button', { name: /Switch this note off/ }), hasTouch);
+  await expect(menu).toBeHidden();
+  await expect.poll(async () => (await muted()).length).toBe(before.length + 1);
+  const id = (await muted()).find((x) => !before.includes(x))!;
+  await expect(page.locator('.fl-chip[data-fragment="0"] .fl-mutedcount')).toBeVisible();
+
+  await tapBar(); // the ghost is still there, in the same place
+  await tapOrClick(menu.getByRole('button', { name: /Switch it back on/ }), hasTouch);
+  await expect.poll(async () => (await muted()).includes(id)).toBe(false);
+});
+
 test('a fragment note: hold the number, write, mark "come back later", see it on the number and in the list', async ({ page, hasTouch }) => {
   await openApp(page, '?lesson=fur-elise-opening&ui=falling');
   const chip = page.locator('.fl-chip[data-fragment="1"]');

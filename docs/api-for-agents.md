@@ -130,3 +130,11 @@ The owner can leave a note on any fragment from the app (hold a fragment number,
 work through them with the owner, then remove the done ones: `DELETE /api/lessons/{ref}/fragments/{position}/note`
 (or `PUT` the same path to update one; an empty note removes it). Notes are keyed by fragment position,
 like progress — re-cutting a lesson's fragments shifts them.
+
+## Notes switched off
+
+To learn a lighter version first, the owner can switch single notes off from the note menu (#52): they
+stay on screen as ghosts but do not sound and are not required. `GET /api/lessons/{ref}/muted-notes` →
+`{ noteIds }` (stable `LessonNote.id`s); `PUT` / `DELETE /api/lessons/{ref}/notes/{noteId}/muted` switch one
+off / on (idempotent, 204). Leave them alone unless asked — they are the owner's practice choice, not a
+transcription error.
