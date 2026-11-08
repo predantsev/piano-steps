@@ -22,7 +22,9 @@ jobs:
       - run: npm run check:bundle
 
   e2e:
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest moved to 26.04 (Nov 2026) and Playwright's WebKit crashes there on page load
+    # (docs/knowledge-base/ci-webkit-ubuntu-26.md). Move on once Playwright supports 26.04.
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4

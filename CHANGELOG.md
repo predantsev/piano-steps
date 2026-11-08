@@ -3,6 +3,20 @@
 Every change that reaches the app is logged here: **what** changed and **why**, newest first,
 with its issue and PR. Rule and checklist: AGENTS.md § "Change log and the guide".
 
+## 2026-11-08
+
+- **Falling notes: ‹ Previous / Next › as two-part buttons** (#44). The big half switches the fragment
+  (it waits at the start, silent); the small ‹▶ / ›▶ half at the outer edge switches and starts playing
+  at once. Keys: ← / → switch, Shift + ← / → switch and play. Guide updated in en and uk. *Why:* the
+  owner often wants to hear the next fragment straight away and sometimes only to move on; picked N2 of
+  the bottom-bar mockup.
+- **CI: e2e pinned to ubuntu-24.04** (#44). *Why:* `ubuntu-latest` became 26.04, where Playwright's
+  WebKit crashes on page load and every iPad test failed; see `docs/knowledge-base/ci-webkit-ubuntu-26.md`.
+- **Dev API: `press()` / `release()` wait for React to commit** (#44). `settle()` now waits two frames
+  plus one task (fallback 400 ms instead of 120 ms). *Why:* the falling view sets its key highlights
+  inside its frame loop; on a slow CI machine the 120 ms fallback returned before React committed them,
+  so "pressed keys are lit" flaked (seen 2026-10-24 and twice on 2026-11-08).
+
 ## 2026-11-01
 
 - **Falling notes: a steady bottom bar** (#34). The big button is now always **Play / Pause** (Space) —

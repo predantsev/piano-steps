@@ -19,6 +19,7 @@
       "body": [
         "Notes fall onto the keys, Synthesia-style. A bar touches its key exactly when the note sounds.",
         "• The bottom bar: ‹ Previous on the left, Next › on the right (fragments, then the whole lesson), and in the middle the big button — always Play / Pause (Space); after a pause it goes on from the same place. The ⏮ glued to its left goes back to the start of the fragment (Shift + Space). A short \"Get ready…\" comes before the start.",
+        "• ‹ Previous and Next › have two halves: the big one just switches (the fragment waits at the start), the small ‹▶ / ›▶ at the very edge switches and starts playing at once (Shift + ← / →).",
         "• 🔁 Loop (the fragment repeats), 🔊/🔇 sound.",
         "• Speed 25–100 %. Start slow.",
         "• Hands: Both, Left, Right — practise one hand, the other stays silent. Green is right, blue is left.",
@@ -68,7 +69,7 @@
       "title": "Keyboard and on-screen keys",
       "body": [
         "• The on-screen keyboard plays chords with several fingers and glissando — slide your finger.",
-        "• Space = the big button (Play / Pause, or Next in Wait for me). Shift + Space = back to the start of the fragment. ← / → = previous / next fragment (in Cards and Steps: back / next).",
+        "• Space = the big button (Play / Pause, or Next in Wait for me). Shift + Space = back to the start of the fragment. ← / → = previous / next fragment, Shift + ← / → = switch and play (in Cards and Steps: back / next).",
         "• The computer keyboard as a piano: A W S E D F T G Y H U J K = C4 up to C5 (then O L P ;). Z / X — octave down / up.",
         "The \"Space = Next\" hint shows only with a mouse or trackpad; Space works without it too."
       ]

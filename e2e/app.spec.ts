@@ -310,4 +310,17 @@ test('the falling bar: Space plays / pauses, ⏮ goes back to the start, ‹ ›
   await expect(chip(0)).toHaveAttribute('aria-pressed', 'true');
   await page.keyboard.press('ArrowLeft'); // no wrap-around to "whole lesson"
   await expect(chip(0)).toHaveAttribute('aria-pressed', 'true');
+
+  // The small ▶ half: switch AND play; the big half only switches.
+  await tapOrClick(page.locator('.fl-nav-next .fl-goplay'), hasTouch);
+  await expect(chip(1)).toHaveAttribute('aria-pressed', 'true');
+  await expect(main).toContainText('Pause');
+  await tapOrClick(page.locator('.fl-next'), hasTouch);
+  await expect(chip(2)).toHaveAttribute('aria-pressed', 'true');
+  await expect(main).toContainText('Play'); // waits at the start, silent
+  await page.keyboard.press('Shift+ArrowLeft');
+  await expect(chip(1)).toHaveAttribute('aria-pressed', 'true');
+  await expect(main).toContainText('Pause');
+  await tapOrClick(main, hasTouch);
+  await expect(page.locator('.fl-nav-prev .fl-goplay')).toBeEnabled();
 });
