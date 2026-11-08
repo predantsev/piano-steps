@@ -28,6 +28,8 @@ export interface PlayOptions {
   hands?: Hand[];
   /** Run the clock without sound (e.g. "watch only"). */
   muted?: boolean;
+  /** Ids of notes that stay silent (switched off by the user, #52); timing is unchanged. */
+  skip?: ReadonlySet<string>;
 }
 
 export type PlayerEvent =
@@ -59,7 +61,7 @@ export class LessonPlayer {
   private sampler: Tone.Sampler | null = null;
   private synth: Tone.PolySynth | null = null;
   private listeners = new Set<Listener>();
-  private opts: Required<Omit<PlayOptions, 'hands'>> & { hands?: Hand[] } = {
+  private opts: Required<Omit<PlayOptions, 'hands' | 'skip'>> & { hands?: Hand[]; skip?: ReadonlySet<string> } = {
     from: 0, to: Infinity, loop: false, rate: 1, muted: false,
   };
   private segments: Segment[] = []; // passes queued so far; the last one is being scheduled
@@ -142,6 +144,7 @@ export class LessonPlayer {
       rate: options.rate ?? 1,
       muted: options.muted ?? false,
       hands: options.hands,
+      skip: options.skip,
     };
     this.run(this.opts.from);
   }
@@ -320,7 +323,7 @@ export class LessonPlayer {
   }
 
   private tick() {
-    const { rate, muted, hands, to, loop } = this.opts;
+    const { rate, muted, hands, skip, to, loop } = this.opts;
     const horizon = Tone.now() + LOOKAHEAD; // scheduling clock
     const inst = muted ? null : this.instrument();
 
@@ -336,7 +339,7 @@ export class LessonPlayer {
         const at = seg.at + (n.start - seg.from) / rate;
         if (at > horizon) break;
         this.nextIdx++;
-        if (!inst || (hands && n.hand && !hands.includes(n.hand))) continue;
+        if (!inst || (hands && n.hand && !hands.includes(n.hand)) || (skip && n.id && skip.has(n.id))) continue;
         inst.triggerAttackRelease(
           pitchName(n.pitch),
           Math.max(0.05, Math.min(n.duration, to - n.start) / rate),

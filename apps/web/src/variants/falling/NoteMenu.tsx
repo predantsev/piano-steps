@@ -17,19 +17,23 @@ const KINDS: [FeedbackKind, StringKey][] = [
  * optional comment — saved with the note's stable id), and a placeholder for fixing it yourself later.
  * Positioned at the tap, kept inside the window; a tap outside or Escape closes it.
  */
-export function NoteMenu({ note, at, lang, noteNames, onHear, onReport, onClose }: {
+export function NoteMenu({ note, at, lang, noteNames, onHear, onReport, muted, onToggleMute, onClose }: {
   note: LessonNote;
   at: { x: number; y: number };
   lang: Lang;
   noteNames: Settings['noteNames'];
   onHear(): void;
   onReport?: (r: { kind?: FeedbackKind; message?: string }) => Promise<void>;
+  /** Switched off (#52). */
+  muted?: boolean;
+  onToggleMute?: (muted: boolean) => Promise<void>;
   onClose(): void;
 }) {
   const [kind, setKind] = useState<FeedbackKind | null>(null);
   const [text, setText] = useState('');
   const [state, setState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   const [err, setErr] = useState('');
+  const [muting, setMuting] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ left: at.x, top: at.y });
 
@@ -88,6 +92,22 @@ export function NoteMenu({ note, at, lang, noteNames, onHear, onReport, onClose 
         <button className="btn" onClick={onHear}>
           🔊 {s(lang, 'noteHear')}
         </button>
+        {onToggleMute && (
+          <button
+            className={`btn fl-nm-mute ${muted ? 'primary' : ''}`}
+            disabled={muting}
+            onClick={() => {
+              setMuting(true);
+              onToggleMute(!muted).then(onClose, (e: unknown) => {
+                setMuting(false);
+                setErr(e instanceof Error ? e.message : String(e));
+                setState('error');
+              });
+            }}
+          >
+            {muted ? `🔈 ${s(lang, 'noteUnmute')}` : `🔇 ${s(lang, 'noteMute')}`}
+          </button>
+        )}
         {state === 'sent' ? (
           <p className="fl-nm-ok">✓ {s(lang, 'noteSent')}</p>
         ) : (

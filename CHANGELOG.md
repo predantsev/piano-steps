@@ -5,6 +5,13 @@ with its issue and PR. Rule and checklist: AGENTS.md § "Change log and the guid
 
 ## 2026-11-08
 
+- **Falling notes: switch a note off to learn a lighter version first** (#52). Tap a bar → 🔇 Switch
+  this note off: it stays as a dashed outline, does not sound, is not lit and is not required in Wait
+  for me (a step of only switched-off notes is skipped); timing is unchanged. 🔈 Switch it back on from
+  the same menu. A fragment chip shows 🔇 and the count. Stored per lesson by note id (`muted_notes`
+  table, `GET /api/lessons/{ref}/muted-notes`, `PUT`/`DELETE …/notes/{noteId}/muted`). Guide updated in
+  en and uk. *Why:* with 3–4 keys at once or very fast changes, the owner learns the easier version
+  first and adds fingers back later; picked the dashed-outline look (G1) from a mockup.
 - **Falling notes: fragment chips stay on one line** (#50). When they don't fit, ‹ › at the ends
   scroll the row (a finger or a wheel does too), and the current fragment is scrolled into view. The
   Note button no longer shrinks. Guide updated in en and uk. *Why:* a lesson with 29 fragments wrapped

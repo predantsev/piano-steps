@@ -637,6 +637,62 @@ export function createApp({ db, dbKind, apiToken }: AppOptions) {
     },
   );
 
+  // ── muted notes (#52) ────────────────────────────────────────────────────
+  const NoteId = z.string().min(1).openapi({ example: 'n42', description: "The note's stable id (`LessonNote.id`)" });
+
+  app.openapi(
+    createRoute({
+      method: 'get',
+      path: '/api/lessons/{ref}/muted-notes',
+      tags: ['practice'],
+      summary: 'Notes the user switched off (learning a lighter version first)',
+      description:
+        'Ids of notes that stay on screen as ghosts but do not sound and are not required in Wait for me. ' +
+        'Timing is unchanged. Switched on and off from the note menu.',
+      request: { params: z.object({ ref: Ref }) },
+      responses: { 200: json(z.object({ noteIds: z.array(z.string()) }), 'Muted note ids', { noteIds: ['n42', 'n43'] }), ...read },
+    }),
+    async (c) => c.json({ noteIds: await repo.listMutedNotes(db, c.req.valid('param').ref) }, 200),
+  );
+
+  app.openapi(
+    createRoute({
+      method: 'put',
+      path: '/api/lessons/{ref}/notes/{noteId}/muted',
+      tags: ['practice'],
+      summary: 'Switch one note off',
+      description: 'Idempotent. 404 when the lesson has no note with that id.',
+      request: { params: z.object({ ref: Ref, noteId: NoteId }) },
+      responses: {
+        204: { description: 'Switched off' },
+        401: write[401],
+        404: err('No such lesson or note', ex.errors.notFound),
+      },
+    }),
+    async (c) => {
+      const { ref, noteId } = c.req.valid('param');
+      await repo.muteNote(db, ref, noteId);
+      return c.body(null, 204);
+    },
+  );
+
+  app.openapi(
+    createRoute({
+      method: 'delete',
+      path: '/api/lessons/{ref}/notes/{noteId}/muted',
+      tags: ['practice'],
+      summary: 'Switch one note back on',
+      description: 'Idempotent: 204 also when the note was not switched off.',
+      request: { params: z.object({ ref: Ref, noteId: NoteId }) },
+      responses: { 204: { description: 'Switched on' }, 401: write[401], ...read },
+    }),
+    async (c) => {
+      const { ref, noteId } = c.req.valid('param');
+      await repo.unmuteNote(db, ref, noteId);
+      return c.body(null, 204);
+    },
+  );
+
   // ── feedback ─────────────────────────────────────────────────────────────
   app.openapi(
     createRoute({

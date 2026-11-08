@@ -24,7 +24,7 @@ import {
 } from '@piano-steps/core';
 import { and, asc, desc, eq, sql } from 'drizzle-orm';
 import type { Db } from './db/client.ts';
-import { feedback, fragmentNotes, fragments, guideOverrides, lessons, progress } from './db/schema.ts';
+import { feedback, fragmentNotes, fragments, guideOverrides, lessons, mutedNotes, progress } from './db/schema.ts';
 
 type LessonRow = typeof lessons.$inferSelect;
 type FragmentRow = typeof fragments.$inferSelect;
@@ -288,6 +288,31 @@ export async function deleteFragmentNote(db: Db, idOrSlug: string, position: num
     .where(and(eq(fragmentNotes.lessonId, lessonId), eq(fragmentNotes.fragmentPosition, position)))
     .returning();
   return gone.length > 0;
+}
+
+// ── muted notes (#52) ───────────────────────────────────────────────────────
+
+/** Ids of the notes the user switched off in this lesson, in lesson order. */
+export async function listMutedNotes(db: Db, idOrSlug: string): Promise<string[]> {
+  const row = await findRow(db, idOrSlug);
+  const rows = await db.select({ noteId: mutedNotes.noteId }).from(mutedNotes).where(eq(mutedNotes.lessonId, row.id));
+  const muted = new Set(rows.map((r) => r.noteId));
+  const inLesson = row.notes.flatMap((n) => (n.id && muted.has(n.id) ? [n.id] : []));
+  // ids the lesson no longer has (it was replaced) are kept, so they come back if the note does
+  return [...inLesson, ...[...muted].filter((id) => !inLesson.includes(id))];
+}
+
+/** Switch one note off (idempotent). The note must exist in the lesson. */
+export async function muteNote(db: Db, idOrSlug: string, noteId: string): Promise<void> {
+  const row = await findRow(db, idOrSlug);
+  if (!row.notes.some((n) => n.id === noteId)) throw new NotFound(`Lesson "${row.slug}" has no note "${noteId}"`);
+  await db.insert(mutedNotes).values({ lessonId: row.id, noteId }).onConflictDoNothing();
+}
+
+/** Switch one note back on (idempotent). */
+export async function unmuteNote(db: Db, idOrSlug: string, noteId: string): Promise<void> {
+  const row = await findRow(db, idOrSlug);
+  await db.delete(mutedNotes).where(and(eq(mutedNotes.lessonId, row.id), eq(mutedNotes.noteId, noteId)));
 }
 
 // ── feedback ────────────────────────────────────────────────────────────────

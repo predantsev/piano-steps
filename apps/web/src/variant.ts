@@ -48,6 +48,13 @@ export interface VariantProps {
   fragmentNotes?: FragmentNote[];
   /** Save the note on a fragment (an empty note removes it). Rejects with a readable Error. */
   saveFragmentNote?(position: number, note: FragmentNoteInput): Promise<void>;
+  /**
+   * Ids of the notes the user switched off (#52): shown as ghosts, silent, not required. The player
+   * itself does not know about them — a variant passes them as `PlayOptions.skip`.
+   */
+  mutedNotes?: readonly string[];
+  /** Switch a note off (true) or back on. Rejects with a readable Error. */
+  setNoteMuted?(noteId: string, muted: boolean): Promise<void>;
 }
 
 export interface VariantDef {

@@ -82,8 +82,8 @@ function audioLead(): number {
   }
 }
 
-function engineOptions(p: Prefs): PracticeOptions {
-  return { rate: p.rate, hands: p.hands, loop: p.loop, wait: p.wait, sound: p.sound };
+function engineOptions(p: Prefs, skip?: ReadonlySet<string>): PracticeOptions {
+  return { rate: p.rate, hands: p.hands, loop: p.loop, wait: p.wait, sound: p.sound, skip };
 }
 
 export default function FallingNotes({
@@ -98,7 +98,11 @@ export default function FallingNotes({
   reportNote,
   fragmentNotes = [],
   saveFragmentNote,
+  mutedNotes,
+  setNoteMuted,
 }: VariantProps) {
+  // Notes switched off by the user (#52): one Set per change, so the engine sees a new value.
+  const skip = useMemo(() => new Set(mutedNotes ?? []), [mutedNotes]);
   const [fragIdx, setFragIdx] = useState<number | null>(lesson.fragments.length ? 0 : null);
   const playAfterSwitch = useRef(false);
   const [prefs, setPrefs] = useState<Prefs>(() => readPrefs(settings.speed));
@@ -131,7 +135,7 @@ export default function FallingNotes({
 
   const engine = useMemo(
     () =>
-      new PracticeEngine(player, lesson.notes, engineOptions(prefs), {
+      new PracticeEngine(player, lesson.notes, engineOptions(prefs, skip), {
         onAttempt: () => attemptRef.current(),
         onChange: () => {
           rerender();
@@ -159,9 +163,9 @@ export default function FallingNotes({
   }, [engine, fragIdx, lesson, lessonEnd, onFragmentChange]);
 
   useEffect(() => {
-    engine.setOptions(engineOptions(prefs));
+    engine.setOptions(engineOptions(prefs, skip));
     savePrefs(prefs);
-  }, [engine, prefs]);
+  }, [engine, prefs, skip]);
 
   // On-screen / computer keyboard → wait-mode matching. The shell does not sound computer-keyboard
   // notes, so this variant does (the on-screen keys sound through onNoteOn below).
@@ -331,7 +335,7 @@ export default function FallingNotes({
     const paint = () => {
       const now = engine.visualTime();
       const { lookAhead } = prefsRef.current;
-      const bars = visibleBars(engine.notes, engine.span, now, lookAhead, engine.opts.loop, engine.opts.hands);
+      const bars = visibleBars(engine.notes, engine.span, now, lookAhead, engine.opts.loop, engine.opts.hands, engine.opts.skip);
       frameRef.current = { bars, now };
       const marks = keyMarks({
         phase: engine.phase,
@@ -481,6 +485,15 @@ export default function FallingNotes({
   };
   const fragTitle = (i: number) => `${s(lang, 'fragNoteTitle')} ${lesson.fragments[i]?.title ?? `#${i + 1}`}`;
 
+  // How many notes are switched off in each fragment — shown on its chip so they are not forgotten.
+  const mutedPerFrag = useMemo(
+    () =>
+      lesson.fragments.map((f) =>
+        skip.size ? notesInRange(lesson.notes, f.start, f.end).filter((n) => n.id && skip.has(n.id)).length : 0,
+      ),
+    [lesson, skip],
+  );
+
   const chip = (label: string, i: number | null) => {
     const pr = i === null ? undefined : progressOf(i);
     const isDone = pr?.status === 'mastered';
@@ -537,6 +550,11 @@ export default function FallingNotes({
           <svg className="fl-mark" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
             <path d="M4 20h4L19 9l-4-4L4 16z" />
           </svg>
+        )}
+        {i !== null && mutedPerFrag[i] > 0 && (
+          <span className="fl-count fl-mutedcount" title={`${mutedPerFrag[i]} ${s(lang, 'mutedCount')}`}>
+            🔇{mutedPerFrag[i]}
+          </span>
         )}
         {note?.later && (
           <svg className="fl-mark fl-mark-later" width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
@@ -699,6 +717,12 @@ export default function FallingNotes({
               }}
               onReport={
                 reportNote && menu.note.id ? (r) => reportNote({ noteId: menu.note.id!, ...r }) : undefined
+              }
+              muted={!!menu.note.id && skip.has(menu.note.id)}
+              onToggleMute={
+                setNoteMuted && menu.note.id
+                  ? (m) => setNoteMuted(menu.note.id!, m)
+                  : undefined
               }
               onClose={closeMenu}
             />

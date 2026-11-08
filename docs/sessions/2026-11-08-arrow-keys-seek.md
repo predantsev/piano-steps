@@ -16,3 +16,5 @@ fragment being practised; switching fragments moves to Shift + ← / →.
 - 2026-11-08 Committed the swipe seek (#48) on `feat/48-swipe-seek`: sideways swipe on the lane = ±3 s, bar tap decided on release.
 - 2026-11-08 PR #49 squash-merged after green CI (`b02f148`); container rebuilt from `main`. Not checked on a real iPad.
 - 2026-11-08 Owner: 29 fragments wrapped the chips over several lines on the iPad. Opened #50 — chips on one line, ‹ › scroll when they overflow.
+- 2026-11-08 PR #51 squash-merged after green CI (`3f8799b`); container rebuilt from `main`.
+- 2026-11-08 Owner idea: learn a lighter version first by switching single notes off. Mockup (claude.ai/artifact/VtXrB25HJfCgjd1QHE1nyF), owner picked G1 (dashed outline). Opened #52.

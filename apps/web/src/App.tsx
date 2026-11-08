@@ -41,6 +41,7 @@ export default function App() {
   );
   const [progress, setProgress] = useState<FragmentProgress[]>([]);
   const [fragmentNotes, setFragmentNotes] = useState<FragmentNote[]>([]);
+  const [mutedNotes, setMutedNotes] = useState<string[]>([]);
   const [fragmentPos, setFragmentPos] = useState<number | null>(null);
   const [dialog, setDialog] = useState<null | 'feedback' | 'original' | 'settings' | 'help'>(null);
   const closeDialog = useCallback(() => setDialog(null), []);
@@ -105,6 +106,8 @@ export default function App() {
         setFragmentPos(null);
         setFragmentNotes([]);
         void api.listFragmentNotes(l.slug).then(setFragmentNotes, () => {});
+        setMutedNotes([]);
+        void api.listMutedNotes(l.slug).then(setMutedNotes, () => {});
         setProgress(await api.getProgress(l.slug).catch(() => []));
       })
       .catch((e) => !cancelled && setError(String(e)));
@@ -142,6 +145,15 @@ export default function App() {
         const rest = ns.filter((n) => n.fragmentPosition !== position);
         return saved ? [...rest, saved].sort((a, b) => a.fragmentPosition - b.fragmentPosition) : rest;
       });
+    },
+    [lesson],
+  );
+
+  const setNoteMuted = useCallback(
+    async (noteId: string, muted: boolean) => {
+      if (!lesson) throw new Error('no lesson');
+      await api.setNoteMuted(lesson.slug, noteId, muted);
+      setMutedNotes((ids) => (muted ? (ids.includes(noteId) ? ids : [...ids, noteId]) : ids.filter((id) => id !== noteId)));
     },
     [lesson],
   );
@@ -331,6 +343,8 @@ export default function App() {
               reportNote={reportNote}
               fragmentNotes={fragmentNotes}
               saveFragmentNote={saveFragmentNote}
+              mutedNotes={mutedNotes}
+              setNoteMuted={setNoteMuted}
             />
           </Suspense>
         ) : (

@@ -17,6 +17,8 @@ export interface Bar {
   end: number;
   iteration: number;
   active: boolean;
+  /** Switched off by the user (#52): drawn as a ghost, silent, never required. */
+  muted: boolean;
 }
 
 const EPS = 1e-6;
@@ -63,6 +65,7 @@ export function visibleBars(
   lookAhead: number,
   loop: boolean,
   hands: Hands,
+  skip?: ReadonlySet<string>,
 ): Bar[] {
   const p = period(span);
   const looping = loop && p > EPS;
@@ -74,7 +77,10 @@ export function visibleBars(
     for (const n of notes) {
       const start = n.start + shift;
       const end = start + n.duration;
-      if (end > now && start < now + lookAhead) out.push({ note: n, start, end, iteration: k, active: isActive(n, hands) });
+      if (end > now && start < now + lookAhead) {
+        const muted = !!(skip && n.id && skip.has(n.id));
+        out.push({ note: n, start, end, iteration: k, active: !muted && isActive(n, hands), muted });
+      }
     }
   }
   return out;
@@ -94,8 +100,8 @@ export function nextOnsetBars(bars: readonly Bar[], after: number, tol = 0.045):
 }
 
 /** Wait-mode stops: the steps (single keys or chords) of the practised hand(s) inside the window. */
-export function waitSteps(windowed: readonly LessonNote[], hands: Hands): Step[] {
-  return groupSteps(windowed.filter((n) => isActive(n, hands)));
+export function waitSteps(windowed: readonly LessonNote[], hands: Hands, skip?: ReadonlySet<string>): Step[] {
+  return groupSteps(windowed.filter((n) => isActive(n, hands) && !(skip && n.id && skip.has(n.id))));
 }
 
 /** Index of the first step at or after `t`; wraps to 0 when there is none. */

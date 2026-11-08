@@ -43,6 +43,13 @@
       "when": 1793270247189,
       "tag": "0005_fragment_notes",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1794170656994,
+      "tag": "0006_muted_notes",
+      "breakpoints": true
     }
   ]
 }
