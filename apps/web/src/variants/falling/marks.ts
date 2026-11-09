@@ -4,6 +4,8 @@ import type { Phase } from './engine.ts';
 import { nextOnsetBars, soundingBars, type Bar } from './timeline.ts';
 
 const EPS = 1e-6;
+/** Onsets this close are one step (core `groupSteps`), so they light together when paused on it (#56). */
+const CHORD_TOL = 0.045;
 
 export interface MarkInput {
   phase: Phase;
@@ -48,8 +50,13 @@ export function keyMarks(m: MarkInput): Marks {
     focusTime = m.now;
   } else {
     const resting = m.phase === 'idle' || m.phase === 'done';
-    if (!resting) for (const b of soundingBars(m.bars, m.now)) keys.set(b.note.pitch, fill(b.note));
-    const upcoming = nextOnsetBars(m.bars, resting ? m.now - 1e-3 : m.now);
+    // Paused on a step: its notes may start a few ms apart (a played chord) — light them all, and ring
+    // the step after it, not the chord's own later notes.
+    const tol = m.phase === 'paused' ? CHORD_TOL : 0;
+    if (!resting)
+      for (const b of tol ? m.bars : soundingBars(m.bars, m.now))
+        if (b.active && b.start <= m.now + tol + EPS && m.now < b.end - EPS) keys.set(b.note.pitch, fill(b.note));
+    const upcoming = nextOnsetBars(m.bars, resting ? m.now - 1e-3 : m.now + tol);
     for (const b of upcoming) ring(keys, b.note);
     focusTime = m.phase === 'waiting' ? m.now : upcoming[0]?.start;
   }
