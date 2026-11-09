@@ -3,6 +3,17 @@
 Every change that reaches the app is logged here: **what** changed and **why**, newest first,
 with its issue and PR. Rule and checklist: AGENTS.md § "Change log and the guide".
 
+## 2026-11-09
+
+- **Falling notes: ← / → and drags move by steps, not 3 s** (#54). A step is one press (notes that
+  start together count once), counted only over what you play now — the chosen hand, switched-off notes
+  left out — so with only the left hand on the arrows go bass note by bass note. While playing it plays
+  on; the first ← replays the step just heard, a quick second ← goes further. On the lane a sideways drag
+  moves live, step by step (a longer drag = more steps), sounding each step; on release it stays and
+  plays on if it was playing. At rest the step lands on the now-line, lit and sounded once. Replaces the
+  3 s seek of #46 / #48. Guide updated in en and uk. *Why:* 3 s skipped 4–6 presses at once; the owner
+  wants to move press by press, and picked these rules from a clickable prototype.
+
 ## 2026-11-08
 
 - **Falling notes: switch a note off to learn a lighter version first** (#52). Tap a bar → 🔇 Switch
