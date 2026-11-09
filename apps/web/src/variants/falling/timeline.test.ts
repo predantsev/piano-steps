@@ -210,3 +210,21 @@ describe('switched-off notes (#52)', () => {
     expect(waitSteps(win, 'both', skip).map((s) => s.time)).toEqual([0, 0.5, 1.5]);
   });
 });
+
+describe('paused on a step whose notes start a few ms apart (#56)', () => {
+  const span = { start: 0, end: 2 };
+  const rolled = windowNotes([n(70, 1, 0.3, 'R'), n(82, 1.02, 0.3, 'R'), n(74, 1.5, 0.3, 'R')], span);
+  const bars = visibleBars(rolled, span, 1, 2, false, 'both');
+
+  it('lights every note of the step and rings the next step', () => {
+    const m = keyMarks({ phase: 'paused', bars, now: 1, pressed: new Set(), wrong: null, held: [] });
+    expect(m.keys.get(70)?.mark).toBe('R');
+    expect(m.keys.get(82)?.mark).toBe('R');
+    expect(m.keys.get(74)?.mark).toBe('next');
+  });
+
+  it('while playing, a note only lights once it starts', () => {
+    const m = keyMarks({ phase: 'playing', bars, now: 1, pressed: new Set(), wrong: null, held: [] });
+    expect(m.keys.get(82)?.mark).toBe('next');
+  });
+});

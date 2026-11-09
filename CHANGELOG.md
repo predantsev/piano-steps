@@ -5,6 +5,10 @@ with its issue and PR. Rule and checklist: AGENTS.md § "Change log and the guid
 
 ## 2026-11-09
 
+- **Fix: paused on a step, every note of a played chord is lit** (#56). Transcribed chords start a few
+  ms apart; the keyboard used the exact time, so a note 10–40 ms later showed only the "next" ring.
+  Paused now lights the whole step (the same 45 ms the steps use) and rings the step after it. *Why:*
+  the owner saw A#4 outlined next to a lit A#5 of the same chord after stepping with the arrows.
 - **Falling notes: ← / → and drags move by steps, not 3 s** (#54). A step is one press (notes that
   start together count once), counted only over what you play now — the chosen hand, switched-off notes
   left out — so with only the left hand on the arrows go bass note by bass note. While playing it plays
