@@ -18,3 +18,5 @@ fragment being practised; switching fragments moves to Shift + ← / →.
 - 2026-11-08 Owner: 29 fragments wrapped the chips over several lines on the iPad. Opened #50 — chips on one line, ‹ › scroll when they overflow.
 - 2026-11-08 PR #51 squash-merged after green CI (`3f8799b`); container rebuilt from `main`.
 - 2026-11-08 Owner idea: learn a lighter version first by switching single notes off. Mockup (claude.ai/artifact/VtXrB25HJfCgjd1QHE1nyF), owner picked G1 (dashed outline). Opened #52.
+- 2026-11-08 PR #53 squash-merged after green CI (`ac1a2a3`); container rebuilt from `main`, `muted-notes` endpoint answers on Postgres.
+- 2026-11-09 Owner: 3 s skipped several presses. Clickable prototype (claude.ai/artifact/DsyxJhF3N6ncqJCmZV4nGC); owner took steps + player-style back + longer drag = more steps, plus live scrubbing. Opened #54.

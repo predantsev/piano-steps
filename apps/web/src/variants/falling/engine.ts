@@ -73,6 +73,8 @@ const PLAYER_START_DELAY = 0.05;
 const CHORD_DELAY = 0.01;
 /** The bridge stops this far short of the run start, so the first chord is not lit before it sounds. */
 const BRIDGE_GAP = 1e-3;
+/** Back while playing replays the step just heard unless it began less than this long ago (real s). */
+const REPLAY_SEC = 0.35;
 
 /**
  * Practice state machine for the falling-notes screen.
@@ -109,6 +111,7 @@ export class PracticeEngine {
    */
   private bridge: { from: number; to: number; t0: number } | null = null;
   private unsub: (() => void) | null = null;
+  private scrubbing: { wasRunning: boolean; base: number; idx: number; n: number } | null = null;
   private readonly lessonEnd: number;
 
   constructor(
@@ -289,39 +292,91 @@ export class PracticeEngine {
   }
 
   /**
-   * Move by `delta` seconds of lesson time inside the fragment (← / →). Keeps playing if it was
-   * playing; at rest or paused it only moves the position. Past the end: from the top when looping,
-   * else back to the start, ready to go. Wait mode jumps to the step at the new time, at least one
-   * step in the asked direction.
+   * Move by `n` steps (← / → and swipes, #54). A step is one press: the notes of the practised hand(s)
+   * that start together, switched-off notes left out — the same steps Wait for me stops on. While
+   * playing it keeps playing from the new step, and the first step back replays the one just heard
+   * (like a player's "back"); a quick second one goes further. At rest the step lands on the
+   * now-line and sounds once.
    */
-  seek(delta: number) {
-    if (!this.notes.length || !delta) return;
-    const v = this.phase === 'preroll' ? this.span.start : this.visualTime();
-    const target = this.clampToSpan(v + delta);
-
-    if (this.opts.wait) {
-      const n = this.steps.length;
-      if (!n) return;
-      let i = stepAtOrAfter(this.steps, target);
-      if (delta > 0 && target >= this.span.end - EPS) i = this.opts.loop ? 0 : n - 1;
-      else if (delta > 0 && i <= this.stepIdx) i = Math.min(n - 1, this.stepIdx + 1);
-      else if (delta < 0 && i >= this.stepIdx) i = Math.max(0, this.stepIdx - 1);
-      this.halt();
-      return this.waitAt(i);
-    }
-
+  stepBy(n: number) {
+    if (!this.notes.length || !n) return;
+    if (this.opts.wait) return this.waitStep(this.waitingIdx() + n);
     const running = this.phase === 'playing' || this.phase === 'preroll';
-    const pastEnd = target >= this.span.end - EPS;
-    this.halt();
-    if (running) {
-      if (pastEnd && !this.opts.loop) {
-        this.cursor = this.span.start;
-        return this.setPhase('done');
-      }
-      return this.startRun(pastEnd ? this.span.start : target);
+    const v = this.phase === 'preroll' ? this.span.start : this.visualTime();
+    const t = this.stepTarget(v, n, running);
+    if (t === null) return;
+    this.moveTo(t, running);
+  }
+
+  /** Start a live drag over the lane: pauses (it resumes on `endScrub`) and remembers where it began. */
+  beginScrub() {
+    if (!this.notes.length) return;
+    const wasRunning = this.phase === 'playing' || this.phase === 'preroll';
+    const base = this.phase === 'preroll' ? this.span.start : this.clampToSpan(this.visualTime());
+    this.scrubbing = { wasRunning, base, idx: this.waitingIdx(), n: 0 };
+    if (wasRunning) {
+      this.halt();
+      this.cursor = base;
+      this.setPhase(base <= this.span.start + EPS ? 'idle' : 'paused');
     }
-    this.cursor = pastEnd ? this.span.start : target;
-    this.setPhase(this.cursor <= this.span.start + EPS ? 'idle' : 'paused');
+  }
+
+  /** While dragging: stand `n` steps from where the drag began (sounding each new step). */
+  scrubTo(n: number) {
+    const sc = this.scrubbing;
+    if (!sc || n === sc.n) return;
+    sc.n = n;
+    if (this.opts.wait) return this.waitStep(sc.idx + n);
+    const t = n === 0 ? sc.base : (this.stepTarget(sc.base, n, false) ?? this.cursor);
+    this.moveTo(t, false);
+  }
+
+  /** The finger is up: stay there, and play on if it was playing. */
+  endScrub() {
+    const sc = this.scrubbing;
+    this.scrubbing = null;
+    if (sc?.wasRunning && !this.opts.wait) this.startRun(this.cursor);
+  }
+
+  /** Wait mode: the step index nav counts from (the one waiting, or the one being fallen to). */
+  private waitingIdx(): number {
+    return this.phase === 'falling' && this.fall ? this.fall.target : this.stepIdx;
+  }
+
+  private waitStep(i: number) {
+    if (!this.steps.length) return;
+    this.halt();
+    this.waitAt(Math.max(0, Math.min(this.steps.length - 1, i)));
+    this.soundStep(this.stepIdx);
+  }
+
+  /**
+   * Time of the step `n` steps away from `v`, or null when there is none ahead. Back from between
+   * two steps counts the one just passed as the first; with `replay`, that first one is only skipped
+   * when it started less than REPLAY_SEC (real time) ago.
+   */
+  private stepTarget(v: number, n: number, replay: boolean): number | null {
+    const S = this.steps;
+    if (!S.length) return null;
+    if (n > 0) {
+      const i = S.findIndex((s) => s.time > v + EPS);
+      return i < 0 ? null : S[Math.min(S.length - 1, i + n - 1)].time;
+    }
+    let before = -1;
+    for (let i = 0; i < S.length && S[i].time < v - EPS; i++) before = i;
+    if (before < 0) return this.span.start;
+    const fresh = replay && (v - S[before].time) / this.opts.rate <= REPLAY_SEC;
+    return S[Math.max(0, before - (-n - 1) - (fresh ? 1 : 0))].time;
+  }
+
+  /** Stand at `t` (playing on from there if `running`); at rest the step there sounds once. */
+  private moveTo(t: number, running: boolean) {
+    this.halt();
+    if (running) return this.startRun(t);
+    this.cursor = t;
+    this.setPhase(t <= this.span.start + EPS ? 'idle' : 'paused');
+    const i = this.steps.findIndex((s) => Math.abs(s.time - t) < EPS);
+    if (i >= 0) this.soundStep(i);
   }
 
   /** Wait mode: "I played it — go on". */

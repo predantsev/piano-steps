@@ -356,68 +356,75 @@ describe('wait mode', () => {
   });
 });
 
-describe('seek (← / →, #46)', () => {
-  it('at rest or paused it only moves the position; back to the start is idle again', () => {
+describe('steps (← / →, swipes, #54)', () => {
+  // steps (both hands): 0 {48,64} · 0.5 {62} · 1 {60} · 1.5 {62}
+  it('at rest it moves step by step and sounds the step it lands on', () => {
     const e = make();
-    e.seek(0.7);
+    e.stepBy(1);
     expect(e.phase).toBe('paused');
-    expect(e.visualTime()).toBeCloseTo(0.7);
-    expect(player.plays).toEqual([]);
-    e.seek(-3);
+    expect(e.visualTime()).toBe(0.5);
+    expect(player.chords.at(-1)).toEqual([62]);
+    e.stepBy(2);
+    expect(e.visualTime()).toBe(1.5);
+    e.stepBy(1); // nothing after the last step: stays
+    expect(e.visualTime()).toBe(1.5);
+    e.stepBy(-1);
+    expect(e.visualTime()).toBe(1);
+    e.stepBy(-5);
     expect(e.phase).toBe('idle');
     expect(e.visualTime()).toBe(0);
+    expect(player.plays).toEqual([]);
   });
 
-  it('while playing it keeps playing from the new place', () => {
+  it('while playing: on from the next step; back replays the step just heard, a quick second back goes further', () => {
     const e = make();
     e.primary();
     advance(e, 2000);
     player.time = 0.6;
-    e.seek(0.7);
+    e.stepBy(1);
+    expect(player.plays.at(-1)).toMatchObject({ from: 1 });
+    player.time = 1.4; // 0.4 s after the step at 1 started
+    e.stepBy(-1);
+    expect(player.plays.at(-1)).toMatchObject({ from: 1 }); // replay it
+    player.time = 1.1; // straight away again
+    e.stepBy(-1);
+    expect(player.plays.at(-1)).toMatchObject({ from: 0.5 });
     expect(e.phase).toBe('playing');
-    expect(player.plays.at(-1)).toMatchObject({ from: expect.closeTo(1.3), loop: false });
-    player.time = 1.3;
-    e.seek(-3); // clamps to the fragment start, and from there the player loops
-    expect(player.plays.at(-1)).toMatchObject({ from: 0, loop: true });
   });
 
-  it('past the end: from the top when looping, else back to the start, done', () => {
+  it('only the practised hand and the notes still switched on make steps', () => {
+    const e = make({ hands: 'L' });
+    e.stepBy(1); // the left hand has one note (48 at 0): no step ahead
+    expect(e.visualTime()).toBe(0);
+    const r = make({ hands: 'R' });
+    r.stepBy(3);
+    expect(r.visualTime()).toBe(1.5);
+  });
+
+  it('a live drag pauses, follows the steps and plays on from where the finger left', () => {
     const e = make();
     e.primary();
     advance(e, 2000);
-    player.time = 1.5;
-    e.seek(3);
+    player.time = 0.2;
+    e.beginScrub();
+    expect(e.phase).toBe('paused');
+    e.scrubTo(1);
+    expect(e.visualTime()).toBe(0.5);
+    e.scrubTo(3);
+    expect(e.visualTime()).toBe(1.5);
+    e.scrubTo(2);
+    expect(e.visualTime()).toBe(1);
+    e.endScrub();
     expect(e.phase).toBe('playing');
-    expect(player.plays.at(-1)).toMatchObject({ from: 0, loop: true });
-
-    const f = make({ loop: false });
-    f.primary();
-    advance(f, 2000);
-    player.time = 1.5;
-    f.seek(3);
-    expect(f.phase).toBe('done');
-    expect(f.visualTime()).toBe(0);
+    expect(player.plays.at(-1)).toMatchObject({ from: 1 });
   });
 
-  it('during the lead-in it starts the run at the new place', () => {
-    const e = make();
-    e.primary();
-    expect(e.phase).toBe('preroll');
-    e.seek(0.7);
-    expect(e.phase).toBe('playing');
-    expect(player.plays.at(-1)).toMatchObject({ from: 0.7 });
-  });
-
-  it('wait mode jumps by steps, at least one in the asked direction', () => {
+  it('wait mode moves the waiting step', () => {
     const e = make({ wait: true });
-    e.seek(0.2); // no step within 0.2 s — still moves one step on
-    expect(e.stepIdx).toBe(1);
-    e.seek(0.9); // 0.5 + 0.9 = 1.4 → the step at 1.5
-    expect(e.stepIdx).toBe(3);
-    e.seek(-0.2);
+    e.stepBy(2);
     expect(e.stepIdx).toBe(2);
-    e.seek(-3);
-    expect(e.stepIdx).toBe(0);
+    e.stepBy(-1);
+    expect(e.stepIdx).toBe(1);
     expect(e.phase).toBe('waiting');
   });
 });

@@ -17,10 +17,12 @@ import './falling.css';
 
 const SPEEDS = [0.25, 0.5, 0.75, 1] as const;
 const LOOK_AHEADS = [2, 3, 5] as const;
-/** ← / → move this many seconds of lesson time back / forward (#46). */
-const SEEK_SEC = 3;
-/** A lane swipe needs this much sideways travel; a tap moves at most TAP_SLOP_PX. */
-const SWIPE_MIN_PX = 40;
+/**
+ * Dragging sideways on the lane moves by steps (#54): the first step after SCRUB_START_PX, one more
+ * every SCRUB_STEP_PX. A tap moves at most TAP_SLOP_PX.
+ */
+const SCRUB_START_PX = 28;
+const SCRUB_STEP_PX = 70;
 const TAP_SLOP_PX = 10;
 const PREFS_KEY = 'piano-steps-falling';
 
@@ -206,9 +208,9 @@ export default function FallingNotes({
         ev.preventDefault();
         const dir = ev.key === 'ArrowRight' ? 1 : -1;
         if (!ev.shiftKey && !ev.altKey) {
-          // plain arrow = 3 s back / forward inside the fragment
+          // plain arrow = one step (press) back / forward inside the fragment
           void player.unlock();
-          engine.seek(dir * SEEK_SEC);
+          engine.stepBy(dir);
           return;
         }
         const andPlay = ev.altKey; // ⌥ + arrow = switch and play; Shift + arrow = just switch
@@ -384,30 +386,43 @@ export default function FallingNotes({
   // Tap a falling bar: it pauses, sounds, and opens the note menu (hear / report / fix later).
   const [menu, setMenu] = useState<{ note: LessonNote; x: number; y: number } | null>(null);
   const closeMenu = useCallback(() => setMenu(null), []);
-  // A horizontal swipe on the lane seeks (right = 3 s forward, left = back, #48); a tap — decided on
-  // release, so a swipe that starts on a bar does not open its menu — hits a bar.
-  const swipeRef = useRef<{ id: number; x: number; y: number } | null>(null);
+  // Dragging sideways on the lane moves by steps, live (right = forward, #54); a tap — decided on
+  // release, so a drag that starts on a bar does not open its menu — hits a bar.
+  const swipeRef = useRef<{ id: number; x: number; y: number; scrub: boolean } | null>(null);
   const onLanePointerDown = (e: ReactPointerEvent<HTMLCanvasElement>) => {
     if (e.button > 0) return;
-    swipeRef.current = { id: e.pointerId, x: e.clientX, y: e.clientY };
+    swipeRef.current = { id: e.pointerId, x: e.clientX, y: e.clientY, scrub: false };
     try {
       e.currentTarget.setPointerCapture(e.pointerId);
     } catch {
       /* synthetic events have no active pointer */
     }
   };
+  const onLanePointerMove = (e: ReactPointerEvent<HTMLCanvasElement>) => {
+    const st = swipeRef.current;
+    if (!st || st.id !== e.pointerId) return;
+    const dx = e.clientX - st.x;
+    const dy = e.clientY - st.y;
+    if (!st.scrub) {
+      if (Math.abs(dx) < SCRUB_START_PX || Math.abs(dx) <= Math.abs(dy) * 1.5) return;
+      st.scrub = true;
+      void player.unlock();
+      engine.beginScrub();
+    }
+    const n = Math.abs(dx) < SCRUB_START_PX ? 0 : Math.sign(dx) * (1 + Math.floor((Math.abs(dx) - SCRUB_START_PX) / SCRUB_STEP_PX));
+    engine.scrubTo(n);
+  };
   const onLanePointerUp = (e: ReactPointerEvent<HTMLCanvasElement>) => {
     const start = swipeRef.current;
-    swipeRef.current = null;
     if (!start || start.id !== e.pointerId) return;
-    const dx = e.clientX - start.x;
-    const dy = e.clientY - start.y;
-    if (Math.abs(dx) >= SWIPE_MIN_PX && Math.abs(dx) > Math.abs(dy) * 1.5) {
-      void player.unlock();
-      engine.seek(Math.sign(dx) * SEEK_SEC);
-      return;
-    }
-    if (Math.hypot(dx, dy) <= TAP_SLOP_PX) tapLane(e.currentTarget, start.x, start.y);
+    onLanePointerMove(e); // a quick flick may come with no move events
+    swipeRef.current = null;
+    if (start.scrub) return engine.endScrub();
+    if (Math.hypot(e.clientX - start.x, e.clientY - start.y) <= TAP_SLOP_PX) tapLane(e.currentTarget, start.x, start.y);
+  };
+  const onLanePointerCancel = () => {
+    if (swipeRef.current?.scrub) engine.endScrub();
+    swipeRef.current = null;
   };
   const tapLane = (canvas: HTMLCanvasElement, clientX: number, clientY: number) => {
     const box = canvas.getBoundingClientRect();
@@ -700,8 +715,9 @@ export default function FallingNotes({
           <canvas
             ref={canvasRef}
             onPointerDown={onLanePointerDown}
+            onPointerMove={onLanePointerMove}
             onPointerUp={onLanePointerUp}
-            onPointerCancel={() => (swipeRef.current = null)}
+            onPointerCancel={onLanePointerCancel}
             aria-label={s(lang, 'tapBar')}
             role="img"
           />

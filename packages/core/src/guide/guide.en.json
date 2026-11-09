@@ -20,7 +20,7 @@
         "Notes fall onto the keys, Synthesia-style. A bar touches its key exactly when the note sounds.",
         "• The bottom bar: ‹ Previous on the left, Next › on the right (fragments, then the whole lesson), and in the middle the big button — always Play / Pause (Space); after a pause it goes on from the same place. The ⏮ glued to its left goes back to the start of the fragment (Shift + Space). A short \"Get ready…\" comes before the start.",
         "• The fragment chips stay on one line at the top; when there are too many to fit, ‹ › at the ends (or a finger) scroll the row, and the current one is always brought into view.",
-        "• ‹ Previous and Next › have two halves: the big one just switches (the fragment waits at the start), the small ‹▶ / ›▶ at the very edge switches and starts playing at once. Keys: Shift + ← / → switch, ⌥ (Alt) + ← / → switch and play; plain ← / → move 3 seconds back / forward inside the fragment (while playing it keeps playing). Without a keyboard, swipe sideways across the falling notes: right = 3 s forward, left = 3 s back.",
+        "• ‹ Previous and Next › have two halves: the big one just switches (the fragment waits at the start), the small ‹▶ / ›▶ at the very edge switches and starts playing at once. Keys: Shift + ← / → switch, ⌥ (Alt) + ← / → switch and play; plain ← / → move one step (one press — notes that start together count as one) back / forward inside the fragment. Steps count only what you play now: the chosen hand, without switched-off notes, so with only the left hand on, ← / → go bass note by bass note. While playing it keeps playing; ← first replays the step just heard, a quick second ← goes further. Without a keyboard, drag sideways across the falling notes: the notes follow your finger step by step (a longer drag = more steps), and when you let go it stays there and plays on if it was playing.",
         "• Too many keys at once? Tap a bar and choose 🔇 Switch this note off: it stays as a dashed outline, does not sound, is not lit and is not needed in Wait for me — the rhythm does not change. Learn the lighter version, then tap the outline and choose 🔈 Switch it back on. A fragment with notes off shows 🔇 and how many on its chip.",
         "• 🔁 Loop (the fragment repeats), 🔊/🔇 sound.",
         "• Speed 25–100 %. Start slow.",
@@ -71,7 +71,7 @@
       "title": "Keyboard and on-screen keys",
       "body": [
         "• The on-screen keyboard plays chords with several fingers and glissando — slide your finger.",
-        "• Space = the big button (Play / Pause, or Next in Wait for me). Shift + Space = back to the start of the fragment. In Falling notes: ← / → = 3 seconds back / forward inside the fragment (in Wait for me: the step about 3 s earlier / later), Shift + ← / → = previous / next fragment, ⌥ (Alt) + ← / → = switch and play. In Cards and Steps ← / → = back / next.",
+        "• Space = the big button (Play / Pause, or Next in Wait for me). Shift + Space = back to the start of the fragment. In Falling notes: ← / → = one step back / forward inside the fragment (also in Wait for me), Shift + ← / → = previous / next fragment, ⌥ (Alt) + ← / → = switch and play. In Cards and Steps ← / → = back / next.",
         "• The computer keyboard as a piano: A W S E D F T G Y H U J K = C4 up to C5 (then O L P ;). Z / X — octave down / up.",
         "The \"Space = Next\" hint shows only with a mouse or trackpad; Space works without it too."
       ]
