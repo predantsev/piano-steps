@@ -228,3 +228,31 @@ describe('paused on a step whose notes start a few ms apart (#56)', () => {
     expect(m.keys.get(82)?.mark).toBe('next');
   });
 });
+
+describe('a struck key flashes, then only its bottom square while held (#60)', () => {
+  const span = { start: 0, end: 4 };
+  const held = windowNotes([n(48, 0, 3, 'L'), n(64, 1, 0.3, 'R'), n(64, 1.5, 0.3, 'R')], span);
+  const bars = visibleBars(held, span, 0, 4, false, 'both');
+  const at = (now: number, phase: 'playing' | 'paused' = 'playing') =>
+    keyMarks({ phase, bars, now, pressed: new Set(), wrong: null, held: [], flashFor: 0.1 }).keys;
+
+  it('fully lit right after the strike, then sustain while it sounds', () => {
+    expect(at(0.05).get(48)).toMatchObject({ mark: 'L' });
+    expect(at(0.05).get(48)?.sustain).toBeUndefined();
+    expect(at(0.5).get(48)).toMatchObject({ mark: 'L', sustain: true });
+  });
+
+  it('a new strike of the same key lights it fully again', () => {
+    expect(at(1.25).get(64)).toMatchObject({ mark: 'R', sustain: true });
+    expect(at(1.52).get(64)?.sustain).toBeUndefined();
+  });
+
+  it('paused on a strike shows it fully lit', () => {
+    expect(at(1.5, 'paused').get(64)?.sustain).toBeUndefined();
+  });
+
+  it('without flashFor every sounding key stays fully lit (as before)', () => {
+    const m = keyMarks({ phase: 'playing', bars, now: 0.5, pressed: new Set(), wrong: null, held: [] });
+    expect(m.keys.get(48)?.sustain).toBeUndefined();
+  });
+});

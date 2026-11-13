@@ -24,6 +24,8 @@ const LOOK_AHEADS = [2, 3, 5] as const;
 const SCRUB_START_PX = 28;
 const SCRUB_STEP_PX = 70;
 const TAP_SLOP_PX = 10;
+/** A struck key is fully lit this long (real seconds), then only its bottom square while held (#60). */
+const FLASH_SEC = 0.2;
 const PREFS_KEY = 'piano-steps-falling';
 
 interface Prefs {
@@ -347,6 +349,7 @@ export default function FallingNotes({
         pressed: engine.pressed,
         wrong: engine.wrong?.pitch ?? null,
         held: input.held,
+        flashFor: FLASH_SEC * prefsRef.current.rate,
       });
       const { w, h, dpr } = sizeRef.current;
       if (w > 0 && h > 0 && colorsRef.current)
