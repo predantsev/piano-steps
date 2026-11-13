@@ -22,3 +22,5 @@ fragment being practised; switching fragments moves to Shift + ← / →.
 - 2026-11-09 Owner: 3 s skipped several presses. Clickable prototype (claude.ai/artifact/DsyxJhF3N6ncqJCmZV4nGC); owner took steps + player-style back + longer drag = more steps, plus live scrubbing. Opened #54.
 - 2026-11-09 PR #55 squash-merged after green CI (`5cd96dc`); container rebuilt from `main`.
 - 2026-11-09 Owner screenshot: paused on a step, one chord note only ringed. Cause: few-ms rolled onsets vs exact-time keyboard. Opened #56.
+- 2026-11-09 PR #57 squash-merged after green CI (`e2880df`; e2e "feedback dialog" flaky once, passed on retry); container rebuilt from `main`.
+- 2026-11-13 iPad lost the app when the Mac's IP changed back to 192.168.0.131; switched to the Bonjour name `<mac-name>.local:9300` (works, 200). Docs issue #58.

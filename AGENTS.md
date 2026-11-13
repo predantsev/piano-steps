@@ -100,7 +100,9 @@ and the guide follows the app.**
 - app (prod / Docker, API + web) → `9300`; dev web (Vite) → `9300`, dev API → `9301`; Postgres → `9432`.
 - Parallel worktrees use `WEB_PORT`/`API_PORT` pairs `93x0`/`93x1` (x = 1…5).
 - Canonical local URL: `http://piano-steps.localhost:9300`. iPad on the LAN: `PIANO_STEPS_BIND=0.0.0.0`
-  (Docker) or `npm run dev:lan` → `http://<mac-ip>:9300` — an explicit exception to loopback-only.
+  (Docker; kept in the git-ignored `.env`) or `npm run dev:lan` → `http://<mac-name>.local:9300` — an
+  explicit exception to loopback-only. Give the owner the Bonjour name (`scutil --get LocalHostName`),
+  not the LAN IP: the IP changes between restarts and networks, the `.local` name does not.
 
 ## Shared conventions
 
