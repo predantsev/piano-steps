@@ -3,6 +3,15 @@
 Every change that reaches the app is logged here: **what** changed and **why**, newest first,
 with its issue and PR. Rule and checklist: AGENTS.md § "Change log and the guide".
 
+## 2026-11-13
+
+- **Falling notes: a held key shows only a square at the bottom** (#60). A strike lights the whole key
+  for ~0.2 s (real time, any speed); while the note is still held (finger or pedal) only a square at
+  the bottom of the key stays lit in the hand's colour; a new strike of the same key lights it fully
+  again; the "next" ring is unchanged. Wait for me keeps its striped "hold". Guide updated in en and uk.
+  *Why:* with pedalled transcriptions many keys stayed lit and it was hard to see what to press and what
+  is only held; the owner picked this from a prototype (fill → drain variants → "flash, then a square").
+
 ## 2026-11-09
 
 - **Fix: paused on a step, every note of a played chord is lit** (#56). Transcribed chords start a few

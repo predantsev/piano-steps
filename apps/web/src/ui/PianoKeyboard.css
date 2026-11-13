@@ -116,3 +116,33 @@
 .pk-white.pk-bad .pk-name {
   color: #fff;
 }
+
+/* struck a moment ago and still held (finger or pedal, #60): the key goes back to its own colour and
+   only a square at the bottom stays lit in the hand's colour — "keep it down", not "press now" */
+.pk-white.pk-sustain {
+  background: var(--key-white);
+}
+.pk-black.pk-sustain {
+  background: var(--key-black);
+}
+.pk-sustain-sq {
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  bottom: 5px;
+  height: 20%;
+  border-radius: 5px;
+  background: var(--hc);
+  pointer-events: none;
+}
+.pk-black .pk-sustain-sq {
+  left: 2px;
+  right: 2px;
+  bottom: 4px;
+  border-radius: 3px;
+}
+.pk-sustain .pk-name,
+.pk-sustain .pk-badge {
+  position: relative;
+  z-index: 1;
+}

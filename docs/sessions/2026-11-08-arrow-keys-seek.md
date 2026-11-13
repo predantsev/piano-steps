@@ -24,3 +24,6 @@ fragment being practised; switching fragments moves to Shift + ← / →.
 - 2026-11-09 Owner screenshot: paused on a step, one chord note only ringed. Cause: few-ms rolled onsets vs exact-time keyboard. Opened #56.
 - 2026-11-09 PR #57 squash-merged after green CI (`e2880df`; e2e "feedback dialog" flaky once, passed on retry); container rebuilt from `main`.
 - 2026-11-13 iPad lost the app when the Mac's IP changed back to 192.168.0.131; switched to the Bonjour name `<mac-name>.local:9300` (works, 200). Docs issue #58.
+- 2026-11-13 Committed the .local docs change on `docs/58-ipad-local-name` → PR #59; same note added to startup-rules PORTS.md → predantsev/startup-rules#39.
+- 2026-11-13 PR #59 and predantsev/startup-rules#39 squash-merged (docs only, no container rebuild needed).
+- 2026-11-13 Owner: held/pedalled keys stay lit and confuse. Prototypes: inline widget, then Für Elise artifact (claude.ai/artifact/5jC75Zpj7m6k1NQQykjJkY) with drain variants; owner picked "flash, then a square at the bottom" (20- 2026-11-13 Owner: held/pedalled keys stay lit and confuse. Prototypes: inline widget, then Für Elise artifact (claude.ai/artifact/5jC75Zpj7m6k1NQQykjJkY) with drain variants; owner picked "flash, then a square at the bottom" (20%). Opened #60.

@@ -19,6 +19,11 @@ export interface MarkInput {
   wrong: number | null;
   /** Keys currently held on the on-screen / computer keyboard. */
   held: Iterable<number>;
+  /**
+   * Lesson seconds a struck key stays fully lit; after that a still-sounding note shows only the
+   * bottom square (`sustain`, #60). 0 / missing = always fully lit.
+   */
+  flashFor?: number;
 }
 
 export interface Marks {
@@ -53,9 +58,16 @@ export function keyMarks(m: MarkInput): Marks {
     // Paused on a step: its notes may start a few ms apart (a played chord) — light them all, and ring
     // the step after it, not the chord's own later notes.
     const tol = m.phase === 'paused' ? CHORD_TOL : 0;
-    if (!resting)
-      for (const b of tol ? m.bars : soundingBars(m.bars, m.now))
-        if (b.active && b.start <= m.now + tol + EPS && m.now < b.end - EPS) keys.set(b.note.pitch, fill(b.note));
+    if (!resting) {
+      const struck = new Map<number, number>(); // pitch → onset of the latest strike sounding now
+      for (const b of tol ? m.bars : soundingBars(m.bars, m.now)) {
+        if (!b.active || b.start > m.now + tol + EPS || m.now >= b.end - EPS) continue;
+        if ((struck.get(b.note.pitch) ?? -Infinity) > b.start) continue;
+        struck.set(b.note.pitch, b.start);
+        const sustain = !!m.flashFor && m.now - b.start > m.flashFor + EPS;
+        keys.set(b.note.pitch, sustain ? { ...fill(b.note), sustain: true } : fill(b.note));
+      }
+    }
     const upcoming = nextOnsetBars(m.bars, resting ? m.now - 1e-3 : m.now + tol);
     for (const b of upcoming) ring(keys, b.note);
     focusTime = m.phase === 'waiting' ? m.now : upcoming[0]?.start;
@@ -90,6 +102,6 @@ function ring(keys: Map<number, KeyHighlight>, n: LessonNote) {
 /** Cheap identity for a highlight map, so React only re-renders the keyboard when it changes. */
 export function marksSignature(keys: ReadonlyMap<number, KeyHighlight>): string {
   let s = '';
-  for (const [p, h] of keys) s += `${p}:${h.mark}:${h.hand ?? ''}:${h.next ? 1 : 0}:${h.label ?? ''},`;
+  for (const [p, h] of keys) s += `${p}:${h.mark}:${h.hand ?? ''}:${h.next ? 1 : 0}:${h.sustain ? 1 : 0}:${h.label ?? ''},`;
   return s;
 }

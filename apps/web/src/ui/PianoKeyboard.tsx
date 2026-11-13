@@ -22,6 +22,11 @@ export interface KeyHighlight {
   hand?: Hand;
   /** Also comes up next (e.g. a repeated note): draws the ring on top of the fill. */
   next?: boolean;
+  /**
+   * R / L only: struck a moment ago and still held (finger or pedal) — only a square at the bottom of
+   * the key is lit, so a key to press stands out from one that only keeps sounding.
+   */
+  sustain?: boolean;
   /** Small text on the key (e.g. a finger number or "1", "2" for order). */
   label?: string;
 }
@@ -29,6 +34,10 @@ export interface KeyHighlight {
 const handVar = (h: KeyHighlight | undefined) =>
   h?.hand ? ({ '--hc': `var(--hand-${h.hand === 'L' ? 'l' : 'r'})` } as CSSProperties) : undefined;
 const hasRing = (h: KeyHighlight | undefined) => !!h && (h.mark === 'next' || h.next === true);
+const isSustain = (h: KeyHighlight | undefined) => !!h?.sustain && (h.mark === 'R' || h.mark === 'L');
+const markClass = (h: KeyHighlight | undefined) => (h ? `pk-${h.mark}${isSustain(h) ? ' pk-sustain' : ''}` : '');
+const sustainStyle = (h: KeyHighlight | undefined) =>
+  isSustain(h) ? ({ '--hc': `var(--hand-${h!.mark === 'L' ? 'l' : 'r'})` } as CSSProperties) : undefined;
 
 export interface PianoKeyboardProps {
   range: [number, number];
@@ -116,10 +125,11 @@ export function PianoKeyboard({
           <div
             key={p}
             data-pitch={p}
-            className={`pk-key pk-white ${h ? `pk-${h.mark}` : ''}`}
-            style={{ left: `${i * whiteW}%`, width: `${whiteW}%`, ...handVar(h) }}
+            className={`pk-key pk-white ${markClass(h)}`}
+            style={{ left: `${i * whiteW}%`, width: `${whiteW}%`, ...handVar(h), ...sustainStyle(h) }}
             aria-label={pitchName(p)}
           >
+            {isSustain(h) && <span className="pk-sustain-sq" />}
             {hasRing(h) && <span className="pk-ring" />}
             {h?.label && <span className="pk-badge">{h.label}</span>}
             <span className="pk-name">{keyLabel(p)}</span>
@@ -135,11 +145,12 @@ export function PianoKeyboard({
             <div
               key={p}
               data-pitch={p}
-              className={`pk-key pk-black ${h ? `pk-${h.mark}` : ''}`}
-              style={{ left: `${(leftWhite + 1) * whiteW - whiteW * 0.3}%`, width: `${whiteW * 0.6}%`, ...handVar(h) }}
+              className={`pk-key pk-black ${markClass(h)}`}
+              style={{ left: `${(leftWhite + 1) * whiteW - whiteW * 0.3}%`, width: `${whiteW * 0.6}%`, ...handVar(h), ...sustainStyle(h) }}
               aria-label={pitchName(p)}
             >
-              {hasRing(h) && <span className="pk-ring" />}
+              {isSustain(h) && <span className="pk-sustain-sq" />}
+            {hasRing(h) && <span className="pk-ring" />}
               {h?.label && <span className="pk-badge">{h.label}</span>}
               {labels === 'all' && <span className="pk-name">{pitchName(p, noteNames, { withOctave: false })}</span>}
             </div>
