@@ -17,7 +17,7 @@ const KINDS: [FeedbackKind, StringKey][] = [
  * optional comment — saved with the note's stable id), and a placeholder for fixing it yourself later.
  * Positioned at the tap, kept inside the window; a tap outside or Escape closes it.
  */
-export function NoteMenu({ note, at, lang, noteNames, onHear, onReport, muted, onToggleMute, onClose }: {
+export function NoteMenu({ note, at, lang, noteNames, onHear, onReport, muted, onToggleMute, merge, onClose }: {
   note: LessonNote;
   at: { x: number; y: number };
   lang: Lang;
@@ -27,6 +27,12 @@ export function NoteMenu({ note, at, lang, noteNames, onHear, onReport, muted, o
   /** Switched off (#52). */
   muted?: boolean;
   onToggleMute?: (muted: boolean) => Promise<void>;
+  /** Merging with the neighbouring note of the same key (#64): `gap` = seconds between them. */
+  merge?: {
+    next?: { gap: number; run(): Promise<void> };
+    prev?: { gap: number; run(): Promise<void> };
+    undo?: () => Promise<void>;
+  };
   onClose(): void;
 }) {
   const [kind, setKind] = useState<FeedbackKind | null>(null);
@@ -108,6 +114,49 @@ export function NoteMenu({ note, at, lang, noteNames, onHear, onReport, muted, o
             {muted ? `🔈 ${s(lang, 'noteUnmute')}` : `🔇 ${s(lang, 'noteMute')}`}
           </button>
         )}
+        {merge &&
+          ([
+            ['next', '⤒', 'mergeNext'],
+            ['prev', '⤓', 'mergePrev'],
+          ] as const).map(([k, icon, label]) => {
+            const m = merge[k];
+            return (
+              m && (
+                <button
+                  key={k}
+                  className={`btn fl-nm-merge fl-nm-merge-${k}`}
+                  disabled={muting}
+                  onClick={() => {
+                    setMuting(true);
+                    m.run().then(onClose, (e: unknown) => {
+                      setMuting(false);
+                      setErr(e instanceof Error ? e.message : String(e));
+                      setState('error');
+                    });
+                  }}
+                >
+                  {icon} {s(lang, label)} <span className="muted">({m.gap < 0.05 ? '0' : m.gap.toFixed(2)} {s(lang, 'sec')})</span>
+                </button>
+              )
+            );
+          })}
+        {merge?.undo && (
+          <button
+            className="btn fl-nm-unmerge"
+            disabled={muting}
+            onClick={() => {
+              setMuting(true);
+              merge.undo!().then(onClose, (e: unknown) => {
+                setMuting(false);
+                setErr(e instanceof Error ? e.message : String(e));
+                setState('error');
+              });
+            }}
+          >
+            ↶ {s(lang, 'unmerge')}
+          </button>
+        )}
+        {state === 'error' && !onReport && <p className="fl-nm-err">{err}</p>}
         {state === 'sent' ? (
           <p className="fl-nm-ok">✓ {s(lang, 'noteSent')}</p>
         ) : (

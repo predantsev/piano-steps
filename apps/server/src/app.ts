@@ -637,6 +637,71 @@ export function createApp({ db, dbKind, apiToken }: AppOptions) {
     },
   );
 
+  // ── note merges (#64) ────────────────────────────────────────────────────
+  const MergeOut = z
+    .object({ id: z.string(), noteIds: z.array(z.string()), createdAt: z.string().optional() })
+    .openapi('NoteMerge');
+  const mergeExample = { id: '7b0c9a3e-2f1d-4c8e-9a51-0d3c2b1a4f6e', noteIds: ['n42', 'n43'], createdAt: '2026-11-16T10:00:00.000Z' };
+
+  app.openapi(
+    createRoute({
+      method: 'get',
+      path: '/api/lessons/{ref}/note-merges',
+      tags: ['practice'],
+      summary: 'Notes the owner merged into one long note',
+      description:
+        'Each merge lists stable note ids of one key, in lesson order: the first note lasts until the last ' +
+        'one ends, the others are not played. The lesson notes stay as transcribed — apply merges on top ' +
+        '(core `applyMerges`). Agents: these are corrections of re-struck notes; keep them in mind when ' +
+        're-transcribing (a split held note), and do not undo them unless asked.',
+      request: { params: z.object({ ref: Ref }) },
+      responses: { 200: json(z.object({ merges: z.array(MergeOut) }), 'Merges', { merges: [mergeExample] }), ...read },
+    }),
+    async (c) => c.json({ merges: await repo.listMerges(db, c.req.valid('param').ref) }, 200),
+  );
+
+  app.openapi(
+    createRoute({
+      method: 'post',
+      path: '/api/lessons/{ref}/note-merges',
+      tags: ['practice'],
+      summary: 'Merge notes of one key into one long note',
+      description:
+        'At least two note ids of the same key (and hand). A note already in a merge pulls that merge in, ' +
+        'so the result is one merge. 400 for different keys, 404 for an unknown id.',
+      request: {
+        params: z.object({ ref: Ref }),
+        body: body(z.object({ noteIds: z.array(z.string().min(1)).min(2).max(64) }), { noteIds: ['n42', 'n43'] }),
+      },
+      responses: { 201: json(z.object({ merge: MergeOut }), 'Merged', { merge: mergeExample }), ...write, ...read },
+    }),
+    async (c) => {
+      const { ref } = c.req.valid('param');
+      return c.json({ merge: await repo.createMerge(db, ref, c.req.valid('json').noteIds) }, 201);
+    },
+  );
+
+  app.openapi(
+    createRoute({
+      method: 'delete',
+      path: '/api/lessons/{ref}/note-merges/{id}',
+      tags: ['practice'],
+      summary: 'Undo a merge',
+      description: 'The notes play as transcribed again. Use the id from GET …/note-merges.',
+      request: { params: z.object({ ref: Ref, id: z.string().openapi({ example: mergeExample.id }) }) },
+      responses: {
+        204: { description: 'Undone' },
+        401: write[401],
+        404: err('No such lesson, or no such merge', ex.errors.notFound),
+      },
+    }),
+    async (c) => {
+      const { ref, id } = c.req.valid('param');
+      if (!(await repo.deleteMerge(db, ref, id))) throw new repo.NotFound(`No merge "${id}"`);
+      return c.body(null, 204);
+    },
+  );
+
   // ── muted notes (#52) ────────────────────────────────────────────────────
   const NoteId = z.string().min(1).openapi({ example: 'n42', description: "The note's stable id (`LessonNote.id`)" });
 

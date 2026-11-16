@@ -7,3 +7,4 @@ export * from './musicxml.ts';
 export * from './prepare.ts';
 export { demoLessons } from './demo.ts';
 export * from './guide/guide.ts';
+export * from './merges.ts';

@@ -1,4 +1,4 @@
-import type { FeedbackKind, FragmentNote, FragmentNoteInput, FragmentProgress, Lesson, ProgressStatus } from '@piano-steps/core';
+import type { FeedbackKind, FragmentNote, FragmentNoteInput, FragmentProgress, Lesson, NoteMerge, ProgressStatus } from '@piano-steps/core';
 import type { ComponentType, LazyExoticComponent } from 'react';
 import type { LessonPlayer } from './audio/player.ts';
 import type { NoteInput } from './input/noteInput.ts';
@@ -55,6 +55,16 @@ export interface VariantProps {
   mutedNotes?: readonly string[];
   /** Switch a note off (true) or back on. Rejects with a readable Error. */
   setNoteMuted?(noteId: string, muted: boolean): Promise<void>;
+  /**
+   * Merges of re-struck notes into one long note (#64). `lesson.notes` already has them applied (the
+   * merged note keeps the first note's id and lasts to the end of the last one); this list says which
+   * note is a merge, so the UI can offer to undo it.
+   */
+  noteMerges?: readonly NoteMerge[];
+  /** Merge these notes of one key (ids from `lesson.notes`; a merged note pulls its merge in). */
+  mergeNotes?(noteIds: string[]): Promise<void>;
+  /** Undo a merge. */
+  unmergeNotes?(mergeId: string): Promise<void>;
 }
 
 export interface VariantDef {
