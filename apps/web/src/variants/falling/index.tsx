@@ -396,7 +396,7 @@ export default function FallingNotes({
   // Merging re-struck notes (#64): ⌥ + click picks notes of one key, the bar under them merges them.
   const pickRef = useRef<Set<string>>(new Set());
   const [pick, setPick] = useState<{ notes: LessonNote[]; x: number; y: number } | null>(null);
-  const [toast, setToast] = useState<{ text: string; headId: string } | null>(null);
+  const [toast, setToast] = useState<{ text: string; headId: string; at: number } | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const clearPick = () => {
     pickRef.current = new Set();
@@ -409,9 +409,20 @@ export default function FallingNotes({
     await mergeNotes(ids);
     const head = [...notes].sort((a, b) => a.start - b.start)[0];
     if (toastTimer.current) clearTimeout(toastTimer.current);
-    setToast({ text: `${s(lang, 'merged')}: ${pitchName(head.pitch, settings.noteNames)} ×${notes.length}`, headId: head.id! });
+    setToast({ text: `${s(lang, 'merged')}: ${pitchName(head.pitch, settings.noteNames)} ×${notes.length}`, headId: head.id!, at: Date.now() });
     toastTimer.current = setTimeout(() => setToast(null), 8000);
   };
+  // Let the merge be heard at once: the merged note, its whole length. After the engine for the merged
+  // lesson has settled (its setSpan halts and silences everything), hence an effect, not inline.
+  const heardMerge = useRef(0);
+  useEffect(() => {
+    if (!toast || heardMerge.current === toast.at) return;
+    const head = lesson.notes.find((n) => n.id === toast.headId);
+    if (!head) return;
+    heardMerge.current = toast.at;
+    void player.unlock();
+    player.playChord([head.pitch], Math.min(4, Math.max(0.3, head.duration / prefs.rate)), head.velocity ?? 0.8);
+  }, [toast, lesson, player, prefs.rate]);
   const mergeOf = (id: string | undefined) => (id ? noteMerges.find((m) => m.noteIds[0] === id) : undefined);
   /** The nearest note of the same key (and hand) after / before `n`, within 4 s. */
   const neighbour = (n: LessonNote, dir: 1 | -1): LessonNote | undefined => {
