@@ -395,6 +395,13 @@ export default function App() {
           notes={fragmentNotes}
           titleOf={(i) => `${t(lang, 'fragmentShort')} ${lesson.fragments[i]?.title ?? `#${i + 1}`}`}
           onNoteDone={(i) => saveFragmentNote(i, { text: '', later: false, tags: [] })}
+          edits={{
+            notes: lesson.notes,
+            merges: noteMerges,
+            muted: mutedNotes,
+            unmerge: unmergeNotes,
+            unmute: (id) => setNoteMuted(id, false),
+          }}
           onClose={() => setDialog(null)}
         />
       )}

@@ -24,3 +24,4 @@ Chronological; one line per settled question, newest last.
 - **2026-11-09** — Falling notes navigate by steps (presses) over the practised hand(s) minus switched-off notes; ← while playing replays first; drag scrubs live, longer = more steps; 3 s seek removed (#54).
 - **2026-11-13** — Falling-notes keys: a strike flashes the whole key (~0.2 s), a still-held note keeps only a bottom square (20%); ring unchanged; Wait for me keeps its stripes (#60).
 - **2026-11-16** — Falling notes group a chord's other hand within 120 ms (same hand 45 ms) for ring, paused step and steps; Cards/Sheet unchanged (#62).
+- **2026-11-16** — Note merges are an overlay (note_merges by stable ids, applied with core applyMerges), never an edit of the lesson; listed with switched-off notes in ⚑ → Note changes, each undoable (#64).

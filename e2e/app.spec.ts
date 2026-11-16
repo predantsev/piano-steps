@@ -286,6 +286,67 @@ test('a note switched off from its menu: stored, counted on the fragment, switch
   await expect.poll(async () => (await muted()).includes(id)).toBe(false);
 });
 
+test('merging two strikes of one key: from the note menu and with ⌥ + click, then undo (#64)', async ({ page, hasTouch }, testInfo) => {
+  const slug = testInfo.project.name.includes('ipad') ? 'twinkle-twinkle' : 'fur-elise-opening'; // projects run in parallel
+  const merges = async (): Promise<{ id: string; noteIds: string[] }[]> =>
+    page.evaluate(async (s) => (await (await fetch(`/api/lessons/${s}/note-merges`)).json()).merges, slug);
+  await openApp(page, `?lesson=${slug}&ui=falling`);
+  if ((await merges()).length) {
+    for (const m of await merges()) await page.request.delete(`/api/lessons/${slug}/note-merges/${m.id}`);
+    await page.reload();
+  }
+  const canvas = page.locator('.fl-lane canvas');
+  await expect(canvas).toBeVisible();
+  // the lowest bar = the first note; both demo tunes start with the same key twice
+  const hit = await canvas.evaluate((c: HTMLCanvasElement) => {
+    const ctx = c.getContext('2d')!;
+    const { width, height } = c;
+    const data = ctx.getImageData(0, 0, width, height).data;
+    for (let y = height - 4; y > 0; y -= 4)
+      for (let x = 2; x < width; x += 4) {
+        const i = (y * width + x) * 4;
+        const [r, g, b] = [data[i], data[i + 1], data[i + 2]];
+        if (g > r + 50 || b > r + 50) {
+          const box = c.getBoundingClientRect();
+          return { x: (x / width) * box.width, y: (y / height) * box.height - 6 };
+        }
+      }
+    return null;
+  });
+  expect(hit, 'a bar is drawn').not.toBeNull();
+  if (hasTouch) await canvas.tap({ position: hit! });
+  else await canvas.click({ position: hit! });
+  const menu = page.locator('.fl-notemenu');
+  await tapOrClick(menu.locator('.fl-nm-merge-next'), hasTouch);
+  await expect(menu).toBeHidden();
+  await expect.poll(async () => (await merges()).length).toBe(1);
+  const toast = page.locator('.fl-toast');
+  await expect(toast).toContainText('×2');
+  await tapOrClick(toast.getByRole('button'), hasTouch);
+  await expect.poll(async () => (await merges()).length).toBe(0);
+
+  if (!hasTouch) {
+    // ⌥ + click the same bar and the next one of that key, then Merge
+    await canvas.click({ position: hit!, modifiers: ['Alt'] });
+    const bar = page.locator('.fl-pickbar');
+    await expect(bar).toContainText('×1');
+    // Für Elise: the next E5 starts 0.417 s later; the lane shows 3 s (Ahead 3 s) over its height
+    const box = (await canvas.boundingBox())!;
+    const second = { x: hit!.x, y: hit!.y - (0.417 / 3) * box.height };
+    expect(second, 'the same key comes again').not.toBeNull();
+    await canvas.click({ position: second!, modifiers: ['Alt'] });
+    await expect(bar).toContainText('×2');
+    await bar.getByRole('button', { name: 'Merge' }).click();
+    await expect.poll(async () => (await merges()).length).toBe(1);
+    await page.getByRole('button', { name: /Sounds wrong/ }).click();
+    await page.getByRole('tab', { name: /Note changes/ }).click();
+    const row = page.locator('.note-edits .report[data-edit="merge"]');
+    await expect(row).toBeVisible();
+    await row.getByRole('button', { name: /Undo/ }).click();
+    await expect.poll(async () => (await merges()).length).toBe(0);
+  }
+});
+
 test('a fragment note: hold the number, write, mark "come back later", see it on the number and in the list', async ({ page, hasTouch }) => {
   await openApp(page, '?lesson=fur-elise-opening&ui=falling');
   const chip = page.locator('.fl-chip[data-fragment="1"]');

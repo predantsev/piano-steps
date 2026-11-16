@@ -1,4 +1,4 @@
-import { pitchName, type Feedback, type FragmentNote } from '@piano-steps/core';
+import { pitchName, type Feedback, type FragmentNote, type LessonNote, type NoteMerge } from '@piano-steps/core';
 import { useEffect, useState } from 'react';
 import { listFeedback, sendFeedback } from '../api.ts';
 import { t, type StringKey } from '../i18n.ts';
@@ -58,6 +58,58 @@ function FragmentNotes({ notes, fragmentTitle, lang, onDone }: {
   );
 }
 
+/** What the owner changed in the lesson's notes (#64, #52): merges and switched-off notes, each undoable. */
+export interface NoteEdits {
+  /** The lesson's notes as transcribed (before merges), to name each change. */
+  notes: readonly LessonNote[];
+  merges: readonly NoteMerge[];
+  muted: readonly string[];
+  unmerge(id: string): Promise<void>;
+  unmute(noteId: string): Promise<void>;
+}
+
+function NoteEditsList({ edits, lang, noteNames }: { edits: NoteEdits; lang: Lang; noteNames: Settings['noteNames'] }) {
+  const byId = new Map(edits.notes.filter((n) => n.id).map((n) => [n.id!, n]));
+  const [busy, setBusy] = useState<string | null>(null);
+  const rows = [
+    ...edits.merges.map((m) => {
+      const ns = m.noteIds.map((id) => byId.get(id)).filter((n): n is LessonNote => !!n);
+      return { key: `m:${m.id}`, kind: 'merge' as const, at: ns[0]?.start ?? 0, note: ns[0], count: ns.length, undo: () => edits.unmerge(m.id) };
+    }),
+    ...edits.muted.map((id) => {
+      const n = byId.get(id);
+      return { key: `u:${id}`, kind: 'mute' as const, at: n?.start ?? 0, note: n, count: 1, undo: () => edits.unmute(id) };
+    }),
+  ].sort((a, b) => a.at - b.at);
+  return (
+    <div className="reports note-edits">
+      {rows.length === 0 && <p className="muted">{t(lang, 'noNoteEdits')}</p>}
+      {rows.map((r) => (
+        <div key={r.key} className="report" data-edit={r.kind}>
+          <div className="frag-note-head">
+            <b>{r.note ? pitchName(r.note.pitch, noteNames) : '?'}</b>
+            <span className="muted">
+              {r.at.toFixed(2)} s · {t(lang, r.kind === 'merge' ? 'editMerged' : 'editMuted')}
+              {r.kind === 'merge' ? ` ×${r.count}` : ''}
+            </span>
+            <span className="spacer" />
+            <button
+              className="btn"
+              disabled={busy === r.key}
+              onClick={() => {
+                setBusy(r.key);
+                r.undo().finally(() => setBusy(null));
+              }}
+            >
+              ↶ {t(lang, 'editRevert')}
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /** Earlier reports on this lesson (from the dialog and from tapped notes), with what became of them. */
 function MyReports({ lessonRef, lang, noteNames }: { lessonRef: string; lang: Lang; noteNames: Settings['noteNames'] }) {
   const [items, setItems] = useState<Feedback[] | null>(null);
@@ -96,7 +148,7 @@ function MyReports({ lessonRef, lang, noteNames }: { lessonRef: string; lang: La
 }
 
 /** "This fragment sounds wrong" → POST /api/lessons/{ref}/feedback; an agent picks it up. */
-export function FeedbackDialog({ lessonRef, fragmentPosition, fragmentTitle, lang, noteNames, notes, titleOf, onNoteDone, onClose }: {
+export function FeedbackDialog({ lessonRef, fragmentPosition, fragmentTitle, lang, noteNames, notes, titleOf, onNoteDone, edits, onClose }: {
   lessonRef: string;
   fragmentPosition: number | null;
   fragmentTitle: string;
@@ -106,9 +158,11 @@ export function FeedbackDialog({ lessonRef, fragmentPosition, fragmentTitle, lan
   notes: FragmentNote[];
   titleOf(position: number): string;
   onNoteDone(position: number): Promise<void>;
+  /** Merged and switched-off notes, listed in the third tab. */
+  edits?: NoteEdits;
   onClose: () => void;
 }) {
-  const [tab, setTab] = useState<'reports' | 'notes'>('reports');
+  const [tab, setTab] = useState<'reports' | 'notes' | 'edits'>('reports');
   const [text, setText] = useState('');
   const [state, setState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   const [err, setErr] = useState('');
@@ -161,9 +215,16 @@ export function FeedbackDialog({ lessonRef, fragmentPosition, fragmentTitle, lan
           <button role="tab" aria-pressed={tab === 'notes'} onClick={() => setTab('notes')}>
             {t(lang, 'fragNotesTab')} ({notes.length})
           </button>
+          {edits && (
+            <button role="tab" aria-pressed={tab === 'edits'} onClick={() => setTab('edits')}>
+              {t(lang, 'noteEditsTab')} ({edits.merges.length + edits.muted.length})
+            </button>
+          )}
         </div>
         {tab === 'reports' ? (
           <MyReports lessonRef={lessonRef} lang={lang} noteNames={noteNames} />
+        ) : tab === 'edits' && edits ? (
+          <NoteEditsList edits={edits} lang={lang} noteNames={noteNames} />
         ) : (
           <FragmentNotes notes={notes} fragmentTitle={titleOf} lang={lang} onDone={onNoteDone} />
         )}

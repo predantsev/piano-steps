@@ -5,6 +5,13 @@ with its issue and PR. Rule and checklist: AGENTS.md § "Change log and the guid
 
 ## 2026-11-16
 
+- **Merge two strikes of one key into one long note** (#64). Tap a bar → ⤒ Merge with the next one / ⤓
+  with the one before (same key within 4 s), or on a Mac ⌥ + click both bars → Merge. It plays merged at
+  once; ↶ Undo in the message, ↶ Split again in the note menu, or ⚑ → Note changes (a new tab listing
+  every merge and switched-off note, each with Undo). Merges are stored apart from the transcription
+  (`note_merges`, `GET/POST /api/lessons/{ref}/note-merges`, `DELETE …/{id}`) and applied on top by core
+  `applyMerges`, so agents see them and nothing is lost. Guide updated in en and uk. *Why:* transcriptions
+  split held notes into re-strikes (#37); the owner wants to try a merge by ear and keep or undo it.
 - **Fix: a chord whose other hand comes up to 120 ms late is one step** (#62). In falling notes the
   "next" ring, the step you stop on and the steps (Wait for me, ← / →) now take a note of the other
   hand into the chord if it starts within 120 ms of it; the same hand keeps 45 ms, so fast runs do not
