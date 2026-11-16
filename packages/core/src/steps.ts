@@ -11,13 +11,24 @@ export interface Step {
   pitches: number[]; // sorted ascending, unique
 }
 
-/** Group notes whose onsets are within `toleranceSec` into steps (chords). */
-export function groupSteps(notes: readonly LessonNote[], toleranceSec = 0.045): Step[] {
+/** Onsets this close are one step (a chord played at once). */
+export const CHORD_WINDOW = 0.045;
+/**
+ * Hands are rarely exactly together: in transcriptions the other hand's note of a chord often comes
+ * 50–120 ms later. Within this window a note of a hand not yet in the step still joins it (#62).
+ */
+export const CROSS_HAND_WINDOW = 0.12;
+
+/**
+ * Group notes whose onsets are within `toleranceSec` of a step's first onset into steps (chords).
+ * With `crossHandSec`, a note of a hand not yet in the step joins it within that window too.
+ */
+export function groupSteps(notes: readonly LessonNote[], toleranceSec = CHORD_WINDOW, crossHandSec?: number): Step[] {
   const sorted = [...notes].sort((a, b) => a.start - b.start || a.pitch - b.pitch);
   const steps: Step[] = [];
   for (const n of sorted) {
     const last = steps[steps.length - 1];
-    if (last && n.start - last.time <= toleranceSec) {
+    if (last && joinsStep(last.time, last.notes, n, toleranceSec, crossHandSec)) {
       last.notes.push(n);
       if (!last.pitches.includes(n.pitch)) last.pitches.push(n.pitch);
     } else {
@@ -26,6 +37,19 @@ export function groupSteps(notes: readonly LessonNote[], toleranceSec = 0.045): 
   }
   for (const s of steps) s.pitches.sort((a, b) => a - b);
   return steps;
+}
+
+/** Does `n` belong to the step that starts at `time` and already holds `members`? */
+export function joinsStep(
+  time: number,
+  members: readonly LessonNote[],
+  n: LessonNote,
+  toleranceSec = CHORD_WINDOW,
+  crossHandSec?: number,
+): boolean {
+  const gap = n.start - time;
+  if (gap <= toleranceSec) return true;
+  return !!crossHandSec && gap <= crossHandSec && !!n.hand && !members.some((m) => m.hand === n.hand);
 }
 
 /**

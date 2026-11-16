@@ -127,3 +127,17 @@ describe('midi import', () => {
     expect(lesson.tempo?.bpm).toBe(100);
   });
 });
+
+describe('groupSteps across hands (#62)', () => {
+  const ns = [
+    { pitch: 64, start: 1, duration: 0.5, hand: 'R' as const },
+    { pitch: 44, start: 1.07, duration: 0.5, hand: 'L' as const },
+    { pitch: 66, start: 1.08, duration: 0.3, hand: 'R' as const },
+  ];
+  it('keeps 45 ms by default', () => {
+    expect(groupSteps(ns).map((s) => s.pitches)).toEqual([[64], [44, 66]]); // 44 and 66 are 10 ms apart
+  });
+  it('lets the other hand join within the cross-hand window, not the same hand', () => {
+    expect(groupSteps(ns, 0.045, 0.12).map((s) => s.pitches)).toEqual([[44, 64], [66]]);
+  });
+});

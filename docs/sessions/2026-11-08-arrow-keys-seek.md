@@ -27,3 +27,5 @@ fragment being practised; switching fragments moves to Shift + ← / →.
 - 2026-11-13 Committed the .local docs change on `docs/58-ipad-local-name` → PR #59; same note added to startup-rules PORTS.md → predantsev/startup-rules#39.
 - 2026-11-13 PR #59 and predantsev/startup-rules#39 squash-merged (docs only, no container rebuild needed).
 - 2026-11-13 Owner: held/pedalled keys stay lit and confuse. Prototypes: inline widget, then Für Elise artifact (claude.ai/artifact/5jC75Zpj7m6k1NQQykjJkY) with drain variants; owner picked "flash, then a square at the bottom" (20- 2026-11-13 Owner: held/pedalled keys stay lit and confuse. Prototypes: inline widget, then Für Elise artifact (claude.ai/artifact/5jC75Zpj7m6k1NQQykjJkY) with drain variants; owner picked "flash, then a square at the bottom" (20%). Opened #60.
+- 2026-11-13 PR #61 squash-merged after green CI (`78f4ad0`); container rebuilt from `main`.
+- 2026-11-16 Owner: the "next" ring on black keys comes late. Data from 3 lessons: no black/white difference; cause is the other hand of a chord ~50–120 ms late (G#2 after B3+E4). Opened #62: cross-hand window 120 ms for ring + steps (falling only).
