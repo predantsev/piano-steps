@@ -50,6 +50,13 @@
       "when": 1794170656994,
       "tag": "0006_muted_notes",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794822460642,
+      "tag": "0007_note_merges",
+      "breakpoints": true
     }
   ]
 }

@@ -5,6 +5,7 @@ import {
   validateLessonInput,
   type Feedback,
   type FragmentNote,
+  type NoteMerge,
   type FragmentNoteInput,
   type FeedbackInput,
   type Guide,
@@ -216,6 +217,24 @@ export async function listFragmentNotes(ref: string): Promise<FragmentNote[]> {
   if (offline) return [];
   const { notes } = await call<{ notes: FragmentNote[] }>('GET', `/api/lessons/${encodeURIComponent(ref)}/fragment-notes`);
   return notes;
+}
+
+/** Notes merged into one long note (#64; empty offline). */
+export async function listMerges(ref: string): Promise<NoteMerge[]> {
+  if (offline) return [];
+  const { merges } = await call<{ merges: NoteMerge[] }>('GET', `/api/lessons/${encodeURIComponent(ref)}/note-merges`);
+  return merges;
+}
+
+export async function createMerge(ref: string, noteIds: string[]): Promise<NoteMerge> {
+  if (offline) throw new ApiError('offline: merging notes needs the server', 503);
+  const { merge } = await call<{ merge: NoteMerge }>('POST', `/api/lessons/${encodeURIComponent(ref)}/note-merges`, { noteIds });
+  return merge;
+}
+
+export async function deleteMerge(ref: string, id: string): Promise<void> {
+  if (offline) throw new ApiError('offline: merging notes needs the server', 503);
+  await call<unknown>('DELETE', `/api/lessons/${encodeURIComponent(ref)}/note-merges/${encodeURIComponent(id)}`);
 }
 
 /** Ids of the notes switched off in a lesson (#52; empty offline). */

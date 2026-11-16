@@ -4,6 +4,7 @@ import {
   autoFragments,
   demoLessons,
   groupSteps,
+  applyMerges,
   keyboardRange,
   midiToLesson,
   notesInRange,
@@ -139,5 +140,23 @@ describe('groupSteps across hands (#62)', () => {
   });
   it('lets the other hand join within the cross-hand window, not the same hand', () => {
     expect(groupSteps(ns, 0.045, 0.12).map((s) => s.pitches)).toEqual([[44, 64], [66]]);
+  });
+});
+
+describe('applyMerges (#64)', () => {
+  const ns = [
+    { id: 'a', pitch: 60, start: 0, duration: 0.3, velocity: 0.5 },
+    { id: 'b', pitch: 64, start: 0.2, duration: 0.2 },
+    { id: 'c', pitch: 60, start: 0.5, duration: 0.4, velocity: 0.7 },
+    { id: 'd', pitch: 60, start: 1.5, duration: 0.2 },
+  ];
+  it('makes the first note last until the last one ends and drops the rest', () => {
+    const out = applyMerges(ns, [{ noteIds: ['a', 'c'] }]);
+    expect(out.map((n) => n.id)).toEqual(['a', 'b', 'd']);
+    expect(out[0]).toMatchObject({ start: 0, duration: 0.9, velocity: 0.7 });
+    expect(ns[0].duration).toBe(0.3); // input untouched
+  });
+  it('ignores unknown ids and single-note merges', () => {
+    expect(applyMerges(ns, [{ noteIds: ['a', 'zz'] }]).map((n) => n.duration)).toEqual([0.3, 0.2, 0.4, 0.2]);
   });
 });

@@ -45,6 +45,8 @@ export interface LaneFrame {
   noteNames: NoteNameSystem;
   /** Onset (unwrapped time) of the step the user must play now / next — its bars get an outline. */
   focusTime?: number;
+  /** Notes picked for merging (⌥ + click, #64): drawn with a thick accent outline. */
+  selected?: ReadonlySet<string>;
 }
 
 /** Where a bar is drawn, in CSS px (also used for hit-testing taps). */
@@ -143,6 +145,12 @@ export function drawLane(ctx: CanvasRenderingContext2D, f: LaneFrame) {
     }
     if (b.active) drawLabel(ctx, f, b, r, h);
     ctx.globalAlpha = 1;
+    if (b.note.id && f.selected?.has(b.note.id)) {
+      ctx.lineWidth = 3.5;
+      ctx.strokeStyle = c.accent;
+      roundRect(ctx, r.x - 1.5, r.top - 1.5, r.w + 3, h + 3, Math.min(7, r.w / 3, h / 2));
+      ctx.stroke();
+    }
   }
 
   // now-line with a soft glow above it

@@ -131,6 +131,15 @@ work through them with the owner, then remove the done ones: `DELETE /api/lesson
 (or `PUT` the same path to update one; an empty note removes it). Notes are keyed by fragment position,
 like progress — re-cutting a lesson's fragments shifts them.
 
+## Notes merged by the owner
+
+Re-struck notes of one key that should be one held note (#64) are merged in the app, not in the lesson:
+`GET /api/lessons/{ref}/note-merges` → `{ merges: [{ id, noteIds, createdAt }] }` (stable note ids, in
+lesson order — the first note lasts until the last one ends, the others are not played; core
+`applyMerges` does exactly that). `POST` the same path with `{ noteIds }` (≥ 2, same key) adds one,
+`DELETE …/note-merges/{id}` undoes it. When re-transcribing or fixing a lesson, read them: they show
+where the transcription split a held note. Leave them alone unless asked.
+
 ## Notes switched off
 
 To learn a lighter version first, the owner can switch single notes off from the note menu (#52): they

@@ -116,3 +116,18 @@ export const mutedNotes = pgTable(
   },
   (t) => [unique('muted_notes_lesson_note').on(t.lessonId, t.noteId)],
 );
+
+/**
+ * Notes the user merged into one long note (#64): re-struck notes of one key that should be a single
+ * held note. The lesson's notes stay as transcribed; clients apply the merges on top (core
+ * `applyMerges`), so every merge can be undone and agents can see what the owner corrected.
+ */
+export const noteMerges = pgTable('note_merges', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  lessonId: uuid('lesson_id')
+    .notNull()
+    .references(() => lessons.id, { onDelete: 'cascade' }),
+  /** Stable note ids (`LessonNote.id`), in lesson order; the first one carries the merged note. */
+  noteIds: jsonb('note_ids').$type<string[]>().notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});

@@ -19,12 +19,14 @@ import {
   type Lesson,
   type LessonNote,
   type LessonSummary,
+  type NoteMerge,
+  canMerge,
   type PreparedLesson,
   type ProgressStatus,
 } from '@piano-steps/core';
 import { and, asc, desc, eq, sql } from 'drizzle-orm';
 import type { Db } from './db/client.ts';
-import { feedback, fragmentNotes, fragments, guideOverrides, lessons, mutedNotes, progress } from './db/schema.ts';
+import { feedback, fragmentNotes, fragments, guideOverrides, lessons, mutedNotes, noteMerges, progress } from './db/schema.ts';
 
 type LessonRow = typeof lessons.$inferSelect;
 type FragmentRow = typeof fragments.$inferSelect;
@@ -313,6 +315,46 @@ export async function muteNote(db: Db, idOrSlug: string, noteId: string): Promis
 export async function unmuteNote(db: Db, idOrSlug: string, noteId: string): Promise<void> {
   const row = await findRow(db, idOrSlug);
   await db.delete(mutedNotes).where(and(eq(mutedNotes.lessonId, row.id), eq(mutedNotes.noteId, noteId)));
+}
+
+// ── note merges (#64) ───────────────────────────────────────────────────────
+
+type MergeRow = typeof noteMerges.$inferSelect;
+const toMerge = (r: MergeRow): NoteMerge => ({ id: r.id, noteIds: r.noteIds, createdAt: r.createdAt.toISOString() });
+
+export async function listMerges(db: Db, idOrSlug: string): Promise<NoteMerge[]> {
+  const row = await findRow(db, idOrSlug);
+  const rows = await db.select().from(noteMerges).where(eq(noteMerges.lessonId, row.id)).orderBy(asc(noteMerges.createdAt));
+  return rows.map(toMerge);
+}
+
+/**
+ * Merge notes of one key into one long note. A note already in a merge pulls that whole merge in, so
+ * merging step by step (a + b, then + c) ends as one merge; the older merges it absorbed are removed.
+ */
+export async function createMerge(db: Db, idOrSlug: string, noteIds: string[]): Promise<NoteMerge> {
+  const row = await findRow(db, idOrSlug);
+  const byId = new Map(row.notes.filter((n) => n.id).map((n) => [n.id!, n]));
+  const missing = noteIds.filter((id) => !byId.has(id));
+  if (missing.length) throw new NotFound(`Lesson "${row.slug}" has no note ${missing.map((id) => `"${id}"`).join(', ')}`);
+  const existing = await db.select().from(noteMerges).where(eq(noteMerges.lessonId, row.id));
+  const absorbed = existing.filter((m) => m.noteIds.some((id) => noteIds.includes(id)));
+  const ids = [...new Set([...noteIds, ...absorbed.flatMap((m) => m.noteIds)])];
+  const notes = ids.map((id) => byId.get(id)).filter((n): n is LessonNote => !!n).sort((a, b) => a.start - b.start);
+  if (notes.length < 2) throw new Invalid(['A merge needs at least two different notes']);
+  const bad = notes.slice(1).filter((n) => !canMerge(notes[0], n));
+  if (bad.length) throw new Invalid(['Only notes of the same key (and hand) can be merged']);
+  for (const m of absorbed) await db.delete(noteMerges).where(eq(noteMerges.id, m.id));
+  const [r] = await db.insert(noteMerges).values({ lessonId: row.id, noteIds: notes.map((n) => n.id!) }).returning();
+  return toMerge(r);
+}
+
+/** Undo a merge. False when there was none. */
+export async function deleteMerge(db: Db, idOrSlug: string, mergeId: string): Promise<boolean> {
+  const row = await findRow(db, idOrSlug);
+  if (!UUID_RE.test(mergeId)) return false;
+  const gone = await db.delete(noteMerges).where(and(eq(noteMerges.lessonId, row.id), eq(noteMerges.id, mergeId))).returning();
+  return gone.length > 0;
 }
 
 // ── feedback ────────────────────────────────────────────────────────────────

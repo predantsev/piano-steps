@@ -1,6 +1,6 @@
 // Variant A — "Falling notes" (Synthesia-style): coloured bars fall onto the keys; loop, slow-down,
 // hands, and a wait mode that stops at every step until the user has played it on the real piano.
-import { notesInRange, pitchName, type Fragment, type FragmentProgress, type LessonNote } from '@piano-steps/core';
+import { canMerge, notesInRange, pitchName, type Fragment, type FragmentProgress, type LessonNote } from '@piano-steps/core';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import * as Tone from 'tone';
 import { PianoKeyboard, type KeyHighlight } from '../../ui/PianoKeyboard.tsx';
@@ -104,6 +104,9 @@ export default function FallingNotes({
   saveFragmentNote,
   mutedNotes,
   setNoteMuted,
+  noteMerges = [],
+  mergeNotes,
+  unmergeNotes,
 }: VariantProps) {
   // Notes switched off by the user (#52): one Set per change, so the engine sees a new value.
   const skip = useMemo(() => new Set(mutedNotes ?? []), [mutedNotes]);
@@ -366,6 +369,7 @@ export default function FallingNotes({
           colors: colorsRef.current,
           noteNames: noteNamesRef.current,
           focusTime: marks.focusTime,
+          selected: pickRef.current,
         });
       const sig = marksSignature(marks.keys);
       if (sig !== sigRef.current) {
@@ -388,6 +392,49 @@ export default function FallingNotes({
 
   // Tap a falling bar: it pauses, sounds, and opens the note menu (hear / report / fix later).
   const [menu, setMenu] = useState<{ note: LessonNote; x: number; y: number } | null>(null);
+
+  // Merging re-struck notes (#64): ⌥ + click picks notes of one key, the bar under them merges them.
+  const pickRef = useRef<Set<string>>(new Set());
+  const [pick, setPick] = useState<{ notes: LessonNote[]; x: number; y: number } | null>(null);
+  const [toast, setToast] = useState<{ text: string; headId: string; at: number } | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const clearPick = () => {
+    pickRef.current = new Set();
+    setPick(null);
+    paintRef.current();
+  };
+  const doMerge = async (notes: LessonNote[]) => {
+    if (!mergeNotes) return;
+    const ids = notes.map((n) => n.id!).filter(Boolean);
+    await mergeNotes(ids);
+    const head = [...notes].sort((a, b) => a.start - b.start)[0];
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToast({ text: `${s(lang, 'merged')}: ${pitchName(head.pitch, settings.noteNames)} ×${notes.length}`, headId: head.id!, at: Date.now() });
+    toastTimer.current = setTimeout(() => setToast(null), 8000);
+  };
+  // Let the merge be heard at once: the merged note, its whole length. After the engine for the merged
+  // lesson has settled (its setSpan halts and silences everything), hence an effect, not inline.
+  const heardMerge = useRef(0);
+  useEffect(() => {
+    if (!toast || heardMerge.current === toast.at) return;
+    const head = lesson.notes.find((n) => n.id === toast.headId);
+    if (!head) return;
+    heardMerge.current = toast.at;
+    void player.unlock();
+    player.playChord([head.pitch], Math.min(4, Math.max(0.3, head.duration / prefs.rate)), head.velocity ?? 0.8);
+  }, [toast, lesson, player, prefs.rate]);
+  const mergeOf = (id: string | undefined) => (id ? noteMerges.find((m) => m.noteIds[0] === id) : undefined);
+  /** The nearest note of the same key (and hand) after / before `n`, within 4 s. */
+  const neighbour = (n: LessonNote, dir: 1 | -1): LessonNote | undefined => {
+    let best: LessonNote | undefined;
+    for (const o of lesson.notes) {
+      if (!canMerge(n, o) || !o.id) continue;
+      const d = dir > 0 ? o.start - n.start : n.start - o.start;
+      if (d <= 0.001 || d > 4) continue;
+      if (!best || (dir > 0 ? o.start < best.start : o.start > best.start)) best = o;
+    }
+    return best;
+  };
   const closeMenu = useCallback(() => setMenu(null), []);
   // Dragging sideways on the lane moves by steps, live (right = forward, #54); a tap — decided on
   // release, so a drag that starts on a bar does not open its menu — hits a bar.
@@ -421,13 +468,13 @@ export default function FallingNotes({
     onLanePointerMove(e); // a quick flick may come with no move events
     swipeRef.current = null;
     if (start.scrub) return engine.endScrub();
-    if (Math.hypot(e.clientX - start.x, e.clientY - start.y) <= TAP_SLOP_PX) tapLane(e.currentTarget, start.x, start.y);
+    if (Math.hypot(e.clientX - start.x, e.clientY - start.y) <= TAP_SLOP_PX) tapLane(e.currentTarget, start.x, start.y, e.altKey);
   };
   const onLanePointerCancel = () => {
     if (swipeRef.current?.scrub) engine.endScrub();
     swipeRef.current = null;
   };
-  const tapLane = (canvas: HTMLCanvasElement, clientX: number, clientY: number) => {
+  const tapLane = (canvas: HTMLCanvasElement, clientX: number, clientY: number, alt = false) => {
     const box = canvas.getBoundingClientRect();
     const x = clientX - box.left;
     const y = clientY - box.top;
@@ -438,6 +485,22 @@ export default function FallingNotes({
       const r = barRect(b, geo);
       if (!r || x < r.x || x > r.x + r.w || y < r.top || y > r.bottom) continue;
       if (!hit || r.black) hit = b; // black keys are drawn on top
+    }
+    if (alt && mergeNotes) {
+      // ⌥ + click: pick notes of one key to merge; a note of another key starts a new pick
+      const n = hit?.note;
+      if (!n?.id) return clearPick();
+      if (engine.phase === 'playing' || engine.phase === 'preroll') engine.pause();
+      const cur = pick?.notes ?? [];
+      const next = cur.some((x) => x.id === n.id)
+        ? cur.filter((x) => x.id !== n.id)
+        : cur.length && canMerge(cur[0], n)
+          ? [...cur, n]
+          : [n];
+      pickRef.current = new Set(next.map((x) => x.id!));
+      setPick(next.length ? { notes: next, x: clientX, y: clientY } : null);
+      paintRef.current();
+      return;
     }
     if (hit) {
       void player.unlock();
@@ -743,8 +806,64 @@ export default function FallingNotes({
                   ? (m) => setNoteMuted(menu.note.id!, m)
                   : undefined
               }
+              merge={
+                mergeNotes && menu.note.id
+                  ? (() => {
+                      const n = menu.note;
+                      const nx = neighbour(n, 1);
+                      const pv = neighbour(n, -1);
+                      const m = mergeOf(n.id);
+                      return {
+                        next: nx ? { gap: nx.start - (n.start + n.duration), run: () => doMerge([n, nx]) } : undefined,
+                        prev: pv ? { gap: n.start - (pv.start + pv.duration), run: () => doMerge([pv, n]) } : undefined,
+                        undo: m && unmergeNotes ? () => unmergeNotes(m.id) : undefined,
+                      };
+                    })()
+                  : undefined
+              }
               onClose={closeMenu}
             />
+          )}
+          {pick && (
+            <div className="fl-pickbar card" style={{ left: pick.x, top: pick.y }} onPointerDown={(e) => e.stopPropagation()}>
+              <b>
+                {pitchName(pick.notes[0].pitch, settings.noteNames)} ×{pick.notes.length}
+              </b>
+              {pick.notes.length < 2 ? (
+                <span className="muted">{s(lang, 'mergePickHint')}</span>
+              ) : (
+                <button
+                  className="btn primary"
+                  onClick={() => {
+                    const notes = pick.notes;
+                    clearPick();
+                    void doMerge(notes);
+                  }}
+                >
+                  {s(lang, 'mergeDo')}
+                </button>
+              )}
+              <button className="btn ghost" aria-label={s(lang, 'close')} onClick={clearPick}>
+                ✕
+              </button>
+            </div>
+          )}
+          {toast && (
+            <div className="fl-toast card" role="status">
+              ✓ {toast.text}
+              {unmergeNotes && mergeOf(toast.headId) && (
+                <button
+                  className="btn"
+                  onClick={() => {
+                    const m = mergeOf(toast.headId);
+                    setToast(null);
+                    if (m) void unmergeNotes(m.id);
+                  }}
+                >
+                  ↶ {s(lang, 'undo')}
+                </button>
+              )}
+            </div>
           )}
           {empty ? (
             <div className="fl-pill">{s(lang, 'emptyFragment')}</div>

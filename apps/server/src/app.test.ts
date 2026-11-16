@@ -544,3 +544,30 @@ describe('muted notes (#52)', () => {
     await req('DELETE', `/api/lessons/twinkle-twinkle/notes/${a}/muted`);
   });
 });
+
+describe('note merges (#64)', () => {
+  it('merges notes of one key, extends a merge, rejects other keys, and undoes', async () => {
+    const lesson = (await (await req('GET', '/api/lessons/twinkle-twinkle')).json()) as { notes: { id: string; pitch: number; start: number }[] };
+    const byPitch = (p: number) => lesson.notes.filter((n) => n.pitch === p).sort((a, b) => a.start - b.start);
+    const [c1, c2, c3] = byPitch(60);
+    const other = lesson.notes.find((n) => n.pitch !== 60)!;
+
+    const made = await req('POST', '/api/lessons/twinkle-twinkle/note-merges', { noteIds: [c2.id, c1.id] });
+    expect(made.status).toBe(201);
+    const { merge } = (await made.json()) as { merge: { id: string; noteIds: string[] } };
+    expect(merge.noteIds).toEqual([c1.id, c2.id]);
+
+    const grown = (await (await req('POST', '/api/lessons/twinkle-twinkle/note-merges', { noteIds: [c2.id, c3.id] })).json()) as {
+      merge: { id: string; noteIds: string[] };
+    };
+    expect(grown.merge.noteIds).toEqual([c1.id, c2.id, c3.id]);
+    const list = async () => ((await (await req('GET', '/api/lessons/twinkle-twinkle/note-merges')).json()) as { merges: { id: string }[] }).merges;
+    expect((await list()).map((m) => m.id)).toEqual([grown.merge.id]);
+
+    expect((await req('POST', '/api/lessons/twinkle-twinkle/note-merges', { noteIds: [c1.id, other.id] })).status).toBe(400);
+    expect((await req('POST', '/api/lessons/twinkle-twinkle/note-merges', { noteIds: [c1.id, 'nope'] })).status).toBe(404);
+    expect((await req('DELETE', `/api/lessons/twinkle-twinkle/note-merges/${grown.merge.id}`)).status).toBe(204);
+    expect((await req('DELETE', `/api/lessons/twinkle-twinkle/note-merges/${grown.merge.id}`)).status).toBe(404);
+    expect(await list()).toEqual([]);
+  });
+});

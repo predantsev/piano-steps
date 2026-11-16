@@ -1,4 +1,4 @@
-import type { FeedbackKind, FragmentNote, FragmentNoteInput, FragmentProgress, Lesson, LessonSummary, ProgressStatus } from '@piano-steps/core';
+import { applyMerges, type FeedbackKind, type FragmentNote, type FragmentNoteInput, type FragmentProgress, type Lesson, type LessonSummary, type NoteMerge, type ProgressStatus } from '@piano-steps/core';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as api from './api.ts';
 import { LessonPlayer } from './audio/player.ts';
@@ -42,6 +42,7 @@ export default function App() {
   const [progress, setProgress] = useState<FragmentProgress[]>([]);
   const [fragmentNotes, setFragmentNotes] = useState<FragmentNote[]>([]);
   const [mutedNotes, setMutedNotes] = useState<string[]>([]);
+  const [noteMerges, setNoteMerges] = useState<NoteMerge[]>([]);
   const [fragmentPos, setFragmentPos] = useState<number | null>(null);
   const [dialog, setDialog] = useState<null | 'feedback' | 'original' | 'settings' | 'help'>(null);
   const closeDialog = useCallback(() => setDialog(null), []);
@@ -101,13 +102,14 @@ export default function App() {
       .getLesson(lessonRef)
       .then(async (l) => {
         if (cancelled) return;
-        player.load(l.notes);
+        setNoteMerges([]);
         setLesson(l);
         setFragmentPos(null);
         setFragmentNotes([]);
         void api.listFragmentNotes(l.slug).then(setFragmentNotes, () => {});
         setMutedNotes([]);
         void api.listMutedNotes(l.slug).then(setMutedNotes, () => {});
+        void api.listMerges(l.slug).then(setNoteMerges, () => {});
         setProgress(await api.getProgress(l.slug).catch(() => []));
       })
       .catch((e) => !cancelled && setError(String(e)));
@@ -145,6 +147,32 @@ export default function App() {
         const rest = ns.filter((n) => n.fragmentPosition !== position);
         return saved ? [...rest, saved].sort((a, b) => a.fragmentPosition - b.fragmentPosition) : rest;
       });
+    },
+    [lesson],
+  );
+
+  // The lesson as played: the owner's merges applied on top of the transcription (#64).
+  const played = useMemo(
+    () => (lesson && noteMerges.length ? { ...lesson, notes: applyMerges(lesson.notes, noteMerges) } : lesson),
+    [lesson, noteMerges],
+  );
+  useEffect(() => {
+    if (played) player.load(played.notes);
+  }, [player, played]);
+
+  const mergeNotes = useCallback(
+    async (noteIds: string[]) => {
+      if (!lesson) throw new Error('no lesson');
+      const merge = await api.createMerge(lesson.slug, noteIds);
+      setNoteMerges((ms) => [...ms.filter((m) => !m.noteIds.some((id) => merge.noteIds.includes(id))), merge]);
+    },
+    [lesson],
+  );
+  const unmergeNotes = useCallback(
+    async (id: string) => {
+      if (!lesson) throw new Error('no lesson');
+      await api.deleteMerge(lesson.slug, id);
+      setNoteMerges((ms) => ms.filter((m) => m.id !== id));
     },
     [lesson],
   );
@@ -331,7 +359,7 @@ export default function App() {
           <Suspense fallback={<p data-loading style={{ padding: 16 }}>{t(lang, 'loading')}</p>}>
             <Variant
               key={variantKey}
-              lesson={lesson}
+              lesson={played ?? lesson}
               player={player}
               input={input}
               settings={settings}
@@ -345,6 +373,9 @@ export default function App() {
               saveFragmentNote={saveFragmentNote}
               mutedNotes={mutedNotes}
               setNoteMuted={setNoteMuted}
+              noteMerges={noteMerges}
+              mergeNotes={mergeNotes}
+              unmergeNotes={unmergeNotes}
             />
           </Suspense>
         ) : (
@@ -364,6 +395,13 @@ export default function App() {
           notes={fragmentNotes}
           titleOf={(i) => `${t(lang, 'fragmentShort')} ${lesson.fragments[i]?.title ?? `#${i + 1}`}`}
           onNoteDone={(i) => saveFragmentNote(i, { text: '', later: false, tags: [] })}
+          edits={{
+            notes: lesson.notes,
+            merges: noteMerges,
+            muted: mutedNotes,
+            unmerge: unmergeNotes,
+            unmute: (id) => setNoteMuted(id, false),
+          }}
           onClose={() => setDialog(null)}
         />
       )}
