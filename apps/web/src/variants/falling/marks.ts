@@ -1,11 +1,9 @@
-import type { LessonNote, Step } from '@piano-steps/core';
+import { CHORD_WINDOW, type LessonNote, type Step } from '@piano-steps/core';
 import type { KeyHighlight, KeyMark } from '../../ui/PianoKeyboard.tsx';
 import type { Phase } from './engine.ts';
-import { nextOnsetBars, soundingBars, type Bar } from './timeline.ts';
+import { chordFrom, nextOnsetBars, soundingBars, type Bar } from './timeline.ts';
 
 const EPS = 1e-6;
-/** Onsets this close are one step (core `groupSteps`), so they light together when paused on it (#56). */
-const CHORD_TOL = 0.045;
 
 export interface MarkInput {
   phase: Phase;
@@ -55,20 +53,25 @@ export function keyMarks(m: MarkInput): Marks {
     focusTime = m.now;
   } else {
     const resting = m.phase === 'idle' || m.phase === 'done';
-    // Paused on a step: its notes may start a few ms apart (a played chord) — light them all, and ring
-    // the step after it, not the chord's own later notes.
-    const tol = m.phase === 'paused' ? CHORD_TOL : 0;
+    // Paused on a step: its notes may start a little apart (a played chord, the other hand up to 120 ms
+    // later — #56, #62) — light them all, and ring the step after it, not the chord's own later notes.
+    let onStep: Bar[] = [];
+    if (m.phase === 'paused') {
+      let first = Infinity;
+      for (const b of m.bars) if (b.active && b.start >= m.now - 1e-3 && b.start <= m.now + CHORD_WINDOW && b.start < first) first = b.start;
+      if (Number.isFinite(first)) onStep = chordFrom(m.bars, first);
+    }
     if (!resting) {
       const struck = new Map<number, number>(); // pitch → onset of the latest strike sounding now
-      for (const b of tol ? m.bars : soundingBars(m.bars, m.now)) {
-        if (!b.active || b.start > m.now + tol + EPS || m.now >= b.end - EPS) continue;
+      for (const b of [...soundingBars(m.bars, m.now), ...onStep]) {
         if ((struck.get(b.note.pitch) ?? -Infinity) > b.start) continue;
         struck.set(b.note.pitch, b.start);
         const sustain = !!m.flashFor && m.now - b.start > m.flashFor + EPS;
         keys.set(b.note.pitch, sustain ? { ...fill(b.note), sustain: true } : fill(b.note));
       }
     }
-    const upcoming = nextOnsetBars(m.bars, resting ? m.now - 1e-3 : m.now + tol);
+    const after = onStep.length ? Math.max(...onStep.map((b) => b.start)) : resting ? m.now - 1e-3 : m.now;
+    const upcoming = nextOnsetBars(m.bars, after);
     for (const b of upcoming) ring(keys, b.note);
     focusTime = m.phase === 'waiting' ? m.now : upcoming[0]?.start;
   }

@@ -1,4 +1,4 @@
-import { groupSteps, TIME_EPS, type LessonNote, type Step } from '@piano-steps/core';
+import { CHORD_WINDOW, CROSS_HAND_WINDOW, groupSteps, joinsStep, TIME_EPS, type LessonNote, type Step } from '@piano-steps/core';
 
 /** Which hand(s) the user is practising. The other hand is dimmed (bars) and muted (sound). */
 export type Hands = 'both' | 'R' | 'L';
@@ -91,17 +91,31 @@ export function soundingBars(bars: readonly Bar[], now: number): Bar[] {
   return bars.filter((b) => b.active && b.start <= now + EPS && now < b.end - EPS);
 }
 
-/** The next chord/key to press: active bars with the earliest onset after `after`, within `tol` of it. */
-export function nextOnsetBars(bars: readonly Bar[], after: number, tol = 0.045): Bar[] {
+/**
+ * The next chord/key to press: active bars of the earliest onset after `after`, grouped like the
+ * steps (same hand within 45 ms, the other hand within 120 ms — #62).
+ */
+export function nextOnsetBars(bars: readonly Bar[], after: number): Bar[] {
   let first = Infinity;
   for (const b of bars) if (b.active && b.start > after + EPS && b.start < first) first = b.start;
   if (!Number.isFinite(first)) return [];
-  return bars.filter((b) => b.active && b.start >= first - EPS && b.start - first <= tol);
+  return chordFrom(bars, first);
+}
+
+/** Active bars of the step whose first onset is `first`. */
+export function chordFrom(bars: readonly Bar[], first: number): Bar[] {
+  const cand = bars
+    .filter((b) => b.active && b.start >= first - EPS && b.start - first <= CROSS_HAND_WINDOW + EPS)
+    .sort((a, b) => a.start - b.start || a.note.pitch - b.note.pitch);
+  const out: Bar[] = [];
+  for (const b of cand)
+    if (joinsStep(first, out.map((x) => x.note), { ...b.note, start: b.start }, CHORD_WINDOW + EPS, CROSS_HAND_WINDOW + EPS)) out.push(b);
+  return out;
 }
 
 /** Wait-mode stops: the steps (single keys or chords) of the practised hand(s) inside the window. */
 export function waitSteps(windowed: readonly LessonNote[], hands: Hands, skip?: ReadonlySet<string>): Step[] {
-  return groupSteps(windowed.filter((n) => isActive(n, hands) && !(skip && n.id && skip.has(n.id))));
+  return groupSteps(windowed.filter((n) => isActive(n, hands) && !(skip && n.id && skip.has(n.id))), CHORD_WINDOW, CROSS_HAND_WINDOW);
 }
 
 /** Index of the first step at or after `t`; wraps to 0 when there is none. */

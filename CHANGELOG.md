@@ -3,6 +3,15 @@
 Every change that reaches the app is logged here: **what** changed and **why**, newest first,
 with its issue and PR. Rule and checklist: AGENTS.md § "Change log and the guide".
 
+## 2026-11-16
+
+- **Fix: a chord whose other hand comes up to 120 ms late is one step** (#62). In falling notes the
+  "next" ring, the step you stop on and the steps (Wait for me, ← / →) now take a note of the other
+  hand into the chord if it starts within 120 ms of it; the same hand keeps 45 ms, so fast runs do not
+  merge. Cards and Sheet + keys are unchanged. *Why:* the owner saw G#2 (left) ringed only after B3 +
+  E4 (right) of the same chord — the transcription had the bass ~70 ms late. Not a black-key issue:
+  across three lessons white and black keys get the ring equally early.
+
 ## 2026-11-13
 
 - **Falling notes: a held key shows only a square at the bottom** (#60). A strike lights the whole key

@@ -256,3 +256,25 @@ describe('a struck key flashes, then only its bottom square while held (#60)', (
     expect(m.keys.get(48)?.sustain).toBeUndefined();
   });
 });
+
+describe('the other hand of a chord a little late (#62)', () => {
+  const span = { start: 0, end: 3 };
+  // right hand B3 + E4 at 1.00, left hand G#2 70 ms later, right hand again at 1.08 (a fast run)
+  const chord = windowNotes([n(59, 1, 0.5, 'R'), n(64, 1.01, 0.5, 'R'), n(44, 1.07, 0.5, 'L'), n(66, 1.08, 0.3, 'R')], span);
+  const bars = visibleBars(chord, span, 0, 3, false, 'both');
+
+  it('rings the late left-hand note together with the right hand, not the same-hand note after it', () => {
+    const m = keyMarks({ phase: 'playing', bars, now: 0.5, pressed: new Set(), wrong: null, held: [] });
+    expect([...m.keys].filter(([, h]) => h.mark === 'next').map(([p]) => p).sort()).toEqual([44, 59, 64]);
+  });
+
+  it('is one step for Wait for me and the arrows', () => {
+    expect(waitSteps(chord, 'both').map((s) => s.pitches)).toEqual([[44, 59, 64], [66]]);
+  });
+
+  it('paused on the step lights all three and rings the next', () => {
+    const m = keyMarks({ phase: 'paused', bars, now: 1, pressed: new Set(), wrong: null, held: [] });
+    expect([44, 59, 64].map((p) => m.keys.get(p)?.mark)).toEqual(['L', 'R', 'R']);
+    expect(m.keys.get(66)?.mark).toBe('next');
+  });
+});
